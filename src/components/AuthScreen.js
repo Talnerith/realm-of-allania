@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
-import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader } from 'lucide-react';
+import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader, LogOut } from 'lucide-react';
 
 export default function AuthScreen() {
-  const { login, signup, resendVerification, user } = useGame();
+  const { login, signup, resendVerification, logout, user } = useGame();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [username, setUsername] = useState(''); // Only for signup
+  const [username, setUsername] = useState(''); 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+
+  // Auto-fix: If an anonymous user is stuck, log them out automatically
+  useEffect(() => {
+    if (user && user.isAnonymous) {
+        logout();
+    }
+  }, [user]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,7 +32,6 @@ export default function AuthScreen() {
       }
     } catch (err) {
       console.error(err);
-      // Simplify Firebase error messages
       if (err.code === 'auth/invalid-credential') setError("Incorrect email or password.");
       else if (err.code === 'auth/email-already-in-use') setError("Email already taken.");
       else if (err.code === 'auth/weak-password') setError("Password must be at least 6 characters.");
@@ -44,8 +50,8 @@ export default function AuthScreen() {
     }
   };
 
-  // --- View: Verification Required ---
-  if (user && !user.emailVerified) {
+  // --- View: Verification Required (For real users who haven't clicked the link) ---
+  if (user && !user.emailVerified && !user.isAnonymous) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-200">
         <div className="max-w-md w-full bg-slate-900 border border-amber-900/50 rounded-xl p-8 text-center shadow-2xl">
@@ -66,9 +72,15 @@ export default function AuthScreen() {
              </button>
            )}
            
-           <button onClick={() => window.location.reload()} className="text-amber-500 hover:text-amber-400 text-sm underline">
-             I've verified it, let me in!
-           </button>
+           <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-slate-800">
+                <button onClick={() => window.location.reload()} className="text-amber-500 hover:text-amber-400 text-sm font-bold">
+                    I have verified it, let me in!
+                </button>
+                
+                <button onClick={logout} className="text-slate-500 hover:text-white text-sm flex items-center justify-center gap-2">
+                    <LogOut className="w-4 h-4" /> Sign Out / Use Different Email
+                </button>
+           </div>
         </div>
       </div>
     );
@@ -77,7 +89,6 @@ export default function AuthScreen() {
   // --- View: Login / Signup Form ---
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute inset-0 bg-[url('/map.jpg')] bg-cover opacity-10 blur-sm"></div>
       
       <div className="max-w-md w-full bg-slate-900/90 border border-amber-900/50 rounded-xl p-8 shadow-2xl relative z-10 backdrop-blur-md">
@@ -90,7 +101,6 @@ export default function AuthScreen() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-           {/* Username Field (Signup Only) */}
            {!isLogin && (
              <div className="relative">
                <User className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
@@ -129,7 +139,6 @@ export default function AuthScreen() {
              />
            </div>
 
-           {/* Error Display */}
            {error && (
              <div className="bg-red-900/20 border border-red-900/50 text-red-400 text-sm p-3 rounded flex items-center gap-2">
                <AlertCircle className="w-4 h-4 shrink-0" />
