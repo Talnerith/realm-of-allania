@@ -96,7 +96,7 @@ export default function AuthScreen() {
            <div className="inline-flex p-3 rounded-full bg-slate-950 border border-amber-900/50 mb-4">
              <Crown className="w-8 h-8 text-amber-500" />
            </div>
-           <h1 className="text-3xl font-serif font-bold text-amber-100">Realm of Aethelraed</h1>
+           <h1 className="text-3xl font-serif font-bold text-amber-100">Realm of Allania</h1>
            <p className="text-slate-500 text-sm mt-2">Enter the gates, adventurer.</p>
         </div>
 

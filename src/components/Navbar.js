@@ -22,7 +22,7 @@ export default function Navbar({ setView, onSearch }) {
       >
         <Crown className="w-6 h-6 text-amber-500 group-hover:text-amber-400 transition-colors" />
         <h1 className="text-xl font-serif font-bold tracking-wide text-amber-100 hidden md:block group-hover:text-white transition-colors">
-          REALM OF AETHELRAED
+          REALM OF ALLANIA
         </h1>
       </div>
       
