@@ -1,7 +1,9 @@
-import { Crown, Search, Book } from 'lucide-react';
+import { Crown, Search, Book, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
+import { useGame } from '@/context/GameContext';
 
 export default function Navbar({ setView, onSearch }) {
+  const { user, logout } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = (e) => {
@@ -46,10 +48,25 @@ export default function Navbar({ setView, onSearch }) {
           </button>
       </div>
       
-      {/* Status Indicator */}
-      <div className="flex items-center gap-2 text-sm text-slate-500 shrink-0">
-        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span className="hidden md:inline">Online</span>
+      {/* User / Logout Area */}
+      <div className="flex items-center gap-6 text-sm text-slate-500 shrink-0">
+        {/* User Status */}
+        <div className="hidden md:flex items-center gap-2 cursor-default" title={user?.email}>
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-slate-400 font-medium max-w-[150px] truncate">
+                {user?.displayName || 'Traveler'}
+            </span>
+        </div>
+        
+        {/* Logout Button */}
+        <button 
+            onClick={logout}
+            className="flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors"
+            title="Sign Out"
+        >
+            <LogOut className="w-5 h-5" />
+            <span className="hidden md:inline">Sign Out</span>
+        </button>
       </div>
     </header>
   );
