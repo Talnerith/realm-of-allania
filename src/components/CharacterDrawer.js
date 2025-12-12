@@ -8,7 +8,7 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID, RACES, CLASSES } from '@/lib/constants';
 import { 
   Shield, ChevronDown, ChevronUp, Edit3, Plus, 
-  X, Trash2, AlertCircle, AlertTriangle, ImageIcon
+  X, Trash2, AlertCircle, AlertTriangle, ImageIcon, Loader
 } from 'lucide-react';
 
 export default function CharacterDrawer() {
@@ -17,6 +17,7 @@ export default function CharacterDrawer() {
   // UI State
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState('view'); // 'view', 'create', 'edit', 'delete'
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Form State
   const [formData, setFormData] = useState({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '' });
@@ -31,6 +32,7 @@ export default function CharacterDrawer() {
     setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '' });
     setCreateCodex(true);
     setFormError('');
+    setIsSubmitting(false);
   };
 
   const openCreator = () => { resetForm(); setMode('create'); };
@@ -56,11 +58,18 @@ export default function CharacterDrawer() {
 
   const handleCreate = async () => {
     if (!formData.name) return setFormError('Name is required');
+    if (!user) return setFormError('You must be logged in.');
+
+    setIsSubmitting(true);
+    setFormError('');
+
     try {
+      // 1. Create Character
       const charRef = await addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'characters'), {
         ...formData, createdAt: serverTimestamp()
       });
 
+      // 2. Create Codex (Optional)
       if (createCodex) {
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
           title: formData.name,
@@ -73,16 +82,33 @@ export default function CharacterDrawer() {
           updatedBy: 'System'
         });
       }
+
+      // Success!
+      resetForm();
       setMode('view');
-    } catch (e) { console.error(e); setFormError('Creation failed'); }
+      setActiveCharId(charRef.id);
+
+    } catch (e) { 
+      console.error(e); 
+      setFormError(`Error: ${e.message}`); 
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleUpdate = async () => {
     if (!editingId) return;
+    setIsSubmitting(true);
     try {
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
       setMode('view');
-    } catch (e) { console.error(e); }
+      setEditingId(null);
+    } catch (e) { 
+        console.error(e);
+        setFormError(`Update failed: ${e.message}`);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -90,15 +116,12 @@ export default function CharacterDrawer() {
     const char = characters.find(c => c.id === deleteId);
     if (!char) return;
     
-    // Immediate UI Optimistic Update
-    setMode('view');
-    if (activeCharId === deleteId) setActiveCharId(null);
+    setIsSubmitting(true);
 
     try {
-        // 1. Delete from Roster
         await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
         
-        // 2. Batch Cleanup
+        // Batch Cleanup
         const batch = writeBatch(db);
         
         // Archive Codex
@@ -116,7 +139,17 @@ export default function CharacterDrawer() {
         }));
 
         await batch.commit();
-    } catch (e) { console.error("Cleanup error:", e); }
+        
+        // Success
+        setMode('view');
+        if (activeCharId === deleteId) setActiveCharId(null);
+
+    } catch (e) { 
+        console.error("Cleanup error:", e);
+        setFormError(`Delete failed: ${e.message}`);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   return (
@@ -196,13 +229,18 @@ export default function CharacterDrawer() {
                             )}
                             <div className="flex justify-end gap-3">
                                 <button onClick={() => setMode('view')} className="text-slate-400 hover:text-white px-3">Cancel</button>
-                                <button onClick={mode === 'create' ? handleCreate : handleUpdate} className="bg-amber-700 hover:bg-amber-600 text-white px-4 py-2 rounded">
+                                <button 
+                                  onClick={mode === 'create' ? handleCreate : handleUpdate} 
+                                  disabled={isSubmitting}
+                                  className="bg-amber-700 hover:bg-amber-600 disabled:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2"
+                                >
+                                    {isSubmitting && <Loader className="w-4 h-4 animate-spin"/>}
                                     {mode === 'create' ? 'Summon' : 'Save Changes'}
                                 </button>
                             </div>
                         </div>
                     </div>
-                    {formError && <p className="text-red-500 text-xs mt-2 absolute bottom-6 left-6">{formError}</p>}
+                    {formError && <p className="text-red-500 text-xs mt-2 absolute bottom-6 left-6 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> {formError}</p>}
                 </div>
             )}
 
@@ -217,16 +255,17 @@ export default function CharacterDrawer() {
                        <AlertTriangle className="w-12 h-12 text-red-500 mb-2" />
                        {!confirmDeleteStep ? (
                            <>
-                               <p className="text-slate-300 text-sm mb-4">Select a character to permanently delete. Posts will be marked as [Deleted].</p>
+                               <p className="text-slate-300 text-sm mb-4">Select a character to permanently delete from your roster. Their posts will be preserved but marked as [Deleted].</p>
                                <div className="flex gap-3 w-full max-w-md">
                                   <select 
                                      className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-red-500 focus:outline-none"
                                      value={deleteId}
                                      onChange={(e) => setDeleteId(e.target.value)}
                                   >
+                                     <option value="">-- Select Character --</option>
                                      {characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                                   </select>
-                                  <button onClick={() => setConfirmDeleteStep(true)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">Delete</button>
+                                  <button onClick={() => setConfirmDeleteStep(true)} disabled={!deleteId} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded">Delete</button>
                                 </div>
                             </>
                        ) : (
@@ -235,10 +274,13 @@ export default function CharacterDrawer() {
                                 <p className="text-slate-400 text-sm mb-4">This action cannot be undone.</p>
                                 <div className="flex gap-3">
                                     <button onClick={() => setConfirmDeleteStep(false)} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
-                                    <button onClick={handleDelete} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">Yes, Delete Forever</button>
+                                    <button onClick={handleDelete} disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2">
+                                      {isSubmitting && <Loader className="w-4 h-4 animate-spin"/>} Yes, Delete Forever
+                                    </button>
                                 </div>
                            </>
                        )}
+                       {formError && <p className="text-red-400 text-xs mt-4">{formError}</p>}
                     </div>
                 </div>
             )}
