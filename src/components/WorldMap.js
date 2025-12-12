@@ -16,18 +16,29 @@ export default function WorldMap({ setView, setActiveRegion }) {
   const { user } = useGame();
   const [regionLastActivity, setRegionLastActivity] = useState({});
   const [userReadHistory, setUserReadHistory] = useState({});
+  const [customNames, setCustomNames] = useState({}); // New State for DB names
 
-  // 1. Fetch Activity & Read History
+  // 1. Fetch Data
   useEffect(() => {
     if (!user) return;
 
-    // Listen to ALL threads for activity updates
+    // A. Listen for Custom Region Names
+    const unsubNames = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata'), (snap) => {
+        const names = {};
+        snap.docs.forEach(doc => {
+            if (doc.data().name) {
+                names[doc.id] = doc.data().name;
+            }
+        });
+        setCustomNames(names);
+    });
+
+    // B. Listen for Thread Activity
     const unsubActivity = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'), (snap) => {
       const activity = {};
       snap.docs.forEach(doc => {
         const d = doc.data();
         const t = d.updatedAt?.toMillis() || 0;
-        // Keep track of the LATEST timestamp for each region
         if (!activity[d.regionId] || t > activity[d.regionId]) {
             activity[d.regionId] = t;
         }
@@ -35,7 +46,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
       setRegionLastActivity(activity);
     });
 
-    // Listen to User's personal read history
+    // C. Listen for Read History
     const unsubRead = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts'), (snap) => {
       const history = {};
       snap.docs.forEach(doc => history[doc.id] = doc.data().lastRead?.toMillis() || 0);
@@ -43,6 +54,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
     });
 
     return () => {
+        unsubNames();
         unsubActivity();
         unsubRead();
     };
@@ -50,11 +62,12 @@ export default function WorldMap({ setView, setActiveRegion }) {
 
   // 2. Handle Click
   const handleRegionClick = async (i) => {
-      const regionName = getRegionName(i);
+      // Prefer custom name, fallback to default
+      const regionName = customNames[i.toString()] || getRegionName(i);
+      
       setActiveRegion({ id: i, name: regionName });
       setView('region');
 
-      // Mark as read immediately in the database
       if (user) {
           await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', i.toString()), { 
               lastRead: serverTimestamp() 
@@ -65,24 +78,21 @@ export default function WorldMap({ setView, setActiveRegion }) {
   return (
     <div className="relative w-full h-full overflow-auto bg-black custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
       <div className="relative m-auto inline-block shadow-2xl shadow-black rounded-lg border border-amber-900/50 select-none shrink-0">
-        
-        {/* The Map Image */}
         <img 
             src={MAP_IMAGE_URL} 
             alt="World Map" 
             className="max-w-[1400px] w-full h-auto block min-w-[800px] bg-slate-800"
         />
-        
-        {/* The Grid Overlay */}
         <div 
           className="absolute inset-0 grid" 
           style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)` }}
         >
           {Array.from({ length: TOTAL_REGIONS }).map((_, i) => {
-            const regionName = getRegionName(i);
             const playable = isRegionPlayable(i);
             
-            // Calc Unread Status
+            // Dynamic Name Logic
+            const regionName = customNames[i.toString()] || getRegionName(i);
+            
             const lastActivity = regionLastActivity[i.toString()] || 0;
             const lastRead = userReadHistory[i.toString()] || 0;
             const isUnread = lastActivity > lastRead;
@@ -102,9 +112,8 @@ export default function WorldMap({ setView, setActiveRegion }) {
                   </div>
                 )}
                 
-                {/* Tooltip on Hover */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <span className="bg-black/90 text-amber-100 text-[10px] leading-tight px-1.5 py-1 rounded border border-amber-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5">
+                  <span className="bg-black/90 text-amber-100 text-[10px] leading-tight px-1.5 py-1 rounded border border-amber-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[120px] truncate">
                     {regionName} 
                     {isUnread && <span className="text-cyan-400 ml-1">●</span>}
                   </span>

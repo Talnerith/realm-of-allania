@@ -14,12 +14,10 @@ import {
 export default function CharacterDrawer() {
   const { user, characters, activeCharId, setActiveCharId } = useGame();
   
-  // UI State
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState('view'); // 'view', 'create', 'edit', 'delete'
+  const [mode, setMode] = useState('view');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Form State
   const [formData, setFormData] = useState({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '' });
   const [createCodex, setCreateCodex] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -27,7 +25,6 @@ export default function CharacterDrawer() {
   const [confirmDeleteStep, setConfirmDeleteStep] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // --- Helpers ---
   const resetForm = () => {
     setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '' });
     setCreateCodex(true);
@@ -54,23 +51,29 @@ export default function CharacterDrawer() {
       setMode('delete');
   };
 
-  // --- Actions ---
-
   const handleCreate = async () => {
+    console.log("1. Summon Button Clicked"); // DEBUG LOG
+    
     if (!formData.name) return setFormError('Name is required');
-    if (!user) return setFormError('You must be logged in.');
+    if (!user) {
+        console.error("User is not logged in!"); // DEBUG LOG
+        return setFormError('You must be logged in.');
+    }
 
     setIsSubmitting(true);
     setFormError('');
 
     try {
-      // 1. Create Character
+      console.log("2. Attempting to write to Firestore...", APP_ID); // DEBUG LOG
+      
       const charRef = await addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'characters'), {
         ...formData, createdAt: serverTimestamp()
       });
 
-      // 2. Create Codex (Optional)
+      console.log("3. Character Created with ID:", charRef.id); // DEBUG LOG
+
       if (createCodex) {
+        console.log("4. Creating Codex Page..."); // DEBUG LOG
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
           title: formData.name,
           category: 'Characters',
@@ -83,19 +86,21 @@ export default function CharacterDrawer() {
         });
       }
 
-      // Success!
+      console.log("5. Success! Closing form."); // DEBUG LOG
       resetForm();
       setMode('view');
       setActiveCharId(charRef.id);
 
     } catch (e) { 
-      console.error(e); 
+      console.error("CRITICAL ERROR:", e); // DEBUG LOG
       setFormError(`Error: ${e.message}`); 
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // ... (Keep handleUpdate and handleDelete exactly as they were in the previous file)
+  // Re-pasting them here for completeness to avoid "incomplete file" issues
   const handleUpdate = async () => {
     if (!editingId) return;
     setIsSubmitting(true);
@@ -103,59 +108,33 @@ export default function CharacterDrawer() {
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
       setMode('view');
       setEditingId(null);
-    } catch (e) { 
-        console.error(e);
-        setFormError(`Update failed: ${e.message}`);
-    } finally {
-        setIsSubmitting(false);
-    }
+    } catch (e) { console.error(e); setFormError(`Update failed: ${e.message}`); } 
+    finally { setIsSubmitting(false); }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     const char = characters.find(c => c.id === deleteId);
     if (!char) return;
-    
     setIsSubmitting(true);
-
     try {
         await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
-        
-        // Batch Cleanup
         const batch = writeBatch(db);
-        
-        // Archive Codex
         const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), where('relatedId', '==', deleteId));
         const codexSnap = await getDocs(codexQ);
-        codexSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), { 
-            title: `[Archived] ${char.name}`, category: 'Lore' 
-        }));
-
-        // Mark Posts
+        codexSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), { title: `[Archived] ${char.name}`, category: 'Lore' }));
         const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', deleteId));
         const postsSnap = await getDocs(postsQ);
-        postsSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', d.id), { 
-            characterName: `${char.name} [Deleted]`, characterImageUrl: '' 
-        }));
-
+        postsSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', d.id), { characterName: `${char.name} [Deleted]`, characterImageUrl: '' }));
         await batch.commit();
-        
-        // Success
         setMode('view');
         if (activeCharId === deleteId) setActiveCharId(null);
-
-    } catch (e) { 
-        console.error("Cleanup error:", e);
-        setFormError(`Delete failed: ${e.message}`);
-    } finally {
-        setIsSubmitting(false);
-    }
+    } catch (e) { console.error("Cleanup error:", e); setFormError(`Delete failed: ${e.message}`); } 
+    finally { setIsSubmitting(false); }
   };
 
   return (
     <div className={`fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-amber-700 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
-      
-      {/* Header */}
       <div onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between px-6 h-14 md:h-16 shrink-0 cursor-pointer bg-slate-900 hover:bg-slate-800 transition-colors">
         <div className="flex items-center gap-3">
             <Shield className="w-5 h-5 text-amber-500" />
@@ -173,11 +152,8 @@ export default function CharacterDrawer() {
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-slate-950/50">
          <div className="max-w-5xl mx-auto">
-            
-            {/* VIEW MODE */}
             {mode === 'view' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {characters.map(char => (
@@ -199,14 +175,10 @@ export default function CharacterDrawer() {
                     </button>
                 </div>
             )}
-
-            {/* CREATE / EDIT MODE */}
             {(mode === 'create' || mode === 'edit') && (
                 <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 relative">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-amber-100 font-bold flex items-center gap-2">
-                           {mode === 'create' ? <><Plus className="w-4 h-4"/> Create Identity</> : <><Edit3 className="w-4 h-4"/> Edit Identity</>}
-                        </h3>
+                        <h3 className="text-amber-100 font-bold flex items-center gap-2">{mode === 'create' ? <><Plus className="w-4 h-4"/> Create Identity</> : <><Edit3 className="w-4 h-4"/> Edit Identity</>}</h3>
                         <button onClick={() => setMode('view')}><X className="w-5 h-5 text-slate-500"/></button>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -221,70 +193,30 @@ export default function CharacterDrawer() {
                         <div className="flex flex-col h-full">
                             <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Description</label>
                             <textarea className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-amber-500 focus:outline-none text-sm resize-none mb-4" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} />
-                            {mode === 'create' && (
-                                <div className="flex items-center gap-2 mb-4">
-                                    <input type="checkbox" checked={createCodex} onChange={e => setCreateCodex(e.target.checked)} className="w-4 h-4" />
-                                    <label className="text-sm text-slate-400">Create Codex Entry?</label>
-                                </div>
-                            )}
-                            <div className="flex justify-end gap-3">
-                                <button onClick={() => setMode('view')} className="text-slate-400 hover:text-white px-3">Cancel</button>
-                                <button 
-                                  onClick={mode === 'create' ? handleCreate : handleUpdate} 
-                                  disabled={isSubmitting}
-                                  className="bg-amber-700 hover:bg-amber-600 disabled:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2"
-                                >
-                                    {isSubmitting && <Loader className="w-4 h-4 animate-spin"/>}
-                                    {mode === 'create' ? 'Summon' : 'Save Changes'}
-                                </button>
-                            </div>
+                            {mode === 'create' && (<div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={createCodex} onChange={e => setCreateCodex(e.target.checked)} className="w-4 h-4" /><label className="text-sm text-slate-400">Create Codex Entry?</label></div>)}
+                            <div className="flex justify-end gap-3"><button onClick={() => setMode('view')} className="text-slate-400 hover:text-white px-3">Cancel</button><button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isSubmitting} className="bg-amber-700 hover:bg-amber-600 disabled:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin"/>} {mode === 'create' ? 'Summon' : 'Save Changes'}</button></div>
                         </div>
                     </div>
                     {formError && <p className="text-red-500 text-xs mt-2 absolute bottom-6 left-6 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> {formError}</p>}
                 </div>
             )}
-
-            {/* DELETE MODE */}
             {mode === 'delete' && (
                 <div className="bg-slate-900 border border-red-900/50 rounded-xl p-6">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-red-400 font-bold flex items-center gap-2"><Trash2 className="w-5 h-5"/> Delete Character</h3>
-                        <button onClick={() => setMode('view')}><X className="w-5 h-5 text-slate-500"/></button>
-                    </div>
+                    <div className="flex justify-between items-center mb-6"><h3 className="text-red-400 font-bold flex items-center gap-2"><Trash2 className="w-5 h-5"/> Delete Character</h3><button onClick={() => setMode('view')}><X className="w-5 h-5 text-slate-500"/></button></div>
                     <div className="bg-red-950/30 border border-red-900 rounded p-4 flex flex-col items-center text-center">
                        <AlertTriangle className="w-12 h-12 text-red-500 mb-2" />
                        {!confirmDeleteStep ? (
                            <>
-                               <p className="text-slate-300 text-sm mb-4">Select a character to permanently delete from your roster. Their posts will be preserved but marked as [Deleted].</p>
-                               <div className="flex gap-3 w-full max-w-md">
-                                  <select 
-                                     className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-red-500 focus:outline-none"
-                                     value={deleteId}
-                                     onChange={(e) => setDeleteId(e.target.value)}
-                                  >
-                                     <option value="">-- Select Character --</option>
-                                     {characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                  </select>
-                                  <button onClick={() => setConfirmDeleteStep(true)} disabled={!deleteId} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded">Delete</button>
-                                </div>
+                               <p className="text-slate-300 text-sm mb-4">Select a character to permanently delete.</p>
+                               <div className="flex gap-3 w-full max-w-md"><select className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-red-500 focus:outline-none" value={deleteId} onChange={(e) => setDeleteId(e.target.value)}><option value="">-- Select --</option>{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><button onClick={() => setConfirmDeleteStep(true)} disabled={!deleteId} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded">Delete</button></div>
                             </>
                        ) : (
-                           <>
-                                <h4 className="text-red-200 font-bold text-lg mb-1">Are you sure?</h4>
-                                <p className="text-slate-400 text-sm mb-4">This action cannot be undone.</p>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setConfirmDeleteStep(false)} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button>
-                                    <button onClick={handleDelete} disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2">
-                                      {isSubmitting && <Loader className="w-4 h-4 animate-spin"/>} Yes, Delete Forever
-                                    </button>
-                                </div>
-                           </>
+                           <><h4 className="text-red-200 font-bold text-lg mb-1">Are you sure?</h4><p className="text-slate-400 text-sm mb-4">This action cannot be undone.</p><div className="flex gap-3"><button onClick={() => setConfirmDeleteStep(false)} className="px-4 py-2 text-slate-300 hover:text-white">Cancel</button><button onClick={handleDelete} disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin"/>} Yes, Delete</button></div></>
                        )}
                        {formError && <p className="text-red-400 text-xs mt-4">{formError}</p>}
                     </div>
                 </div>
             )}
-
          </div>
       </div>
     </div>

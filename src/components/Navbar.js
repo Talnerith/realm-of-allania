@@ -1,16 +1,25 @@
-import { Crown, Search, Book, LogOut, User } from 'lucide-react';
+import { Crown, Search, Book, LogOut, User, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useGame } from '@/context/GameContext';
 
 export default function Navbar({ setView, onSearch }) {
   const { user, logout } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (onSearch) {
         onSearch(searchQuery);
     }
+  };
+
+  const copyUserId = () => {
+      if (user?.uid) {
+          navigator.clipboard.writeText(user.uid);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+      }
   };
 
   return (
@@ -50,12 +59,13 @@ export default function Navbar({ setView, onSearch }) {
       
       {/* User / Logout Area */}
       <div className="flex items-center gap-6 text-sm text-slate-500 shrink-0">
-        {/* User Status */}
-        <div className="hidden md:flex items-center gap-2 cursor-default" title={user?.email}>
+        {/* User Status with Copy ID */}
+        <div className="hidden md:flex items-center gap-2 cursor-pointer group" onClick={copyUserId} title="Click to copy User ID for Admin">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-slate-400 font-medium max-w-[150px] truncate">
+            <span className="text-slate-400 font-medium max-w-[150px] truncate group-hover:text-amber-500 transition-colors">
                 {user?.displayName || 'Traveler'}
             </span>
+            {copied ? <Check className="w-3 h-3 text-emerald-500"/> : <Copy className="w-3 h-3 text-slate-600 group-hover:text-amber-500"/>}
         </div>
         
         {/* Logout Button */}
