@@ -6,7 +6,7 @@ export const GRID_COLS = 20;
 export const TOTAL_REGIONS = GRID_ROWS * GRID_COLS;
 
 // The "Default" App ID for Firestore. 
-export const APP_ID = 'default-app-id'; 
+export const APP_ID = 'realm-of-allania-v2'; 
 
 export const BASE_REGION_NAMES = [
   "Outer Void", "Table's Edge", "North Sea", "Frozen Waste", "Ice Floe", "Glacial Drift", "Northern Expanse", "Storm Front", "Mist Barrier", "Endless Horizon", "Far Reach", "Void", "Deep North", "Leviathan's Run", "Siren's Call", "Kraken's Deep", "Glacial Bay", "High Peak", "Dragon's Roost", "Wyrmtail Valley",
