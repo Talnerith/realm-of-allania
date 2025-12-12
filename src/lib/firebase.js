@@ -2,16 +2,21 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
+// We check if the variables exist to prevent silent crashes
 const firebaseConfig = {
-  apiKey: "AIzaSyAi3lsOJ6ReOFYLvL_YoPpOVsubJcrCAKM",
-  authDomain: "realm-of-aethelraed.firebaseapp.com",
-  projectId: "realm-of-aethelraed",
-  storageBucket: "realm-of-aethelraed.firebasestorage.app",
-  messagingSenderId: "1050764167568",
-  appId: "1:1050764167568:web:a5a693e13a308f77598b15",
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase only once
+// Safety Check: If keys are missing in production, warn the developer
+if (!firebaseConfig.projectId && typeof window !== 'undefined') {
+    console.error("CRITICAL: Firebase Environment Variables are missing. Check Vercel Settings.");
+}
+
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
 export const auth = getAuth(app);
