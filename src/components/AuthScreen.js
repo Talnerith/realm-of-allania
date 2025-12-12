@@ -8,6 +8,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState(''); 
+  const [honeypot, setHoneypot] = useState(''); // The Trap Field
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
@@ -22,6 +23,17 @@ export default function AuthScreen() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    // --- HONEYPOT CHECK ---
+    // If the hidden field has any text, it's a bot.
+    if (honeypot) {
+        console.warn("Bot detected. Action blocked.");
+        setLoading(true);
+        // Fake a delay so the bot thinks it's working
+        setTimeout(() => setLoading(false), 2000); 
+        return; 
+    }
+
     setLoading(true);
 
     try {
@@ -50,7 +62,7 @@ export default function AuthScreen() {
     }
   };
 
-  // --- View: Verification Required (For real users who haven't clicked the link) ---
+  // --- View: Verification Required ---
   if (user && !user.emailVerified && !user.isAnonymous) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-slate-200">
@@ -111,6 +123,16 @@ export default function AuthScreen() {
                  value={username}
                  onChange={(e) => setUsername(e.target.value)}
                  required
+               />
+               {/* THE HONEYPOT FIELD (Hidden from humans, visible to bots) */}
+               <input 
+                 type="text" 
+                 name="website_url_confirm" 
+                 className="absolute opacity-0 -z-10 h-0 w-0" 
+                 tabIndex={-1}
+                 autoComplete="off"
+                 value={honeypot}
+                 onChange={(e) => setHoneypot(e.target.value)}
                />
              </div>
            )}
