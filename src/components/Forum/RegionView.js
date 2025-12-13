@@ -8,7 +8,7 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Plus, MessageSquare, 
-  Users, ImageIcon, Loader, Edit3, Save, X, Circle
+  Users, ImageIcon, Loader, Edit3, Save, X
 } from 'lucide-react';
 
 const formatTimestamp = (firestoreTimestamp) => {
@@ -18,24 +18,29 @@ const formatTimestamp = (firestoreTimestamp) => {
 
 export default function RegionView({ region, setView, setActiveThread }) {
   const { user, userRole, characters, activeCharId } = useGame();
+  
+  // State
   const [threads, setThreads] = useState([]);
   const [regionMetadata, setRegionMetadata] = useState(null);
+  
+  // Edit States
   const [isEditingBanner, setIsEditingBanner] = useState(false);
   const [bannerInput, setBannerInput] = useState('');
+  
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newBanner, setNewBanner] = useState('');
   const [createCodexEntry, setCreateCodexEntry] = useState(false);
-  const [userReadHistory, setUserReadHistory] = useState({}); // Local read history
 
   // 1. Data Fetching
   useEffect(() => {
     if (!region || region.id === undefined) return;
 
-    // Metadata
+    // Fetch Metadata (Name & Banner)
     const metaRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString());
     const unsubMeta = onSnapshot(metaRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -50,7 +55,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
       }
     });
 
-    // Threads
+    // Fetch Threads
     const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'));
     const unsubThreads = onSnapshot(q, (snapshot) => {
       const t = [];
@@ -64,25 +69,32 @@ export default function RegionView({ region, setView, setActiveThread }) {
       setThreads(t);
     });
 
-    // Read History (For blue dots)
-    const unsubRead = onSnapshot(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts'), (snap) => {
-        const history = {};
-        snap.docs.forEach(doc => history[doc.id] = doc.data().lastRead?.toMillis() || 0);
-        setUserReadHistory(history);
-    });
-
-    return () => { unsubMeta(); unsubThreads(); unsubRead(); };
-  }, [region, user]);
+    return () => { unsubMeta(); unsubThreads(); };
+  }, [region]);
 
   // 2. Handlers
-  const handleSaveBanner = async () => { /* ... existing ... */ };
-  const handleSaveName = async () => { /* ... existing ... */ };
+  const handleSaveBanner = async () => {
+    if (!region) return;
+    try {
+      await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString()), { 
+        bannerUrl: bannerInput 
+      }, { merge: true });
+      setIsEditingBanner(false);
+    } catch (e) { console.error(e); }
+  };
 
-  // FIX: Better Error Message
+  const handleSaveName = async () => {
+    if (!region || !nameInput.trim()) return;
+    try {
+      await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString()), { 
+        name: nameInput 
+      }, { merge: true });
+      setIsEditingName(false);
+    } catch (e) { console.error(e); }
+  };
+
   const handleCreateThread = async () => {
-    if (!activeCharId) return alert("Please select a character from the roster before creating a thread.");
-    if (!newTitle || !newContent) return alert("Please fill out the title and content fields.");
-    
+    if (!activeCharId || !newTitle || !newContent) return alert("Please fill all fields.");
     const char = characters.find(c => c.id === activeCharId);
     const currentRegionName = regionMetadata?.name || region.name;
     
@@ -111,52 +123,179 @@ export default function RegionView({ region, setView, setActiveThread }) {
       });
 
       if (createCodexEntry) {
-         // ... existing codex logic ...
+        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
+          title: `Lore: ${currentRegionName}`,
+          category: 'Regions',
+          content: `Tales from **${currentRegionName}**...\n\nStarted by ${char.name}.\n\n${newContent}`,
+          gallery: [],
+          relatedId: region.id.toString(),
+          updatedAt: serverTimestamp(),
+          updatedBy: char.name
+        });
       }
 
       setNewTitle(''); setNewContent(''); setNewBanner(''); setIsCreating(false);
     } catch (e) { console.error("Error creating thread:", e); }
   };
 
-  const openThread = (thread) => {
-      setActiveThread(thread);
-      setView('thread');
-  };
-
-  if (!region || region.id === undefined) return <div className="p-10 flex justify-center"><Loader className="animate-spin"/></div>;
+  if (!region || region.id === undefined) {
+      return (
+        <div className="h-full flex items-center justify-center bg-slate-950 text-slate-500">
+           <div className="flex flex-col items-center gap-4">
+             <Loader className="w-8 h-8 animate-spin text-amber-500"/>
+             <p>Loading Region Data...</p>
+           </div>
+        </div>
+      );
+  }
 
   const bannerUrl = regionMetadata?.bannerUrl || null;
   const displayName = regionMetadata?.name || region.name;
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-linear-to-b from-slate-950 to-slate-900 pb-48">
-      {/* ... (Banner Section same as before) ... */}
+      {/* Banner Header */}
+      <div className="relative w-full h-48 md:h-64 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group/banner">
+         {bannerUrl ? (
+            <img src={bannerUrl} className="w-full h-full object-cover opacity-50" onError={(e) => e.target.style.display = 'none'}/>
+         ) : (
+            <div className="w-full h-full bg-linear-to-b from-slate-800 to-slate-950 opacity-50" />
+         )}
+         <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8 bg-linear-to-t from-slate-950 via-slate-950/50 to-transparent">
+            <div className="max-w-4xl mx-auto w-full flex items-end justify-between">
+                <div className="flex-1">
+                   <div className="flex items-center gap-2 text-amber-500 text-sm font-bold uppercase tracking-widest mb-1">
+                     <MapIcon className="w-4 h-4"/> Region {region.id}
+                   </div>
+                   
+                   {/* Name Editor - OPEN TO EVERYONE */}
+                   {isEditingName ? (
+                     <div className="flex items-center gap-2">
+                       <input 
+                         className="bg-black/50 border border-amber-500/50 text-3xl font-serif font-bold text-white px-2 py-1 rounded focus:outline-none w-full max-w-md"
+                         value={nameInput}
+                         onChange={(e) => setNameInput(e.target.value)}
+                         autoFocus
+                       />
+                       <button onClick={handleSaveName} className="p-2 bg-amber-700 hover:bg-amber-600 rounded text-white"><Save className="w-5 h-5"/></button>
+                       <button onClick={() => setIsEditingName(false)} className="p-2 bg-slate-700 hover:bg-slate-600 rounded text-white"><X className="w-5 h-5"/></button>
+                     </div>
+                   ) : (
+                     <div className="flex items-center gap-3 group/title">
+                        <h1 className="text-4xl md:text-5xl font-serif font-bold text-amber-100 drop-shadow-lg">{displayName}</h1>
+                        {user && (
+                          <button 
+                            onClick={() => setIsEditingName(true)} 
+                            className="text-slate-500 hover:text-amber-500 opacity-0 group-hover/title:opacity-100 transition-opacity"
+                            title="Rename Region"
+                          >
+                            <Edit3 className="w-5 h-5"/>
+                          </button>
+                        )}
+                     </div>
+                   )}
+                </div>
+
+                {/* Banner Edit - OPEN TO EVERYONE */}
+                {user && (
+                    <button 
+                    onClick={() => setIsEditingBanner(!isEditingBanner)}
+                    className="p-2 bg-slate-900/80 text-slate-400 hover:text-amber-500 rounded-full border border-slate-700 hover:border-amber-500 transition-all opacity-0 group-hover/banner:opacity-100"
+                    title="Change Banner"
+                    >
+                    <ImageIcon className="w-5 h-5" />
+                    </button>
+                )}
+            </div>
+         </div>
+      </div>
+
+      {isEditingBanner && (
+        <div className="bg-slate-900 border-b border-amber-900/30 p-4 animate-in slide-in-from-top-2">
+           <div className="max-w-4xl mx-auto flex gap-4 items-center">
+              <span className="text-sm text-amber-500 font-bold shrink-0">Banner URL:</span>
+              <input 
+                className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:border-amber-500 focus:outline-none"
+                placeholder="https://..."
+                value={bannerInput}
+                onChange={(e) => setBannerInput(e.target.value)}
+              />
+              <button onClick={handleSaveBanner} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save</button>
+           </div>
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="max-w-4xl mx-auto w-full p-4 md:p-8">
-        {/* ... (Header Buttons) ... */}
+        <div className="flex items-center gap-4 mb-6">
+            <button onClick={() => setView('map')} className="text-slate-400 hover:text-white flex items-center gap-1">
+              <ChevronLeft className="w-5 h-5" /> Map
+            </button>
+            <div className="flex-1"></div>
+            <button 
+              onClick={() => setIsCreating(!isCreating)}
+              className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white rounded flex items-center gap-2"
+            >
+              <Plus className="w-5 h-5" /> New Thread
+            </button>
+        </div>
 
-        {/* Thread List with Unread Dots */}
+        {isCreating && (
+          <div className="bg-slate-900/80 p-6 rounded-lg border border-amber-900 mb-8 backdrop-blur-sm">
+             <h3 className="text-amber-100 font-bold mb-4">Post a New Topic</h3>
+             <input 
+               className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-3 focus:border-amber-500 focus:outline-none"
+               placeholder="Thread Title..."
+               value={newTitle}
+               onChange={(e) => setNewTitle(e.target.value)}
+             />
+             <div className="flex gap-2 mb-3 items-center">
+                <ImageIcon className="w-5 h-5 text-slate-500" />
+                <input 
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:border-amber-500 focus:outline-none"
+                    placeholder="Optional: Thread Banner URL..."
+                    value={newBanner}
+                    onChange={(e) => setNewBanner(e.target.value)}
+                />
+             </div>
+             <textarea
+               className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-3 h-32 focus:border-amber-500 focus:outline-none"
+               placeholder={`What does ${characters.find(c => c.id === activeCharId)?.name || 'your character'} do?`}
+               value={newContent}
+               onChange={(e) => setNewContent(e.target.value)}
+             />
+             <div className="flex items-center gap-2 mb-4">
+               <input 
+                 type="checkbox" 
+                 checked={createCodexEntry} 
+                 onChange={(e) => setCreateCodexEntry(e.target.checked)}
+                 className="w-4 h-4"
+               />
+               <label className="text-sm text-slate-400">Add this lore to the Codex?</label>
+             </div>
+             <div className="flex justify-end gap-2">
+               <button onClick={() => setIsCreating(false)} className="text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+               <button onClick={handleCreateThread} className="bg-amber-700 hover:bg-amber-600 text-white px-4 py-2 rounded">Post Thread</button>
+             </div>
+          </div>
+        )}
+
         <div className="space-y-3">
             {threads.length === 0 ? (
-               <div className="text-center py-12 text-slate-500 italic bg-slate-900/30 rounded-lg border border-slate-800 border-dashed">The wind howls... there are no stories here yet.</div>
+               <div className="text-center py-12 text-slate-500 italic bg-slate-900/30 rounded-lg border border-slate-800 border-dashed">
+                 The wind howls... there are no stories here yet.
+               </div>
             ) : (
-               threads.map(thread => {
-                 const lastActivity = thread.updatedAt?.toMillis() || 0;
-                 const lastRead = userReadHistory[thread.id] || 0;
-                 const isUnread = lastActivity > lastRead;
-
-                 return (
+               threads.map(thread => (
                  <div 
                    key={thread.id} 
-                   onClick={() => openThread(thread)} 
-                   className="bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-amber-700 p-4 rounded-lg cursor-pointer transition-all group relative overflow-hidden"
+                   onClick={() => { setActiveThread(thread); setView('thread'); }}
+                   className="bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-amber-700 p-4 rounded-lg cursor-pointer transition-all group"
                  >
-                   {isUnread && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500 shadow-[0_0_10px_cyan]"></div>}
-                   <div className="flex justify-between items-start pl-2">
+                   <div className="flex justify-between items-start">
                      <div>
-                       <h3 className={`text-lg font-bold transition-colors ${isUnread ? 'text-white' : 'text-slate-300 group-hover:text-amber-400'}`}>
-                           {thread.title}
+                       <h3 className="text-lg font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
+                         {thread.title}
                        </h3>
                        <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                          <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {thread.createdBy}</span>
@@ -169,8 +308,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
                      </div>
                    </div>
                  </div>
-                 );
-               })
+               ))
             )}
         </div>
       </div>
