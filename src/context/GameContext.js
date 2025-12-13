@@ -32,6 +32,9 @@ export function GameProvider({ children }) {
         let role = 'user';
         if (permSnap.exists()) {
            role = permSnap.data().role || 'user';
+        } else {
+           // Auto-assign 'user' role if missing
+           await setDoc(permRef, { role: 'user', username: currentUser.displayName });
         }
 
         // BAN HAMMER CHECK
@@ -77,7 +80,7 @@ export function GameProvider({ children }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
     await sendEmailVerification(cred.user);
-    // Create default permission doc
+    // Create default permission doc immediately
     await setDoc(doc(db, 'artifacts', APP_ID, 'permissions', cred.user.uid), {
         role: 'user',
         username: username

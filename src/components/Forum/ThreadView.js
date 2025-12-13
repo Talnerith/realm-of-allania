@@ -21,37 +21,32 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   const [posts, setPosts] = useState([]);
   const [liveThread, setLiveThread] = useState(thread);
   const [replyContent, setReplyContent] = useState('');
-  
-  // Banner Edit State
   const [isEditingBanner, setIsEditingBanner] = useState(false);
   const [bannerInput, setBannerInput] = useState('');
-  
-  // Post Edit State
-  const [editingPostId, setEditingPostId] = useState(null);
-  const [editPostContent, setEditPostContent] = useState('');
-  
-  // Admin Helper
   const [copiedUserId, setCopiedUserId] = useState(null);
 
-  // Permissions
+  // Post Editing State
+  const [editingPostId, setEditingPostId] = useState(null);
+  const [editPostContent, setEditPostContent] = useState('');
+
+  // Permissions Logic
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
-  const isOwner = user && liveThread && user.uid === liveThread.creatorId;
-  const canManageThread = isAdminOrMod || isOwner;
+  const isThreadOwner = user && liveThread && user.uid === liveThread.creatorId;
+  const canEditBanner = isAdminOrMod || isThreadOwner;
+  const canDeleteThread = isAdminOrMod; // Only Admins/Mods can delete whole threads
 
   useEffect(() => {
     if (!thread) return;
     
-    // Live update thread
     const unsubThread = onSnapshot(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), (doc) => {
         if (doc.exists()) {
             setLiveThread({ id: doc.id, ...doc.data() });
             if (!isEditingBanner) setBannerInput(doc.data().bannerUrl || '');
         } else {
-            setView('region'); // Thread deleted
+            setView('region');
         }
     });
 
-    // Live update posts
     const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'));
     const unsubPosts = onSnapshot(q, (snapshot) => {
       const p = [];
@@ -65,8 +60,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
     return () => { unsubThread(); unsubPosts(); };
   }, [thread]);
-
-  // --- Handlers ---
 
   const handleReply = async () => {
     if (!activeCharId || !replyContent.trim()) return;
@@ -93,7 +86,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
     } catch (e) { console.error(e); }
   };
 
-  // --- POST EDITING ---
+  // --- Post Editing ---
   const handleEditPostStart = (post) => {
       setEditingPostId(post.id);
       setEditPostContent(post.content);
@@ -112,7 +105,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       } catch(e) { console.error(e); }
   };
 
-  // --- ADMIN / MODERATION ---
   const handleSaveBanner = async () => {
       try {
           await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { bannerUrl: bannerInput });
@@ -152,12 +144,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 pb-48">
-       {/* Thread Banner */}
        {threadBanner && (
          <div className="relative w-full h-48 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
              <img src={threadBanner} className="w-full h-full object-cover opacity-60" onError={(e) => e.target.style.display = 'none'}/>
              <div className="absolute inset-0 bg-linear-to-t from-slate-950 to-transparent" />
-             {canManageThread && (
+             {canEditBanner && (
                  <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="absolute top-4 right-4 p-2 bg-black/60 text-white hover:text-amber-500 rounded-full border border-white/20 transition-all opacity-0 group-hover:opacity-100"><Edit3 className="w-4 h-4" /></button>
              )}
          </div>
@@ -167,70 +158,44 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             <div className="bg-slate-900 border-b border-amber-900/30 p-4 animate-in slide-in-from-top-2 relative z-30">
                 <div className="max-w-4xl mx-auto flex gap-4 items-center">
                     <span className="text-sm text-amber-500 font-bold shrink-0">Thread Banner:</span>
-                    <input 
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:border-amber-500 focus:outline-none"
-                        value={bannerInput}
-                        onChange={(e) => setBannerInput(e.target.value)}
-                    />
+                    <input className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:border-amber-500 focus:outline-none" value={bannerInput} onChange={(e) => setBannerInput(e.target.value)}/>
                     <button onClick={handleSaveBanner} className="px-3 py-1 bg-amber-700 text-white rounded text-xs">Save</button>
                 </div>
             </div>
         )}
 
-       {/* Header */}
        <div className={`flex items-center gap-4 px-4 md:px-8 py-6 ${threadBanner ? 'relative -mt-20 z-10' : 'sticky top-0 bg-slate-950/95 backdrop-blur-md z-20 border-b border-slate-800'}`}>
-        <button onClick={() => setView('region')} className={`flex items-center gap-1 ${threadBanner ? "bg-black/50 px-3 py-1 rounded hover:bg-black/70 text-white border-none" : "text-slate-400 hover:text-white"}`}>
-          <ChevronLeft className="w-5 h-5" /> Back
-        </button>
+        <button onClick={() => setView('region')} className={`flex items-center gap-1 ${threadBanner ? "bg-black/50 px-3 py-1 rounded hover:bg-black/70 text-white border-none" : "text-slate-400 hover:text-white"}`}><ChevronLeft className="w-5 h-5" /> Back</button>
         <div className="flex-1">
             <div className="flex items-center gap-3">
-                <h1 className={`text-2xl md:text-3xl font-serif font-bold ${threadBanner ? 'text-white drop-shadow-lg' : 'text-amber-100'}`}>
-                    {liveThread.title}
-                </h1>
-                {canManageThread && (
-                    <div className="flex items-center gap-1 bg-slate-900/80 rounded-lg border border-slate-700 p-1">
-                        {!threadBanner && <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="p-1.5 text-slate-400 hover:text-amber-500 transition-colors"><Edit3 className="w-4 h-4"/></button>}
-                        <button onClick={handleDeleteThread} className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>
-                    </div>
+                <h1 className={`text-2xl md:text-3xl font-serif font-bold ${threadBanner ? 'text-white drop-shadow-lg' : 'text-amber-100'}`}>{liveThread.title}</h1>
+                {/* Fallback Edit button if no banner */}
+                {!threadBanner && canEditBanner && <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="text-slate-500 hover:text-amber-500"><Edit3 className="w-4 h-4"/></button>}
+                
+                {/* Delete Thread: Admins Only */}
+                {canDeleteThread && (
+                     <button onClick={handleDeleteThread} className="text-red-900/50 hover:text-red-500" title="Delete Thread (Admin)"><Trash2 className="w-5 h-5"/></button>
                 )}
             </div>
-          <div className={`flex items-center gap-2 text-sm ${threadBanner ? 'text-amber-200/80' : 'text-amber-600/60'}`}>
-            <MapIcon className="w-3 h-3" />
-            {region ? region.name : 'Unknown Region'}
-          </div>
+          <div className={`flex items-center gap-2 text-sm ${threadBanner ? 'text-amber-200/80' : 'text-amber-600/60'}`}><MapIcon className="w-3 h-3" />{region ? region.name : 'Unknown Region'}</div>
         </div>
       </div>
 
-      {/* Posts Grid */}
       <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
         {posts.map((post) => (
           <div key={post.id} className="flex gap-4 md:gap-6 group relative">
             
-            {/* Post Controls (Edit: Owner Only / Delete: Admin or Owner) */}
-            {(isAdminOrMod || (user && user.uid === post.userId)) && !editingPostId && (
-                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
-                    {/* EDIT BUTTON (Only Owner) */}
-                    {user && user.uid === post.userId && (
-                        <button 
-                            onClick={() => handleEditPostStart(post)} 
-                            className="text-slate-500 hover:text-amber-500 bg-slate-900/50 rounded p-1" 
-                            title="Edit Post"
-                        >
-                            <Edit3 className="w-4 h-4"/>
-                        </button>
-                    )}
-                    {/* DELETE BUTTON */}
-                    <button 
-                        onClick={() => handleDeletePost(post.id)} 
-                        className="text-red-900/50 hover:text-red-500 bg-slate-900/50 rounded p-1"
-                        title="Delete Post"
-                    >
-                        <Trash2 className="w-4 h-4"/>
-                    </button>
-                </div>
-            )}
+            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
+                {/* Edit: Post Owner Only */}
+                {user && user.uid === post.userId && !editingPostId && (
+                    <button onClick={() => handleEditPostStart(post)} className="text-slate-500 hover:text-amber-500 bg-slate-900/50 rounded p-1"><Edit3 className="w-4 h-4"/></button>
+                )}
+                {/* Delete: Admin/Mod OR Owner */}
+                {(isAdminOrMod || (user && user.uid === post.userId)) && !editingPostId && (
+                    <button onClick={() => handleDeletePost(post.id)} className="text-red-900/50 hover:text-red-500 bg-slate-900/50 rounded p-1"><Trash2 className="w-4 h-4"/></button>
+                )}
+            </div>
 
-            {/* Avatar */}
             <div className="flex flex-col items-center gap-2 w-24 shrink-0">
                <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors">
                  <img src={post.characterImageUrl || ''} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'}/>
@@ -250,34 +215,23 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                </div>
             </div>
 
-            {/* Post Content */}
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
-                  /* EDIT MODE */
-                  <div className="space-y-3">
-                      <textarea 
-                          className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-200 focus:border-amber-500 focus:outline-none min-h-[120px] font-serif"
-                          value={editPostContent}
-                          onChange={(e) => setEditPostContent(e.target.value)}
-                      />
-                      <div className="flex justify-end gap-2">
+                  <div className="space-y-2">
+                      <textarea className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-200 focus:border-amber-500 focus:outline-none min-h-[100px] font-serif" value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} />
+                      <div className="flex gap-2 justify-end">
                           <button onClick={() => setEditingPostId(null)} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button>
                           <button onClick={handleEditPostSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button>
                       </div>
                   </div>
               ) : (
-                  /* VIEW MODE */
                   <>
                     <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none">
                         <p className="whitespace-pre-wrap leading-relaxed font-serif text-lg">{post.content}</p>
                     </div>
                     <div className="absolute top-2 right-4 flex gap-2 items-center">
-                         {post.isEdited && (
-                             <span className="text-[10px] text-slate-600 italic" title={formatTimestamp(post.editedAt)}>
-                                 (Edited)
-                             </span>
-                         )}
-                         <span className="text-[10px] text-slate-700">{formatTimestamp(post.createdAt)}</span>
+                        {post.isEdited && <span className="text-[10px] text-slate-600 italic" title={formatTimestamp(post.editedAt)}>(Edited)</span>}
+                        <span className="text-[10px] text-slate-700">{formatTimestamp(post.createdAt)}</span>
                     </div>
                   </>
               )}
