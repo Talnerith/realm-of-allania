@@ -93,15 +93,53 @@ export default function CharacterDrawer() {
     }
   };
 
+  // --- THE FIX: Retroactive Post Updates ---
   const handleUpdate = async () => {
     if (!editingId) return;
     setIsSubmitting(true);
     try {
+      // 1. Update the Character Profile itself
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
+
+      // 2. Find ALL posts by this character
+      const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', editingId));
+      const snapshot = await getDocs(q);
+      
+      // 3. Batch Update (Chunked to safe-guard against Firestore 500 limit)
+      // This updates text fields only, preserving bandwidth.
+      if (!snapshot.empty) {
+          const chunks = [];
+          const docs = snapshot.docs;
+          
+          // Split into chunks of 450 (safe limit)
+          for (let i = 0; i < docs.length; i += 450) {
+              chunks.push(docs.slice(i, i + 450));
+          }
+
+          // Commit chunks sequentially
+          for (const chunk of chunks) {
+              const batch = writeBatch(db);
+              chunk.forEach(d => {
+                 batch.update(d.ref, { 
+                    characterImageUrl: formData.imageUrl,
+                    characterImagePosition: formData.imagePosition || 'center',
+                    characterName: formData.name, // Also update name in case it changed
+                    characterRace: formData.race,
+                    characterClass: formData.class
+                 });
+              });
+              await batch.commit();
+          }
+      }
+
       setMode('view');
       setEditingId(null);
-    } catch (e) { console.error(e); setFormError(`Update failed: ${e.message}`); } 
-    finally { setIsSubmitting(false); }
+    } catch (e) { 
+        console.error(e); 
+        setFormError(`Update failed: ${e.message}`); 
+    } finally { 
+        setIsSubmitting(false); 
+    }
   };
 
   const handleDelete = async () => {
@@ -112,12 +150,26 @@ export default function CharacterDrawer() {
     try {
         await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
         const batch = writeBatch(db);
+        
+        // Mark Codex as Archived
         const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), where('relatedId', '==', deleteId));
         const codexSnap = await getDocs(codexQ);
         codexSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), { title: `[Archived] ${char.name}`, category: 'Lore' }));
+        
+        // Mark Posts as Deleted User (Optional: You could leave them, but this clarifies they are gone)
+        // We do a limited batch here for immediate feedback, deep cleaning might require a cloud function if thousands of posts.
         const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', deleteId));
         const postsSnap = await getDocs(postsQ);
-        postsSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', d.id), { characterName: `${char.name} [Deleted]`, characterImageUrl: '' }));
+        
+        // Simple safety cap for deletion to prevent browser hang on massive deletes
+        let limit = 0;
+        postsSnap.forEach(d => {
+            if (limit < 450) {
+                batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', d.id), { characterName: `${char.name} [Deleted]`, characterImageUrl: '' });
+                limit++;
+            }
+        });
+        
         await batch.commit();
         setMode('view');
         if (activeCharId === deleteId) setActiveCharId(null);
