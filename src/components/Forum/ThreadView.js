@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  collection, query, addDoc, onSnapshot, doc, getDoc, 
+  collection, query, addDoc, onSnapshot, doc, getDoc, setDoc,
   serverTimestamp, updateDoc, deleteDoc, getDocs, writeBatch, where 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -11,6 +11,7 @@ import {
   Edit3, Loader, Trash2, Shield, Copy, Check, User, Save, X
 } from 'lucide-react';
 import RichText from '@/components/RichText';
+import ImageUploader from '@/components/ImageUploader';
 
 const formatTimestamp = (timestamp) => {
     if (!timestamp?.toDate) return 'Just now';
@@ -25,7 +26,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   
   // Banner Edit State
   const [isEditingBanner, setIsEditingBanner] = useState(false);
-  const [bannerInput, setBannerInput] = useState('');
   
   // Post Edit State
   const [editingPostId, setEditingPostId] = useState(null);
@@ -34,11 +34,19 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   // Admin Helper
   const [copiedUserId, setCopiedUserId] = useState(null);
 
-  // --- PERMISSIONS LOGIC ---
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
   const isThreadOwner = user && liveThread && user.uid === liveThread.creatorId;
   const canEditBanner = isAdminOrMod || isThreadOwner;
   const canDeleteThread = isAdminOrMod; 
+
+  // 1. MARK AS READ ON ENTRY
+  useEffect(() => {
+      if (user && thread) {
+          setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), {
+              lastRead: serverTimestamp()
+          }, { merge: true });
+      }
+  }, [user, thread]);
 
   useEffect(() => {
     if (!thread) return;
@@ -47,7 +55,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
     const unsubThread = onSnapshot(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), (doc) => {
         if (doc.exists()) {
             setLiveThread({ id: doc.id, ...doc.data() });
-            if (!isEditingBanner) setBannerInput(doc.data().bannerUrl || '');
         } else {
             setView('region'); // Thread deleted
         }
@@ -83,6 +90,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             characterRace: char.race,
             characterClass: char.class,
             characterImageUrl: char.imageUrl || '',
+            characterImagePosition: char.imagePosition || 'center', // Snapshot current avatar position
             characterId: char.id,
             userId: user.uid,
             createdAt: serverTimestamp()
@@ -92,17 +100,18 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             updatedAt: serverTimestamp(),
             postCount: (liveThread.postCount || 0) + 1
         });
+
+        // Mark read for self immediately
+        await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), {
+             lastRead: serverTimestamp()
+        }, { merge: true });
         
         setReplyContent('');
     } catch (e) { console.error(e); }
   };
 
-  // --- POST EDITING ---
   const handleEditPostStart = (post) => {
-      // STRICT RP CHECK: Admins cannot edit text unless they are the character owner
       if (post.characterId !== activeCharId) {
-          // If I am not the character, I cannot edit text.
-          // This applies to everyone, including Admins.
           alert(`You must be playing as ${post.characterName} to edit this post content.`);
           return;
       }
@@ -123,11 +132,16 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       } catch(e) { console.error(e); }
   };
 
-  // --- ADMIN / MODERATION ---
-  const handleSaveBanner = async () => {
+  // --- Banner Editing with Uploader ---
+  const handleBannerUpdate = async (url, position) => {
       try {
-          await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { bannerUrl: bannerInput });
-          setIsEditingBanner(false);
+          await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { 
+              bannerUrl: url,
+              bannerPosition: position 
+          });
+          // Note: ImageUploader calls this on every drag/change. 
+          // Ideally we'd have a "Save" button, but for vibe coding, auto-save on change is responsive.
+          // To prevent excessive writes, ImageUploader only fires on mouseUp.
       } catch(e) { console.error(e); }
   };
 
@@ -160,13 +174,19 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   if (!liveThread) return <div className="h-full flex items-center justify-center text-slate-500"><Loader className="animate-spin mr-2"/> Loading...</div>;
 
   const threadBanner = liveThread.bannerUrl || null;
+  const bannerPos = liveThread.bannerPosition || 'center';
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 pb-48">
        {/* Thread Banner */}
        {threadBanner && (
          <div className="relative w-full h-48 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
-             <img src={threadBanner} className="w-full h-full object-cover opacity-60" onError={(e) => e.target.style.display = 'none'}/>
+             <img 
+                src={threadBanner} 
+                className="w-full h-full object-cover opacity-60 transition-all duration-300" 
+                style={{ objectPosition: bannerPos }}
+                onError={(e) => e.target.style.display = 'none'}
+             />
              <div className="absolute inset-0 bg-linear-to-t from-slate-950 to-transparent" />
              {canEditBanner && (
                  <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="absolute top-4 right-4 p-2 bg-black/60 text-white hover:text-amber-500 rounded-full border border-white/20 transition-all opacity-0 group-hover:opacity-100"><Edit3 className="w-4 h-4" /></button>
@@ -176,14 +196,16 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
         {isEditingBanner && (
             <div className="bg-slate-900 border-b border-amber-900/30 p-4 animate-in slide-in-from-top-2 relative z-30">
-                <div className="max-w-4xl mx-auto flex gap-4 items-center">
-                    <span className="text-sm text-amber-500 font-bold shrink-0">Thread Banner:</span>
-                    <input 
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:border-amber-500 focus:outline-none"
-                        value={bannerInput}
-                        onChange={(e) => setBannerInput(e.target.value)}
+                <div className="max-w-4xl mx-auto space-y-2">
+                    <h4 className="text-amber-500 font-bold text-xs uppercase">Edit Thread Banner</h4>
+                    <ImageUploader 
+                        initialUrl={liveThread.bannerUrl}
+                        initialPosition={liveThread.bannerPosition}
+                        folder="thread_banners"
+                        shape="banner"
+                        onImageChanged={handleBannerUpdate}
                     />
-                    <button onClick={handleSaveBanner} className="px-3 py-1 bg-amber-700 text-white rounded text-xs">Save</button>
+                    <button onClick={() => setIsEditingBanner(false)} className="w-full py-2 bg-slate-800 text-slate-300 rounded hover:text-white mt-2">Close Editor</button>
                 </div>
             </div>
         )}
@@ -202,7 +224,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                 {/* Fallback Edit button if no banner */}
                 {!threadBanner && canEditBanner && <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="text-slate-500 hover:text-amber-500"><Edit3 className="w-4 h-4"/></button>}
                 
-                {/* Delete Thread: Admins/Mods Only */}
                 {canDeleteThread && (
                      <button onClick={handleDeleteThread} className="text-red-900/50 hover:text-red-500" title="Delete Thread (Moderator)"><Trash2 className="w-5 h-5"/></button>
                 )}
@@ -221,12 +242,10 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             
             {/* Post Controls */}
             <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
-                {/* Edit: Post Owner Only (Admins restricted) */}
                 {user && user.uid === post.userId && !editingPostId && (
                     <button onClick={() => handleEditPostStart(post)} className="text-slate-500 hover:text-amber-500 bg-slate-900/50 rounded p-1" title="Edit Post"><Edit3 className="w-4 h-4"/></button>
                 )}
                 
-                {/* Delete: Admins/Mods ONLY (Strict) */}
                 {isAdminOrMod && !editingPostId && (
                     <button onClick={() => handleDeletePost(post.id)} className="text-red-900/50 hover:text-red-500 bg-slate-900/50 rounded p-1" title="Delete Post (Moderator)"><Trash2 className="w-4 h-4"/></button>
                 )}
@@ -235,14 +254,18 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             {/* Avatar */}
             <div className="flex flex-col items-center gap-2 w-24 shrink-0">
                <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors">
-                 <img src={post.characterImageUrl || ''} className="w-full h-full object-cover" onError={(e) => e.target.style.display = 'none'}/>
+                 <img 
+                    src={post.characterImageUrl || ''} 
+                    className="w-full h-full object-cover" 
+                    style={{ objectPosition: post.characterImagePosition || 'center' }}
+                    onError={(e) => e.target.style.display = 'none'}
+                 />
                  <div className="absolute inset-0 flex items-center justify-center text-3xl bg-slate-700 text-slate-300 font-bold -z-10">{post.characterName ? post.characterName.substring(0,1) : '?'}</div>
                </div>
                <div className="text-center w-full">
                  <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline">{post.characterName}</div>
                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
                  
-                 {/* Admin User ID Copy */}
                  {isAdminOrMod && (
                      <div className="mt-1 flex justify-center">
                          <button onClick={() => handleCopyUserId(post.userId)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors">
@@ -295,7 +318,12 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
                 {activeCharId && characters.find(c => c.id === activeCharId) ? (
                   <>
-                    <img src={characters.find(c => c.id === activeCharId).imageUrl || ''} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'}/>
+                    <img 
+                        src={characters.find(c => c.id === activeCharId).imageUrl || ''} 
+                        className="w-full h-full object-cover" 
+                        style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }}
+                        onError={(e) => e.target.style.display='none'}
+                    />
                     <div className="absolute inset-0 flex items-center justify-center font-bold text-amber-500 bg-slate-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0,1)}</div>
                   </>
                 ) : (
@@ -306,7 +334,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                 <div className="absolute top-2 right-24 flex gap-1 text-[10px] text-slate-500 bg-slate-900/80 p-1 rounded border border-slate-700 z-10 pointer-events-none">
                     <span className="font-bold text-slate-400">**bold**</span>
                     <span className="italic text-slate-400">*italic*</span>
-                    <span className="text-slate-400">&gt; quote</span>
+                    <span className="underline decoration-slate-400">__u__</span>
+                    <span className="text-slate-400">![img](url)</span>
                 </div>
                 <textarea 
                     className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pr-24 text-slate-100 focus:border-amber-500 focus:outline-none min-h-[50px] resize-none shadow-inner font-serif" 

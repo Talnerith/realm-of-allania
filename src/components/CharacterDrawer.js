@@ -8,8 +8,9 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID, RACES, CLASSES } from '@/lib/constants';
 import { 
   Shield, ChevronDown, ChevronUp, Edit3, Plus, 
-  X, Trash2, AlertCircle, AlertTriangle, ImageIcon, Loader
+  X, Trash2, AlertCircle, AlertTriangle, Loader
 } from 'lucide-react';
+import ImageUploader from '@/components/ImageUploader';
 
 export default function CharacterDrawer() {
   const { user, characters, activeCharId, setActiveCharId } = useGame();
@@ -18,7 +19,10 @@ export default function CharacterDrawer() {
   const [mode, setMode] = useState('view');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const [formData, setFormData] = useState({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '' });
+  const [formData, setFormData] = useState({ 
+    name: '', race: RACES[0], class: CLASSES[0], description: '', 
+    imageUrl: '', imagePosition: 'center' 
+  });
   const [createCodex, setCreateCodex] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [deleteId, setDeleteId] = useState('');
@@ -26,7 +30,7 @@ export default function CharacterDrawer() {
   const [formError, setFormError] = useState('');
 
   const resetForm = () => {
-    setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '' });
+    setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '', imagePosition: 'center' });
     setCreateCodex(true);
     setFormError('');
     setIsSubmitting(false);
@@ -39,7 +43,9 @@ export default function CharacterDrawer() {
     setEditingId(char.id);
     setFormData({ 
         name: char.name, race: char.race, class: char.class, 
-        description: char.description || '', imageUrl: char.imageUrl || '' 
+        description: char.description || '', 
+        imageUrl: char.imageUrl || '',
+        imagePosition: char.imagePosition || 'center'
     });
     setMode('edit');
   };
@@ -52,28 +58,18 @@ export default function CharacterDrawer() {
   };
 
   const handleCreate = async () => {
-    console.log("1. Summon Button Clicked"); // DEBUG LOG
-    
     if (!formData.name) return setFormError('Name is required');
-    if (!user) {
-        console.error("User is not logged in!"); // DEBUG LOG
-        return setFormError('You must be logged in.');
-    }
+    if (!user) return setFormError('You must be logged in.');
 
     setIsSubmitting(true);
     setFormError('');
 
     try {
-      console.log("2. Attempting to write to Firestore...", APP_ID); // DEBUG LOG
-      
       const charRef = await addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'characters'), {
         ...formData, createdAt: serverTimestamp()
       });
 
-      console.log("3. Character Created with ID:", charRef.id); // DEBUG LOG
-
       if (createCodex) {
-        console.log("4. Creating Codex Page..."); // DEBUG LOG
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
           title: formData.name,
           category: 'Characters',
@@ -86,21 +82,17 @@ export default function CharacterDrawer() {
         });
       }
 
-      console.log("5. Success! Closing form."); // DEBUG LOG
       resetForm();
       setMode('view');
       setActiveCharId(charRef.id);
 
     } catch (e) { 
-      console.error("CRITICAL ERROR:", e); // DEBUG LOG
       setFormError(`Error: ${e.message}`); 
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ... (Keep handleUpdate and handleDelete exactly as they were in the previous file)
-  // Re-pasting them here for completeness to avoid "incomplete file" issues
   const handleUpdate = async () => {
     if (!editingId) return;
     setIsSubmitting(true);
@@ -159,7 +151,12 @@ export default function CharacterDrawer() {
                     {characters.map(char => (
                         <div key={char.id} onClick={() => setActiveCharId(char.id)} className={`relative p-3 rounded-xl border flex items-center gap-4 cursor-pointer transition-all ${activeCharId === char.id ? 'bg-amber-900/30 border-amber-500 shadow-lg shadow-amber-900/20' : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800 hover:border-slate-500'}`}>
                             <div className="w-16 h-16 shrink-0 bg-slate-900 rounded-lg overflow-hidden border border-slate-600">
-                                <img src={char.imageUrl || ''} className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                                <img 
+                                    src={char.imageUrl || ''} 
+                                    className="w-full h-full object-cover" 
+                                    style={{ objectPosition: char.imagePosition || 'center' }}
+                                    onError={(e) => e.target.style.display='none'} 
+                                />
                                 {!char.imageUrl && <div className="w-full h-full flex items-center justify-center font-bold text-slate-500 text-xl">{char.name[0]}</div>}
                             </div>
                             <div className="overflow-hidden flex-1">
@@ -188,7 +185,19 @@ export default function CharacterDrawer() {
                                 <div><label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Race</label><select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-amber-500 focus:outline-none" value={formData.race} onChange={e => setFormData({...formData, race: e.target.value})}>{RACES.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                                 <div><label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Class</label><select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-amber-500 focus:outline-none" value={formData.class} onChange={e => setFormData({...formData, class: e.target.value})}>{CLASSES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                             </div>
-                            <div><label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Portrait URL</label><input className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-amber-500 focus:outline-none text-xs" value={formData.imageUrl} onChange={e => setFormData({...formData, imageUrl: e.target.value})} placeholder="https://..." /></div>
+                            
+                            {/* NEW: Image Uploader */}
+                            <div className="p-4 bg-slate-950 rounded border border-slate-800">
+                                <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Portrait</label>
+                                <ImageUploader 
+                                    initialUrl={formData.imageUrl}
+                                    initialPosition={formData.imagePosition}
+                                    folder="character_portraits"
+                                    shape="circle"
+                                    onImageChanged={(url, pos) => setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }))}
+                                />
+                            </div>
+
                         </div>
                         <div className="flex flex-col h-full">
                             <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Description</label>

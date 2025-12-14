@@ -8,9 +8,10 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Plus, MessageSquare, 
-  Users, ImageIcon, Loader, Edit3, Save, X, Type
+  Users, ImageIcon, Loader, Edit3, Save, X
 } from 'lucide-react';
 import RichText from '@/components/RichText';
+import ImageUploader from '@/components/ImageUploader';
 
 const formatTimestamp = (firestoreTimestamp) => {
   if (!firestoreTimestamp?.toDate) return 'Just now';
@@ -18,7 +19,7 @@ const formatTimestamp = (firestoreTimestamp) => {
 };
 
 export default function RegionView({ region, setView, setActiveThread }) {
-  const { user, userRole, characters, activeCharId } = useGame();
+  const { user, readReceipts, characters, activeCharId } = useGame();
   
   // State
   const [threads, setThreads] = useState([]);
@@ -34,14 +35,15 @@ export default function RegionView({ region, setView, setActiveThread }) {
   const [isCreating, setIsCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const [newBanner, setNewBanner] = useState('');
+  // New: Image Object { url, position }
+  const [newBanner, setNewBanner] = useState({ url: '', position: 'center' }); 
   const [createCodexEntry, setCreateCodexEntry] = useState(false);
 
   // 1. Data Fetching
   useEffect(() => {
     if (!region || region.id === undefined) return;
 
-    // Fetch Metadata (Name & Banner)
+    // Fetch Metadata
     const metaRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString());
     const unsubMeta = onSnapshot(metaRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -95,7 +97,6 @@ export default function RegionView({ region, setView, setActiveThread }) {
   };
 
   const handleCreateThread = async () => {
-    // --- ALERT FIX ---
     if (!activeCharId) return alert("Please select a character before creating a thread.");
     if (!newTitle || !newContent) return alert("Please fill in the title and content.");
     
@@ -108,7 +109,8 @@ export default function RegionView({ region, setView, setActiveThread }) {
         title: newTitle,
         createdBy: char.name,
         creatorId: user.uid,
-        bannerUrl: newBanner,
+        bannerUrl: newBanner.url, // Save URL
+        bannerPosition: newBanner.position, // Save Position
         updatedAt: serverTimestamp(),
         createdAt: serverTimestamp(),
         postCount: 1
@@ -121,9 +123,15 @@ export default function RegionView({ region, setView, setActiveThread }) {
         characterRace: char.race,
         characterClass: char.class,
         characterImageUrl: char.imageUrl || '',
+        characterImagePosition: char.imagePosition || 'center', // Save character position snapshot
         characterId: char.id,
         userId: user.uid,
         createdAt: serverTimestamp()
+      });
+
+      // Mark as read immediately for the creator
+      await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', threadRef.id), {
+          lastRead: serverTimestamp()
       });
 
       if (createCodexEntry) {
@@ -138,7 +146,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
         });
       }
 
-      setNewTitle(''); setNewContent(''); setNewBanner(''); setIsCreating(false);
+      setNewTitle(''); setNewContent(''); setNewBanner({url:'', position:'center'}); setIsCreating(false);
     } catch (e) { console.error("Error creating thread:", e); }
   };
 
@@ -168,9 +176,6 @@ export default function RegionView({ region, setView, setActiveThread }) {
          <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8 bg-linear-to-t from-slate-950 via-slate-950/50 to-transparent">
             <div className="max-w-4xl mx-auto w-full flex items-end justify-between">
                 <div className="flex-1">
-                   {/* Removed Region ID Text as requested */}
-                   
-                   {/* Name Editor - OPEN TO EVERYONE */}
                    {isEditingName ? (
                      <div className="flex items-center gap-2">
                        <input 
@@ -186,26 +191,16 @@ export default function RegionView({ region, setView, setActiveThread }) {
                      <div className="flex items-center gap-3 group/title">
                         <h1 className="text-4xl md:text-5xl font-serif font-bold text-amber-100 drop-shadow-lg">{displayName}</h1>
                         {user && (
-                          <button 
-                            onClick={() => setIsEditingName(true)} 
-                            className="text-slate-500 hover:text-amber-500 opacity-0 group-hover/title:opacity-100 transition-opacity"
-                            title="Rename Region"
-                          >
+                          <button onClick={() => setIsEditingName(true)} className="text-slate-500 hover:text-amber-500 opacity-0 group-hover/title:opacity-100 transition-opacity" title="Rename Region">
                             <Edit3 className="w-5 h-5"/>
                           </button>
                         )}
                      </div>
                    )}
                 </div>
-
-                {/* Banner Edit - OPEN TO EVERYONE */}
                 {user && (
-                    <button 
-                    onClick={() => setIsEditingBanner(!isEditingBanner)}
-                    className="p-2 bg-slate-900/80 text-slate-400 hover:text-amber-500 rounded-full border border-slate-700 hover:border-amber-500 transition-all opacity-0 group-hover/banner:opacity-100"
-                    title="Change Banner"
-                    >
-                    <ImageIcon className="w-5 h-5" />
+                    <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="p-2 bg-slate-900/80 text-slate-400 hover:text-amber-500 rounded-full border border-slate-700 hover:border-amber-500 transition-all opacity-0 group-hover/banner:opacity-100" title="Change Banner">
+                        <ImageIcon className="w-5 h-5" />
                     </button>
                 )}
             </div>
@@ -234,10 +229,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
               <ChevronLeft className="w-5 h-5" /> Map
             </button>
             <div className="flex-1"></div>
-            <button 
-              onClick={() => setIsCreating(!isCreating)}
-              className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white rounded flex items-center gap-2"
-            >
+            <button onClick={() => setIsCreating(!isCreating)} className="px-4 py-2 bg-amber-700 hover:bg-amber-600 text-white rounded flex items-center gap-2">
               <Plus className="w-5 h-5" /> New Thread
             </button>
         </div>
@@ -245,28 +237,32 @@ export default function RegionView({ region, setView, setActiveThread }) {
         {isCreating && (
           <div className="bg-slate-900/80 p-6 rounded-lg border border-amber-900 mb-8 backdrop-blur-sm">
              <h3 className="text-amber-100 font-bold mb-4">Post a New Topic</h3>
+             
+             {/* Title */}
              <input 
-               className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-3 focus:border-amber-500 focus:outline-none"
+               className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-4 focus:border-amber-500 focus:outline-none"
                placeholder="Thread Title..."
                value={newTitle}
                onChange={(e) => setNewTitle(e.target.value)}
              />
-             <div className="flex gap-2 mb-3 items-center">
-                <ImageIcon className="w-5 h-5 text-slate-500" />
-                <input 
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-300 focus:border-amber-500 focus:outline-none"
-                    placeholder="Optional: Thread Banner URL..."
-                    value={newBanner}
-                    onChange={(e) => setNewBanner(e.target.value)}
+
+             {/* Banner Uploader */}
+             <div className="mb-4 bg-slate-950 p-4 rounded border border-slate-800">
+                <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Thread Banner (Optional)</h4>
+                <ImageUploader 
+                    folder="thread_banners"
+                    shape="banner"
+                    onImageChanged={(url, pos) => setNewBanner({ url, position: pos })}
                 />
              </div>
              
-             {/* Markdown Editor */}
+             {/* Rich Text Editor */}
              <div className="relative">
                 <div className="absolute top-2 right-2 flex gap-1 text-[10px] text-slate-500 bg-slate-900 p-1 rounded border border-slate-700 z-10">
                     <span className="font-bold text-slate-400">**bold**</span>
                     <span className="italic text-slate-400">*italic*</span>
-                    <span className="text-slate-400">&gt; quote</span>
+                    <span className="underline decoration-slate-400">__under__</span>
+                    <span className="text-slate-400">![img](url)</span>
                 </div>
                 <textarea
                   className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-3 h-32 focus:border-amber-500 focus:outline-none font-serif"
@@ -298,29 +294,39 @@ export default function RegionView({ region, setView, setActiveThread }) {
                  The wind howls... there are no stories here yet.
                </div>
             ) : (
-               threads.map(thread => (
-                 <div 
-                   key={thread.id} 
-                   onClick={() => { setActiveThread(thread); setView('thread'); }}
-                   className="bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-amber-700 p-4 rounded-lg cursor-pointer transition-all group"
-                 >
-                   <div className="flex justify-between items-start">
-                     <div>
-                       <h3 className="text-lg font-bold text-slate-200 group-hover:text-amber-400 transition-colors">
-                         {thread.title}
-                       </h3>
-                       <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                         <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {thread.createdBy}</span>
-                         <span>•</span>
-                         <span>{formatTimestamp(thread.updatedAt)}</span>
+               threads.map(thread => {
+                 // UNREAD CHECK (Individual Thread)
+                 const lastRead = readReceipts[thread.id] || 0;
+                 const isUnread = (thread.updatedAt?.toMillis() || 0) > lastRead;
+
+                 return (
+                   <div 
+                     key={thread.id} 
+                     onClick={() => { setActiveThread(thread); setView('thread'); }}
+                     className="bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-amber-700 p-4 rounded-lg cursor-pointer transition-all group relative overflow-hidden"
+                   >
+                     {/* Unread Indicator Bar */}
+                     {isUnread && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_10px_cyan]" />}
+                     
+                     <div className="flex justify-between items-start pl-2">
+                       <div>
+                         <h3 className={`text-lg font-bold transition-colors flex items-center gap-2 ${isUnread ? 'text-cyan-100' : 'text-slate-200 group-hover:text-amber-400'}`}>
+                           {thread.title}
+                           {isUnread && <span className="text-[10px] bg-cyan-900/50 text-cyan-400 border border-cyan-500/50 px-1.5 rounded uppercase tracking-wider font-bold">New</span>}
+                         </h3>
+                         <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                           <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {thread.createdBy}</span>
+                           <span>•</span>
+                           <span>{formatTimestamp(thread.updatedAt)}</span>
+                         </div>
+                       </div>
+                       <div className={`transition-colors ${isUnread ? 'text-cyan-400' : 'text-slate-600 group-hover:text-amber-600'}`}>
+                         <MessageSquare className="w-5 h-5" />
                        </div>
                      </div>
-                     <div className="text-slate-600 group-hover:text-amber-600 transition-colors">
-                       <MessageSquare className="w-5 h-5" />
-                     </div>
                    </div>
-                 </div>
-               ))
+                 );
+               })
             )}
         </div>
       </div>
