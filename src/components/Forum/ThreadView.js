@@ -10,6 +10,7 @@ import {
   Map as MapIcon, ChevronLeft, Feather, Ghost, 
   Edit3, Loader, Trash2, Shield, Copy, Check, User, Save, X
 } from 'lucide-react';
+import RichText from '@/components/RichText';
 
 const formatTimestamp = (timestamp) => {
     if (!timestamp?.toDate) return 'Just now';
@@ -34,14 +35,10 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   const [copiedUserId, setCopiedUserId] = useState(null);
 
   // --- PERMISSIONS LOGIC ---
-  // 1. Admins/Mods can delete anything.
-  // 2. Thread Owner can edit the Thread Banner.
-  // 3. Post Owner can edit their own post text (if correct char selected).
-  
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
   const isThreadOwner = user && liveThread && user.uid === liveThread.creatorId;
   const canEditBanner = isAdminOrMod || isThreadOwner;
-  const canDeleteThread = isAdminOrMod; // STRICT: Only staff can delete threads.
+  const canDeleteThread = isAdminOrMod; 
 
   useEffect(() => {
     if (!thread) return;
@@ -102,9 +99,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
   // --- POST EDITING ---
   const handleEditPostStart = (post) => {
-      // Check if correct character is active
-      if (post.characterId !== activeCharId && !isAdminOrMod) {
-          alert(`You must be playing as ${post.characterName} to edit this post.`);
+      // STRICT RP CHECK: Admins cannot edit text unless they are the character owner
+      if (post.characterId !== activeCharId) {
+          // If I am not the character, I cannot edit text.
+          // This applies to everyone, including Admins.
+          alert(`You must be playing as ${post.characterName} to edit this post content.`);
           return;
       }
       setEditingPostId(post.id);
@@ -222,7 +221,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             
             {/* Post Controls */}
             <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
-                {/* Edit: Post Owner Only */}
+                {/* Edit: Post Owner Only (Admins restricted) */}
                 {user && user.uid === post.userId && !editingPostId && (
                     <button onClick={() => handleEditPostStart(post)} className="text-slate-500 hover:text-amber-500 bg-slate-900/50 rounded p-1" title="Edit Post"><Edit3 className="w-4 h-4"/></button>
                 )}
@@ -258,11 +257,17 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
-                      <textarea 
-                          className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-200 focus:border-amber-500 focus:outline-none min-h-[100px] font-serif"
-                          value={editPostContent}
-                          onChange={(e) => setEditPostContent(e.target.value)}
-                      />
+                      <div className="relative">
+                          <div className="absolute top-2 right-2 flex gap-1 text-[10px] text-slate-500 bg-slate-900 p-1 rounded border border-slate-700 z-10">
+                            <span className="font-bold text-slate-400">**bold**</span>
+                            <span className="italic text-slate-400">*italic*</span>
+                          </div>
+                          <textarea 
+                              className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-200 focus:border-amber-500 focus:outline-none min-h-[100px] font-serif"
+                              value={editPostContent}
+                              onChange={(e) => setEditPostContent(e.target.value)}
+                          />
+                      </div>
                       <div className="flex gap-2 justify-end">
                           <button onClick={() => setEditingPostId(null)} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button>
                           <button onClick={handleEditPostSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button>
@@ -271,7 +276,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
               ) : (
                   <>
                     <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none">
-                        <p className="whitespace-pre-wrap leading-relaxed font-serif text-lg">{post.content}</p>
+                        <RichText content={post.content} className="font-serif text-lg" />
                     </div>
                     <div className="absolute top-2 right-4 flex gap-2 items-center">
                         {post.isEdited && <span className="text-[10px] text-slate-600 italic" title={formatTimestamp(post.editedAt)}>(Edited)</span>}
@@ -297,7 +302,20 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                   <div className="w-full h-full flex items-center justify-center text-slate-600"><Ghost className="w-6 h-6"/></div>
                 )}
              </div>
-             <div className="flex-1 relative"><textarea className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pr-24 text-slate-100 focus:border-amber-500 focus:outline-none min-h-[50px] resize-none shadow-inner" placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."} value={replyContent} onChange={(e) => setReplyContent(e.target.value)}/><div className="absolute bottom-3 right-3"><button onClick={handleReply} disabled={!activeCharId || !replyContent.trim()} className="flex items-center gap-1 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white px-3 py-1 rounded text-sm"><Feather className="w-4 h-4" /> Post</button></div></div>
+             <div className="flex-1 relative">
+                <div className="absolute top-2 right-24 flex gap-1 text-[10px] text-slate-500 bg-slate-900/80 p-1 rounded border border-slate-700 z-10 pointer-events-none">
+                    <span className="font-bold text-slate-400">**bold**</span>
+                    <span className="italic text-slate-400">*italic*</span>
+                    <span className="text-slate-400">&gt; quote</span>
+                </div>
+                <textarea 
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 pr-24 text-slate-100 focus:border-amber-500 focus:outline-none min-h-[50px] resize-none shadow-inner font-serif" 
+                    placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."} 
+                    value={replyContent} 
+                    onChange={(e) => setReplyContent(e.target.value)}
+                />
+                <div className="absolute bottom-3 right-3"><button onClick={handleReply} disabled={!activeCharId || !replyContent.trim()} className="flex items-center gap-1 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white px-3 py-1 rounded text-sm"><Feather className="w-4 h-4" /> Post</button></div>
+             </div>
         </div>
       </div>
     </div>

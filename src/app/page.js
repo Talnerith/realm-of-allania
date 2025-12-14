@@ -38,6 +38,13 @@ function GameContainer() {
   const [searchResults, setSearchResults] = useState({ pages: [], posts: [] });
   const [isSearching, setIsSearching] = useState(false);
 
+  // --- Reset View on Logout ---
+  useEffect(() => {
+    if (!user) {
+        setView('map');
+    }
+  }, [user]);
+
   // --- Data Fetching (Codex Cache for Search) ---
   useEffect(() => {
     if (!user) return; // Don't fetch if not logged in

@@ -8,8 +8,9 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Plus, MessageSquare, 
-  Users, ImageIcon, Loader, Edit3, Save, X
+  Users, ImageIcon, Loader, Edit3, Save, X, Type
 } from 'lucide-react';
+import RichText from '@/components/RichText';
 
 const formatTimestamp = (firestoreTimestamp) => {
   if (!firestoreTimestamp?.toDate) return 'Just now';
@@ -94,7 +95,10 @@ export default function RegionView({ region, setView, setActiveThread }) {
   };
 
   const handleCreateThread = async () => {
-    if (!activeCharId || !newTitle || !newContent) return alert("Please fill all fields.");
+    // --- ALERT FIX ---
+    if (!activeCharId) return alert("Please select a character before creating a thread.");
+    if (!newTitle || !newContent) return alert("Please fill in the title and content.");
+    
     const char = characters.find(c => c.id === activeCharId);
     const currentRegionName = regionMetadata?.name || region.name;
     
@@ -164,9 +168,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
          <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8 bg-linear-to-t from-slate-950 via-slate-950/50 to-transparent">
             <div className="max-w-4xl mx-auto w-full flex items-end justify-between">
                 <div className="flex-1">
-                   <div className="flex items-center gap-2 text-amber-500 text-sm font-bold uppercase tracking-widest mb-1">
-                     <MapIcon className="w-4 h-4"/> Region {region.id}
-                   </div>
+                   {/* Removed Region ID Text as requested */}
                    
                    {/* Name Editor - OPEN TO EVERYONE */}
                    {isEditingName ? (
@@ -258,12 +260,22 @@ export default function RegionView({ region, setView, setActiveThread }) {
                     onChange={(e) => setNewBanner(e.target.value)}
                 />
              </div>
-             <textarea
-               className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-3 h-32 focus:border-amber-500 focus:outline-none"
-               placeholder={`What does ${characters.find(c => c.id === activeCharId)?.name || 'your character'} do?`}
-               value={newContent}
-               onChange={(e) => setNewContent(e.target.value)}
-             />
+             
+             {/* Markdown Editor */}
+             <div className="relative">
+                <div className="absolute top-2 right-2 flex gap-1 text-[10px] text-slate-500 bg-slate-900 p-1 rounded border border-slate-700 z-10">
+                    <span className="font-bold text-slate-400">**bold**</span>
+                    <span className="italic text-slate-400">*italic*</span>
+                    <span className="text-slate-400">&gt; quote</span>
+                </div>
+                <textarea
+                  className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-3 h-32 focus:border-amber-500 focus:outline-none font-serif"
+                  placeholder={`What does ${characters.find(c => c.id === activeCharId)?.name || 'your character'} do?`}
+                  value={newContent}
+                  onChange={(e) => setNewContent(e.target.value)}
+                />
+             </div>
+
              <div className="flex items-center gap-2 mb-4">
                <input 
                  type="checkbox" 

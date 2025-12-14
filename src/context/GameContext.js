@@ -21,41 +21,51 @@ export function GameProvider({ children }) {
   const [characters, setCharacters] = useState([]);
   const [activeCharId, setActiveCharId] = useState(null);
 
-  // 1. Listen for Auth State
+  // 1. Listen for Auth State & Real-time Permissions
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (currentUser) => {
+    let permUnsub = null;
+
+    const authUnsub = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Check Role
+        // Real-time permission listener
         const permRef = doc(db, 'artifacts', APP_ID, 'permissions', currentUser.uid);
-        const permSnap = await getDoc(permRef);
         
-        let role = 'user';
-        if (permSnap.exists()) {
-           role = permSnap.data().role || 'user';
-        } else {
-           // Auto-assign 'user' role if missing
-           await setDoc(permRef, { role: 'user', username: currentUser.displayName });
-        }
+        permUnsub = onSnapshot(permRef, async (snapshot) => {
+            let role = 'user';
+            
+            if (snapshot.exists()) {
+               role = snapshot.data().role || 'user';
+            } else {
+               // Auto-assign 'user' role if missing
+               await setDoc(permRef, { role: 'user', username: currentUser.displayName });
+            }
 
-        // BAN HAMMER CHECK
-        if (role === 'banned') {
-            await signOut(auth);
-            alert("You have been banned from the Realm of Allania.");
-            setUser(null);
-            setUserRole('user');
-            setLoading(false);
-            return;
-        }
+            // BAN HAMMER CHECK - Real-time enforcement
+            if (role === 'banned') {
+                await signOut(auth);
+                alert("You have been banished from the Realm of Allania.");
+                setUser(null);
+                setUserRole('user');
+                setLoading(false);
+                return;
+            }
 
-        setUserRole(role);
+            setUserRole(role);
+        });
+
         setUser(currentUser);
       } else {
         setUser(null);
         setUserRole('user');
+        if (permUnsub) permUnsub(); // Cleanup permission listener on logout
       }
       setLoading(false);
     });
-    return () => unsub();
+
+    return () => {
+        authUnsub();
+        if (permUnsub) permUnsub();
+    };
   }, []);
 
   // 2. Fetch Characters
