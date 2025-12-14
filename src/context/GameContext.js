@@ -8,7 +8,7 @@ import {
   sendEmailVerification,
   updateProfile
 } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 
@@ -21,53 +21,56 @@ export function GameProvider({ children }) {
   const [characters, setCharacters] = useState([]);
   const [activeCharId, setActiveCharId] = useState(null);
   
-  // NEW: Global Read Receipts (Thread Level)
+  // Global Read Receipts
   const [readReceipts, setReadReceipts] = useState({});
 
-  // 1. Listen for Auth State & Real-time Permissions
+  // 1. Listen for Auth State & Real-time Data
   useEffect(() => {
-    let permUnsub = null;
+    let roleUnsub = null;
     let receiptsUnsub = null;
+    let charUnsub = null;
 
     const authUnsub = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Permissions - MOVED TO PUBLIC/DATA/USER_ROLES
-        // This allows easier Admin access in Firestore Console and follows strict path rules
-        const permRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'user_roles', currentUser.uid);
+        // --- A. User Role (Private Path) ---
+        // We use the user's private settings collection to ensure they have Write access for self-healing
+        const roleRef = doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'settings', 'account');
         
-        permUnsub = onSnapshot(permRef, async (snapshot) => {
-            let role = 'user';
-            
+        roleUnsub = onSnapshot(roleRef, async (snapshot) => {
             if (snapshot.exists()) {
-                role = snapshot.data().role || 'user';
+                const data = snapshot.data();
+                const role = data.role || 'user';
+                
+                if (role === 'banned') {
+                    await signOut(auth);
+                    alert("You have been banished from the Realm of Allania.");
+                    setUser(null);
+                    setUserRole('user');
+                    setLoading(false);
+                    return;
+                }
+                setUserRole(role);
             } else {
-                // Self-healing: If the role doc is missing (e.g. legacy user), create it now.
-                console.log("Creating missing role document for user...");
+                // Auto-Heal: If the document is missing, create it in the safe private path
+                console.log("Initializing user account settings...");
                 try {
-                    await setDoc(permRef, { 
+                    await setDoc(roleRef, { 
                         role: 'user', 
                         username: currentUser.displayName || 'Anonymous',
                         email: currentUser.email || 'No Email',
                         createdAt: serverTimestamp()
                     });
                 } catch (e) {
-                    console.error("Error creating role doc:", e);
+                    console.error("Auto-heal failed:", e);
                 }
             }
-
-            if (role === 'banned') {
-                await signOut(auth);
-                alert("You have been banished from the Realm of Allania.");
-                setUser(null);
-                setUserRole('user');
-                setLoading(false);
-                return;
-            }
-            setUserRole(role);
+        }, (error) => {
+            console.error("Role listener error:", error);
+            // Fallback to 'user' if permission fails, prevents crash
+            setUserRole('user'); 
         });
 
-        // NEW: Real-time Thread Read Receipts
-        // We listen to the user's private read receipts to update UI instantly
+        // --- B. Read Receipts ---
         const receiptsRef = collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'readReceipts');
         receiptsUnsub = onSnapshot(receiptsRef, (snapshot) => {
             const receipts = {};
@@ -75,40 +78,36 @@ export function GameProvider({ children }) {
                 receipts[doc.id] = doc.data().lastRead?.toMillis() || 0;
             });
             setReadReceipts(receipts);
-        });
+        }, (error) => console.error("Receipts error:", error));
+
+        // --- C. Characters (Moved inside Auth to guarantee user exists) ---
+        const charQ = query(collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'characters'));
+        charUnsub = onSnapshot(charQ, (snapshot) => {
+            const chars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setCharacters(chars);
+        }, (error) => console.error("Characters error:", error));
 
         setUser(currentUser);
       } else {
+        // Cleanup on Logout
         setUser(null);
         setUserRole('user');
         setReadReceipts({});
-        if (permUnsub) permUnsub();
+        setCharacters([]);
+        if (roleUnsub) roleUnsub();
         if (receiptsUnsub) receiptsUnsub();
+        if (charUnsub) charUnsub();
       }
       setLoading(false);
     });
 
     return () => {
         authUnsub();
-        if (permUnsub) permUnsub();
+        if (roleUnsub) roleUnsub();
         if (receiptsUnsub) receiptsUnsub();
+        if (charUnsub) charUnsub();
     };
   }, []);
-
-  // 2. Fetch Characters
-  useEffect(() => {
-    if (!user) {
-      setCharacters([]);
-      return;
-    }
-    const q = query(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'characters'));
-    const unsub = onSnapshot(q, (snapshot) => {
-      const chars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCharacters(chars);
-    }, (error) => console.error("Error fetching characters:", error));
-
-    return () => unsub();
-  }, [user]);
 
   // --- Auth Actions ---
   const signup = async (email, password, username) => {
@@ -116,11 +115,11 @@ export function GameProvider({ children }) {
     await updateProfile(cred.user, { displayName: username });
     await sendEmailVerification(cred.user);
     
-    // Create Role Entry in the new correct location
-    await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'user_roles', cred.user.uid), {
+    // Create Role Entry in the PRIVATE path
+    await setDoc(doc(db, 'artifacts', APP_ID, 'users', cred.user.uid, 'settings', 'account'), {
         role: 'user',
         username: username,
-        email: email, // Saved for Admin ease-of-use
+        email: email,
         createdAt: serverTimestamp()
     });
     
@@ -134,7 +133,7 @@ export function GameProvider({ children }) {
   return (
     <GameContext.Provider value={{ 
       user, userRole, loading, characters, activeCharId, setActiveCharId,
-      readReceipts, // Exported to app
+      readReceipts,
       signup, login, logout, resendVerification
     }}>
       {children}

@@ -8,11 +8,11 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Feather, Ghost, 
-  Edit3, Loader, Trash2, Shield, Copy, Check, User, Save, X
+  Edit3, Loader, Trash2, Shield, Copy, Check, User, Save, X, Gavel, ShieldAlert
 } from 'lucide-react';
 import RichText from '@/components/RichText';
 import ImageUploader from '@/components/ImageUploader';
-import MarkdownEditor from '@/components/MarkdownEditor'; // NEW
+import MarkdownEditor from '@/components/MarkdownEditor'; 
 
 const formatTimestamp = (timestamp) => {
     if (!timestamp?.toDate) return 'Just now';
@@ -34,7 +34,9 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   
   // Admin Helper
   const [copiedUserId, setCopiedUserId] = useState(null);
+  const [managingUser, setManagingUser] = useState(null); // { id, name }
 
+  const isAdmin = userRole === 'admin';
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
   const isThreadOwner = user && liveThread && user.uid === liveThread.creatorId;
   const canEditBanner = isAdminOrMod || isThreadOwner;
@@ -102,6 +104,24 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   const handleDeleteThread = async () => { if (!window.confirm("Delete this ENTIRE thread?")) return; try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id)); const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where("threadId", "==", thread.id)); const snapshot = await getDocs(q); const batch = writeBatch(db); snapshot.docs.forEach((doc) => batch.delete(doc.ref)); await batch.commit(); setView('region'); } catch (e) { console.error(e); } };
   const handleCopyUserId = (id) => { navigator.clipboard.writeText(id); setCopiedUserId(id); setTimeout(() => setCopiedUserId(null), 2000); };
 
+  // --- Admin Role Management ---
+  const handleUpdateRole = async (newRole) => {
+      if (!managingUser) return;
+      if (!window.confirm(`Are you sure you want to set ${managingUser.name || 'this user'} to ${newRole.toUpperCase()}?`)) return;
+      
+      try {
+          // Updates the role in the user's private settings (matching GameContext logic)
+          await updateDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), {
+              role: newRole
+          });
+          alert(`Success! User is now a ${newRole}.`);
+          setManagingUser(null);
+      } catch (e) {
+          console.error("Role update failed:", e);
+          alert("Failed to update role. You may not have permission to modify other users.");
+      }
+  };
+
   if (!liveThread) return <div className="h-full flex items-center justify-center text-slate-500"><Loader className="animate-spin mr-2"/> Loading...</div>;
 
   const threadBanner = liveThread.bannerUrl || null;
@@ -109,7 +129,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 pb-48">
-       {/* Thread Banner - INCREASED HEIGHT */}
+       {/* Thread Banner */}
        {threadBanner && (
          <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
              <img 
@@ -170,13 +190,31 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                <div className="text-center w-full">
                  <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline">{post.characterName}</div>
                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
-                 {isAdminOrMod && (<div className="mt-1 flex justify-center"><button onClick={() => handleCopyUserId(post.userId)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors">{copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500"/> : <User className="w-3 h-3"/>} ID</button></div>)}
+                 
+                 {/* ID and Admin Tools */}
+                 {isAdminOrMod && (
+                    <div className="mt-1 flex flex-wrap justify-center gap-1">
+                        <button onClick={() => handleCopyUserId(post.userId)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors">
+                            {copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500"/> : <User className="w-3 h-3"/>} ID
+                        </button>
+                        
+                        {/* THE NEW ROLE BUTTON */}
+                        {isAdmin && (
+                            <button 
+                                onClick={() => setManagingUser({ id: post.userId, name: post.characterName })}
+                                className="text-[10px] bg-slate-800 hover:bg-amber-900 text-slate-400 hover:text-amber-500 border border-slate-700 hover:border-amber-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
+                                title="Manage User Role"
+                            >
+                                <Shield className="w-3 h-3"/> Role
+                            </button>
+                        )}
+                    </div>
+                 )}
                </div>
             </div>
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
-                       {/* Use new Editor for edits too! */}
                       <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="h-32" />
                       <div className="flex gap-2 justify-end"><button onClick={() => setEditingPostId(null)} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button><button onClick={handleEditPostSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button></div>
                   </div>
@@ -191,7 +229,45 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
         ))}
       </div>
       
-      {/* Reply Box - Uses Markdown Editor Now */}
+      {/* ADMIN ROLE MANAGER MODAL */}
+      {managingUser && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-slate-900 border border-amber-900 rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
+                  <button onClick={() => setManagingUser(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X className="w-5 h-5"/></button>
+                  
+                  <div className="flex items-center gap-3 mb-4 text-amber-500">
+                      <Gavel className="w-8 h-8"/>
+                      <h3 className="text-xl font-bold font-serif">Admin Court</h3>
+                  </div>
+                  
+                  <p className="text-slate-300 mb-6">
+                      Assign a new role for the player of <span className="font-bold text-white">{managingUser.name}</span>.
+                  </p>
+                  
+                  <div className="space-y-2">
+                      <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex justify-between items-center group">
+                          <span>User (Default)</span>
+                          <User className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
+                      </button>
+                      <button onClick={() => handleUpdateRole('moderator')} className="w-full text-left px-4 py-3 rounded bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-900/50 flex justify-between items-center group">
+                          <span>Moderator</span>
+                          <Shield className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
+                      </button>
+                      <button onClick={() => handleUpdateRole('admin')} className="w-full text-left px-4 py-3 rounded bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 border border-amber-900/50 flex justify-between items-center group">
+                          <span>Administrator</span>
+                          <ShieldAlert className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
+                      </button>
+                      <div className="h-px bg-slate-800 my-2"></div>
+                      <button onClick={() => handleUpdateRole('banned')} className="w-full text-left px-4 py-3 rounded bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 flex justify-between items-center group">
+                          <span>Ban User</span>
+                          <Gavel className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Reply Box */}
       <div className="fixed bottom-[60px] md:bottom-[70px] left-0 right-0 p-4 bg-slate-950/90 border-t border-amber-900/30 z-30 backdrop-blur-md">
         <div className="max-w-4xl mx-auto flex gap-4 items-start">
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
