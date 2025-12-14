@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, Edit3, Save, Trash2, Image as ImageIcon, X, ChevronRight } from 'lucide-react';
+import { ChevronLeft, Edit3, Save, Trash2, Image as ImageIcon, X, ChevronRight, Plus } from 'lucide-react';
 import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, CATEGORIES } from '@/lib/constants';
+import ImageUploader from '@/components/ImageUploader';
 
 // Helper for timestamp
 const formatTime = (ts) => {
@@ -20,7 +21,9 @@ export default function CodexEntry({ page, goBack }) {
   const [category, setCategory] = useState(page.category || 'General');
   const [content, setContent] = useState(page.content || '');
   const [gallery, setGallery] = useState(page.gallery || []);
-  const [newImgUrl, setNewImgUrl] = useState('');
+  
+  // Staging state for the Image Uploader
+  const [stagedUrl, setStagedUrl] = useState('');
 
   // Local copy to prevent flicker when saving
   const [localPage, setLocalPage] = useState(page);
@@ -59,12 +62,17 @@ export default function CodexEntry({ page, goBack }) {
   };
 
   // Gallery Handlers
-  const addImage = () => {
-     if (newImgUrl && !gallery.includes(newImgUrl)) {
-         setGallery([...gallery, newImgUrl]);
-         setNewImgUrl('');
+  const handleStagedImage = (url) => {
+      setStagedUrl(url);
+  };
+
+  const addStagedToGallery = () => {
+     if (stagedUrl && !gallery.includes(stagedUrl)) {
+         setGallery([...gallery, stagedUrl]);
+         setStagedUrl(''); // This clears the ImageUploader via the initialUrl prop
      }
   };
+
   const removeImage = (url) => setGallery(gallery.filter(u => u !== url));
 
   // Lightbox Handlers
@@ -136,11 +144,28 @@ export default function CodexEntry({ page, goBack }) {
                       
                       {/* Gallery Editor */}
                       <div className="bg-slate-950 p-4 rounded border border-slate-800">
-                          <h4 className="text-amber-500 font-bold mb-2 flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Gallery Manager</h4>
-                          <div className="flex gap-2 mb-4">
-                              <input className="flex-1 bg-slate-900 border border-slate-700 rounded p-2 text-xs text-slate-300" placeholder="Paste image URL..." value={newImgUrl} onChange={e => setNewImgUrl(e.target.value)}/>
-                              <button onClick={addImage} className="bg-slate-700 text-white px-3 py-1 rounded text-xs">Add</button>
+                          <h4 className="text-amber-500 font-bold mb-4 flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Gallery Manager</h4>
+                          
+                          {/* Image Uploader Integration */}
+                          <div className="mb-6 bg-slate-900/50 p-4 rounded border border-slate-800">
+                              <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Add New Image</label>
+                              <ImageUploader 
+                                  initialUrl={stagedUrl}
+                                  onImageChanged={handleStagedImage}
+                                  folder="codex_gallery"
+                                  shape="square"
+                              />
+                              <div className="mt-3 flex justify-end">
+                                  <button 
+                                    onClick={addStagedToGallery} 
+                                    disabled={!stagedUrl}
+                                    className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2"
+                                  >
+                                      <Plus className="w-4 h-4"/> Add to Gallery
+                                  </button>
+                              </div>
                           </div>
+
                           <div className="grid grid-cols-4 gap-2">
                              {gallery.map((url, idx) => (
                                  <div key={idx} className="relative aspect-square rounded overflow-hidden border border-slate-700 group">
@@ -148,6 +173,7 @@ export default function CodexEntry({ page, goBack }) {
                                      <button onClick={() => removeImage(url)} className="absolute top-1 right-1 bg-red-900/80 text-white p-1 rounded-full"><Trash2 className="w-3 h-3"/></button>
                                  </div>
                              ))}
+                             {gallery.length === 0 && <p className="col-span-4 text-center text-slate-500 text-sm italic py-4">No images in gallery yet.</p>}
                           </div>
                       </div>
                   </div>
