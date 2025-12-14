@@ -8,7 +8,7 @@ import {
   sendEmailVerification,
   updateProfile
 } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 
@@ -31,12 +31,29 @@ export function GameProvider({ children }) {
 
     const authUnsub = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Permissions
-        const permRef = doc(db, 'artifacts', APP_ID, 'permissions', currentUser.uid);
+        // Permissions - MOVED TO PUBLIC/DATA/USER_ROLES
+        // This allows easier Admin access in Firestore Console and follows strict path rules
+        const permRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'user_roles', currentUser.uid);
+        
         permUnsub = onSnapshot(permRef, async (snapshot) => {
             let role = 'user';
-            if (snapshot.exists()) role = snapshot.data().role || 'user';
-            else await setDoc(permRef, { role: 'user', username: currentUser.displayName });
+            
+            if (snapshot.exists()) {
+                role = snapshot.data().role || 'user';
+            } else {
+                // Self-healing: If the role doc is missing (e.g. legacy user), create it now.
+                console.log("Creating missing role document for user...");
+                try {
+                    await setDoc(permRef, { 
+                        role: 'user', 
+                        username: currentUser.displayName || 'Anonymous',
+                        email: currentUser.email || 'No Email',
+                        createdAt: serverTimestamp()
+                    });
+                } catch (e) {
+                    console.error("Error creating role doc:", e);
+                }
+            }
 
             if (role === 'banned') {
                 await signOut(auth);
@@ -98,10 +115,15 @@ export function GameProvider({ children }) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
     await sendEmailVerification(cred.user);
-    await setDoc(doc(db, 'artifacts', APP_ID, 'permissions', cred.user.uid), {
+    
+    // Create Role Entry in the new correct location
+    await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'user_roles', cred.user.uid), {
         role: 'user',
-        username: username
+        username: username,
+        email: email, // Saved for Admin ease-of-use
+        createdAt: serverTimestamp()
     });
+    
     return cred.user;
   };
 
