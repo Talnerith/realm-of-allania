@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { collection, query, onSnapshot, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID, getRegionName } from '@/lib/constants';
@@ -38,12 +38,79 @@ function GameContainer() {
   const [searchResults, setSearchResults] = useState({ pages: [], posts: [] });
   const [isSearching, setIsSearching] = useState(false);
 
+  // History State Tracker (prevents double-pushing state on Back button)
+  const isPopping = useRef(false);
+
   // --- Reset View on Logout ---
   useEffect(() => {
     if (!user) {
         setView('map');
     }
   }, [user]);
+
+  // --- BROWSER NAVIGATION HANDLER (The Fix) ---
+  useEffect(() => {
+    // 1. Handle "Back" Button
+    const onPopState = (event) => {
+        if (event.state) {
+            isPopping.current = true;
+            setView(event.state.view || 'map');
+            setActiveRegion(event.state.activeRegion || null);
+            setActiveThread(event.state.activeThread || null);
+            setActiveCodexPage(event.state.activeCodexPage || null);
+            // If we have search state, restore it (optional, keeping simple for now)
+        } else {
+            // If history is empty (e.g. start of session), default to map
+            isPopping.current = true;
+            setView('map');
+        }
+    };
+
+    window.addEventListener('popstate', onPopState);
+
+    // 2. Initialize History on Load (Replace current null state with 'map')
+    if (!window.history.state) {
+        window.history.replaceState({ view: 'map' }, '', window.location.pathname);
+    }
+
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // 3. Sync React State -> Browser History
+  useEffect(() => {
+      // If this change came from the "Back" button, don't push a new state
+      if (isPopping.current) {
+          isPopping.current = false;
+          return;
+      }
+
+      // Sanitize objects (remove Firestore Timestamps/Methods) for History Storage
+      const sanitize = (obj) => {
+          if (!obj) return null;
+          const clean = { ...obj };
+          // Remove non-serializable fields if necessary, 
+          // keeping mostly IDs and strings to keep history light.
+          // We mainly need ID to re-fetch data in the component.
+          return { id: clean.id, name: clean.name, title: clean.title, regionId: clean.regionId };
+      };
+
+      const stateToPush = { 
+          view,
+          activeRegion: sanitize(activeRegion),
+          activeThread: sanitize(activeThread),
+          activeCodexPage: sanitize(activeCodexPage)
+      };
+
+      // Aesthetic URL updates (Optional, but nice)
+      let url = window.location.pathname;
+      if (view === 'region' && activeRegion) url = `?region=${activeRegion.id}`;
+      else if (view === 'thread' && activeThread) url = `?thread=${activeThread.id}`;
+      else if (view === 'codex') url = `?page=codex`;
+      
+      window.history.pushState(stateToPush, '', url);
+
+  }, [view, activeRegion, activeThread, activeCodexPage]);
+
 
   // --- Data Fetching (Codex Cache for Search) ---
   useEffect(() => {
