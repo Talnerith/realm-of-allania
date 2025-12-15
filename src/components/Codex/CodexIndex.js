@@ -1,10 +1,20 @@
 import { Plus, Book } from 'lucide-react';
+import { CATEGORIES } from '@/lib/constants';
 
 export default function CodexIndex({ pages, openPage, createPage }) {
-  const categories = { 'Characters': [], 'Regions': [], 'Lore': [], 'General': [] };
+  // Dynamically build categories based on constants
+  // This ensures "Bestiary", "Magic", etc. show up automatically
+  const categories = {};
+  CATEGORIES.forEach(cat => {
+    categories[cat] = [];
+  });
   
+  // Fallback bucket for anything that doesn't match
+  categories['Uncategorized'] = [];
+
   pages.forEach(p => {
-    const cat = categories[p.category] ? p.category : 'General';
+    // Check if the page's category exists in our defined list
+    const cat = categories[p.category] ? p.category : 'Uncategorized';
     categories[cat].push(p);
   });
 

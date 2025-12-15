@@ -38,7 +38,7 @@ function GameContainer() {
   const [searchResults, setSearchResults] = useState({ pages: [], posts: [] });
   const [isSearching, setIsSearching] = useState(false);
 
-  // History State Tracker (prevents double-pushing state on Back button)
+  // History State Tracker
   const isPopping = useRef(false);
 
   // --- Reset View on Logout ---
@@ -48,9 +48,53 @@ function GameContainer() {
     }
   }, [user]);
 
-  // --- BROWSER NAVIGATION HANDLER (The Fix) ---
+  // --- 1. INITIAL LOAD (DEEP LINKING) ---
   useEffect(() => {
-    // 1. Handle "Back" Button
+      // Logic to restore state from URL Query Params on fresh load
+      const initFromUrl = async () => {
+          if (typeof window === 'undefined') return;
+
+          const params = new URLSearchParams(window.location.search);
+          const threadId = params.get('thread');
+          const regionId = params.get('region');
+          const pageParam = params.get('page');
+
+          if (threadId) {
+             try {
+                // Fetch Thread Data
+                const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', threadId);
+                const threadSnap = await getDoc(threadRef);
+                if (threadSnap.exists()) {
+                    const tData = { id: threadSnap.id, ...threadSnap.data() };
+                    // We also need the Region data for the header
+                    const rId = parseInt(tData.regionId);
+                    const rName = getRegionName(rId);
+                    
+                    setActiveRegion({ id: rId, name: rName });
+                    setActiveThread(tData);
+                    setView('thread');
+                }
+             } catch(e) { console.error("Deep link failed:", e); }
+          } else if (regionId) {
+              const rId = parseInt(regionId);
+              const rName = getRegionName(rId);
+              setActiveRegion({ id: rId, name: rName });
+              setView('region');
+          } else if (pageParam === 'codex') {
+              setView('codex');
+          }
+      };
+
+      // We only run this if the user is logged in and we are on the default 'map' view
+      // This prevents overwriting state if the user navigates internally.
+      if (user && view === 'map' && window.location.search) {
+          initFromUrl();
+      }
+  }, [user]); // Run when user authenticates
+
+
+  // --- 2. BROWSER NAVIGATION (BACK/FORWARD) ---
+  useEffect(() => {
     const onPopState = (event) => {
         if (event.state) {
             isPopping.current = true;
@@ -58,40 +102,30 @@ function GameContainer() {
             setActiveRegion(event.state.activeRegion || null);
             setActiveThread(event.state.activeThread || null);
             setActiveCodexPage(event.state.activeCodexPage || null);
-            // If we have search state, restore it (optional, keeping simple for now)
         } else {
-            // If history is empty (e.g. start of session), default to map
             isPopping.current = true;
             setView('map');
         }
     };
 
     window.addEventListener('popstate', onPopState);
-
-    // 2. Initialize History on Load (Replace current null state with 'map')
     if (!window.history.state) {
         window.history.replaceState({ view: 'map' }, '', window.location.pathname);
     }
-
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // 3. Sync React State -> Browser History
+  // --- 3. SYNC STATE TO URL ---
   useEffect(() => {
-      // If this change came from the "Back" button, don't push a new state
       if (isPopping.current) {
           isPopping.current = false;
           return;
       }
 
-      // Sanitize objects (remove Firestore Timestamps/Methods) for History Storage
       const sanitize = (obj) => {
           if (!obj) return null;
-          const clean = { ...obj };
-          // Remove non-serializable fields if necessary, 
-          // keeping mostly IDs and strings to keep history light.
-          // We mainly need ID to re-fetch data in the component.
-          return { id: clean.id, name: clean.name, title: clean.title, regionId: clean.regionId };
+          // Keep lightweight for history
+          return { id: obj.id, name: obj.name, title: obj.title, regionId: obj.regionId };
       };
 
       const stateToPush = { 
@@ -101,7 +135,6 @@ function GameContainer() {
           activeCodexPage: sanitize(activeCodexPage)
       };
 
-      // Aesthetic URL updates (Optional, but nice)
       let url = window.location.pathname;
       if (view === 'region' && activeRegion) url = `?region=${activeRegion.id}`;
       else if (view === 'thread' && activeThread) url = `?thread=${activeThread.id}`;
@@ -112,9 +145,9 @@ function GameContainer() {
   }, [view, activeRegion, activeThread, activeCodexPage]);
 
 
-  // --- Data Fetching (Codex Cache for Search) ---
+  // --- Data Fetching ---
   useEffect(() => {
-    if (!user) return; // Don't fetch if not logged in
+    if (!user) return; 
     const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'));
     const unsub = onSnapshot(q, (snapshot) => {
       const pages = snapshot.docs.map(d => ({ id: d.id, gallery: [], ...d.data() }));
@@ -124,7 +157,7 @@ function GameContainer() {
     return () => unsub();
   }, [user]);
 
-  // --- Global Handlers ---
+  // --- Handlers ---
   const handleSearch = async (queryText) => {
     if (!queryText.trim()) return;
     setIsSearching(true);
@@ -192,7 +225,6 @@ function GameContainer() {
      return <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-500"><Loader className="w-8 h-8 animate-spin"/></div>;
   }
 
-  // Gatekeeper: Must be logged in AND verified
   if (!user || !user.emailVerified) {
      return <AuthScreen />;
   }

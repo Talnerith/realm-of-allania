@@ -110,15 +110,17 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       if (!window.confirm(`Are you sure you want to set ${managingUser.name || 'this user'} to ${newRole.toUpperCase()}?`)) return;
       
       try {
-          // Updates the role in the user's private settings (matching GameContext logic)
-          await updateDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), {
+          // Changed to setDoc with merge: true for safety
+          // This ensures if the doc is missing, it creates it instead of failing
+          await setDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), {
               role: newRole
-          });
+          }, { merge: true });
+          
           alert(`Success! User is now a ${newRole}.`);
           setManagingUser(null);
       } catch (e) {
           console.error("Role update failed:", e);
-          alert("Failed to update role. You may not have permission to modify other users.");
+          alert(`Failed to update role. Error: ${e.message}`);
       }
   };
 

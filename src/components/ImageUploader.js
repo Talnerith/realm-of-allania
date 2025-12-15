@@ -53,16 +53,15 @@ export default function ImageUploader({
     onImageChanged(e.target.value, position);
   };
 
-  // --- Drag Logic ---
-  const handleMouseDown = (e) => {
-    e.preventDefault();
-    setDragStart({ x: e.clientX, y: e.clientY, initialPos: parsePosition(position) });
+  // --- Drag Logic (Unified Mouse & Touch) ---
+  const handleStart = (clientX, clientY) => {
+    setDragStart({ x: clientX, y: clientY, initialPos: parsePosition(position) });
   };
 
-  const handleMouseMove = (e) => {
+  const handleMove = (clientX, clientY) => {
     if (!dragStart) return;
-    const dx = e.clientX - dragStart.x;
-    const dy = e.clientY - dragStart.y;
+    const dx = clientX - dragStart.x;
+    const dy = clientY - dragStart.y;
     const sensitivity = 0.4; 
     let newX = dragStart.initialPos.x - (dx * sensitivity);
     let newY = dragStart.initialPos.y - (dy * sensitivity);
@@ -72,12 +71,32 @@ export default function ImageUploader({
     setPosition(newPosString);
   };
 
-  const handleMouseUp = () => {
+  const handleEnd = () => {
     if (dragStart) {
         onImageChanged(previewUrl, position);
         setDragStart(null);
     }
   };
+
+  // Mouse Handlers
+  const onMouseDown = (e) => { e.preventDefault(); handleStart(e.clientX, e.clientY); };
+  const onMouseMove = (e) => { handleMove(e.clientX, e.clientY); };
+  const onMouseUp = () => handleEnd();
+
+  // Touch Handlers
+  const onTouchStart = (e) => { 
+      // Prevent default to stop scrolling while dragging image
+      // But only if we are actually touching the image container
+      if (e.touches.length === 1) {
+          handleStart(e.touches[0].clientX, e.touches[0].clientY); 
+      }
+  };
+  const onTouchMove = (e) => { 
+      if (e.touches.length === 1) {
+          handleMove(e.touches[0].clientX, e.touches[0].clientY); 
+      }
+  };
+  const onTouchEnd = () => handleEnd();
 
   // Determine Container Style based on Shape
   let containerClass = "w-32 h-32 rounded-full mx-auto"; // default circle
@@ -118,11 +137,14 @@ export default function ImageUploader({
               </div>
               
               <div 
-                 className={`relative overflow-hidden bg-slate-800 border-2 border-amber-500/30 cursor-move group ${containerClass}`}
-                 onMouseDown={handleMouseDown}
-                 onMouseMove={handleMouseMove}
-                 onMouseUp={handleMouseUp}
-                 onMouseLeave={handleMouseUp}
+                 className={`relative overflow-hidden bg-slate-800 border-2 border-amber-500/30 cursor-move group touch-none ${containerClass}`}
+                 onMouseDown={onMouseDown}
+                 onMouseMove={onMouseMove}
+                 onMouseUp={onMouseUp}
+                 onMouseLeave={onMouseUp}
+                 onTouchStart={onTouchStart}
+                 onTouchMove={onTouchMove}
+                 onTouchEnd={onTouchEnd}
               >
                   <img 
                     src={previewUrl} 
@@ -137,7 +159,6 @@ export default function ImageUploader({
                       {[...Array(9)].map((_,i) => <div key={i} className="border border-white/20"></div>)}
                       
                       {/* Cutoff Guides (Safe Zone) */}
-                      {/* Top/Bottom semi-transparent bars to simulate banner cutoff on different screens */}
                       {shape === 'banner' && (
                           <>
                             <div className="absolute top-0 left-0 right-0 h-[15%] bg-black/40 border-b border-white/30 backdrop-blur-[1px]"></div>
