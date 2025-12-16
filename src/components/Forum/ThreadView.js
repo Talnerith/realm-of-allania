@@ -286,7 +286,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       )}
 
       {/* Reply Box */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/95 border-t border-amber-900/30 z-30 backdrop-blur-md">
+      {/* UPDATE: Moved from bottom-0 to bottom-16/20 for better spacing from Drawer */}
+      <div className="fixed bottom-16 md:bottom-20 left-0 right-0 p-4 bg-slate-950/95 border-t border-amber-900/30 z-30 backdrop-blur-md transition-all">
         <div className="max-w-4xl mx-auto flex gap-4 items-start">
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
                 {activeCharId && characters.find(c => c.id === activeCharId) ? (
@@ -300,12 +301,12 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                     value={replyContent} 
                     onChange={(e) => setReplyContent(e.target.value)} 
                     placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
-                    // NEW: Start small, grow automatically
                     minHeight="min-h-[100px]"
-                    // NEW: Integrated Post Button
+                    // UPDATE: Logic corrected
                     onPost={handleReply}
                     submitLabel="Post Reply"
-                    disabled={!activeCharId || !replyContent.trim()}
+                    disabled={isSending} // Only disable editor if sending
+                    isSubmitDisabled={!replyContent.trim() || !activeCharId} // Disable button if empty
                     isSubmitting={isSending}
                 />
              </div>

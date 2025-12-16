@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, CATEGORIES } from '@/lib/constants';
 import ImageUploader from '@/components/ImageUploader';
+import MarkdownEditor from '@/components/MarkdownEditor'; // Imported
 
 // Helper for timestamp
 const formatTime = (ts) => {
@@ -69,7 +70,7 @@ export default function CodexEntry({ page, goBack }) {
   const addStagedToGallery = () => {
      if (stagedUrl && !gallery.includes(stagedUrl)) {
          setGallery([...gallery, stagedUrl]);
-         setStagedUrl(''); // This clears the ImageUploader via the initialUrl prop
+         setStagedUrl(''); 
      }
   };
 
@@ -140,7 +141,13 @@ export default function CodexEntry({ page, goBack }) {
           <div className="p-8">
               {isEditing ? (
                   <div className="space-y-6">
-                      <textarea className="w-full h-[300px] bg-slate-950 border border-slate-700 rounded p-4 text-slate-200 font-serif leading-relaxed" value={content} onChange={e => setContent(e.target.value)} placeholder="Write your lore..."/>
+                      {/* MARKDOWN EDITOR REPLACES TEXTAREA */}
+                      <MarkdownEditor 
+                        value={content} 
+                        onChange={e => setContent(e.target.value)} 
+                        placeholder="Write your lore..."
+                        minHeight="min-h-[400px]"
+                      />
                       
                       {/* Gallery Editor */}
                       <div className="bg-slate-950 p-4 rounded border border-slate-800">
@@ -179,7 +186,7 @@ export default function CodexEntry({ page, goBack }) {
                   </div>
               ) : (
                   <>
-                    <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-lg text-slate-300 mb-8">{content}</div>
+                    <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-lg text-slate-300 mb-8"><RichText content={content} /></div>
                     
                     {/* View Mode Gallery */}
                     {gallery.length > 0 && (

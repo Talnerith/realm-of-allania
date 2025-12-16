@@ -7,11 +7,12 @@ export default function MarkdownEditor({
   onChange, 
   placeholder = "Write your tale...", 
   className = "",
-  minHeight = "min-h-[120px]", // Default minimum height
-  onPost = null,               // Function to call on submit
-  submitLabel = "Post",        // Label for the submit button
-  disabled = false,            // Is the editor/button disabled?
-  isSubmitting = false         // Is the post sending?
+  minHeight = "min-h-[120px]", 
+  onPost = null,               
+  submitLabel = "Post",        
+  disabled = false,            // Disables the INPUT area
+  isSubmitting = false,        // Shows spinner
+  isSubmitDisabled = false     // Disables only the POST BUTTON
 }) {
   const textareaRef = useRef(null);
   const [isPreview, setIsPreview] = useState(false);
@@ -19,9 +20,7 @@ export default function MarkdownEditor({
   // Auto-Resize Logic
   useEffect(() => {
     if (textareaRef.current && !isPreview) {
-      // Reset height to auto to correctly calculate new scrollHeight (shrink if needed)
       textareaRef.current.style.height = 'auto';
-      // Set new height based on content, maxing out at 500px (approx 20 lines)
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 500)}px`;
     }
   }, [value, isPreview]);
@@ -30,9 +29,7 @@ export default function MarkdownEditor({
     const textarea = textareaRef.current;
     if (!textarea) return;
 
-    // Capture current scroll position
     const scrollTop = textarea.scrollTop;
-
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = textarea.value;
@@ -42,10 +39,8 @@ export default function MarkdownEditor({
     const after = text.substring(end);
 
     const newText = `${before}${prefix}${selection || ''}${suffix}${after}`;
-    
     onChange({ target: { value: newText } });
 
-    // Restore focus and selection
     setTimeout(() => {
       textarea.focus();
       const newCursorPos = start + prefix.length + (selection.length || 0);
@@ -85,8 +80,8 @@ export default function MarkdownEditor({
             {onPost && (
               <button 
                   onClick={onPost}
-                  disabled={disabled || isSubmitting}
-                  className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-1 rounded text-xs font-bold shadow-lg shadow-amber-900/20 transition-all hover:scale-105 ml-2"
+                  disabled={disabled || isSubmitting || isSubmitDisabled}
+                  className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white px-3 py-1 rounded text-xs font-bold shadow-lg shadow-amber-900/20 transition-all hover:scale-105 ml-2"
               >
                   {isSubmitting ? <Loader className="w-3 h-3 animate-spin"/> : <Send className="w-3 h-3" />}
                   {submitLabel}
@@ -109,7 +104,6 @@ export default function MarkdownEditor({
                 value={value}
                 onChange={onChange}
                 disabled={disabled}
-                // We use max-height in CSS style via the hook logic, but we can enforce a class for overflow
                 style={{ maxHeight: '500px' }}
               />
           )}
