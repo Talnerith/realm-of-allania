@@ -5,7 +5,8 @@ import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, CATEGORIES } from '@/lib/constants';
 import ImageUploader from '@/components/ImageUploader';
-import MarkdownEditor from '@/components/MarkdownEditor'; // Imported
+import MarkdownEditor from '@/components/MarkdownEditor'; 
+import RichText from '@/components/RichText'; // <--- ADDED THIS MISSING IMPORT
 
 // Helper for timestamp
 const formatTime = (ts) => {

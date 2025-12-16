@@ -146,7 +146,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   const bannerPos = liveThread.bannerPosition || 'center';
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 pb-48">
+    // FIX: Increased padding to pb-80 (20rem) to account for floating editor + character drawer
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 pb-80">
        {/* Thread Banner */}
        {threadBanner && (
          <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
@@ -286,7 +287,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       )}
 
       {/* Reply Box */}
-      {/* UPDATE: Moved from bottom-0 to bottom-16/20 for better spacing from Drawer */}
       <div className="fixed bottom-16 md:bottom-20 left-0 right-0 p-4 bg-slate-950/95 border-t border-amber-900/30 z-30 backdrop-blur-md transition-all">
         <div className="max-w-4xl mx-auto flex gap-4 items-start">
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
@@ -302,7 +302,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                     onChange={(e) => setReplyContent(e.target.value)} 
                     placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
                     minHeight="min-h-[100px]"
-                    // UPDATE: Logic corrected
                     onPost={handleReply}
                     submitLabel="Post Reply"
                     disabled={isSending} // Only disable editor if sending
