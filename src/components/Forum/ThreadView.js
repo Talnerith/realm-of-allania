@@ -110,12 +110,9 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       if (!window.confirm(`Are you sure you want to set ${managingUser.name || 'this user'} to ${newRole.toUpperCase()}?`)) return;
       
       try {
-          // Changed to setDoc with merge: true for safety
-          // This ensures if the doc is missing, it creates it instead of failing
           await setDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), {
               role: newRole
           }, { merge: true });
-          
           alert(`Success! User is now a ${newRole}.`);
           setManagingUser(null);
       } catch (e) {
@@ -217,7 +214,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
-                      <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="h-32" />
+                      <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="h-64" />
                       <div className="flex gap-2 justify-end"><button onClick={() => setEditingPostId(null)} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button><button onClick={handleEditPostSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button></div>
                   </div>
               ) : (
@@ -270,21 +267,33 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       )}
 
       {/* Reply Box */}
-      <div className="fixed bottom-[60px] md:bottom-[70px] left-0 right-0 p-4 bg-slate-950/90 border-t border-amber-900/30 z-30 backdrop-blur-md">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-slate-950/95 border-t border-amber-900/30 z-30 backdrop-blur-md">
         <div className="max-w-4xl mx-auto flex gap-4 items-start">
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
                 {activeCharId && characters.find(c => c.id === activeCharId) ? (
                   <><img src={characters.find(c => c.id === activeCharId).imageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => e.target.style.display='none'}/><div className="absolute inset-0 flex items-center justify-center font-bold text-amber-500 bg-slate-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0,1)}</div></>
                 ) : <div className="w-full h-full flex items-center justify-center text-slate-600"><Ghost className="w-6 h-6"/></div>}
              </div>
-             <div className="flex-1 relative">
+             
+             {/* REPLY EDITOR WRAPPER */}
+             <div className="flex-1 flex flex-col gap-3">
                 <MarkdownEditor 
                     value={replyContent} 
                     onChange={(e) => setReplyContent(e.target.value)} 
                     placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
-                    minHeight="h-20"
+                    minHeight="h-48"
                 />
-                <div className="absolute bottom-3 right-3 z-10"><button onClick={handleReply} disabled={!activeCharId || !replyContent.trim()} className="flex items-center gap-1 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white px-3 py-1 rounded text-sm"><Feather className="w-4 h-4" /> Post</button></div>
+                
+                {/* ACTION BAR (Now Outside the Editor) */}
+                <div className="flex justify-end">
+                   <button 
+                      onClick={handleReply} 
+                      disabled={!activeCharId || !replyContent.trim()} 
+                      className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-amber-900/20 transition-all hover:scale-105"
+                   >
+                      <Feather className="w-4 h-4" /> Post Reply
+                   </button>
+                </div>
              </div>
         </div>
       </div>
