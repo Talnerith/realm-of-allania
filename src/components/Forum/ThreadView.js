@@ -7,8 +7,8 @@ import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
-  Map as MapIcon, ChevronLeft, Feather, Ghost, 
-  Edit3, Loader, Trash2, Shield, Copy, Check, User, Save, X, Gavel, ShieldAlert
+  Map as MapIcon, ChevronLeft, Ghost, 
+  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert
 } from 'lucide-react';
 import RichText from '@/components/RichText';
 import ImageUploader from '@/components/ImageUploader';
@@ -24,6 +24,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   const [posts, setPosts] = useState([]);
   const [liveThread, setLiveThread] = useState(thread);
   const [replyContent, setReplyContent] = useState('');
+  const [isSending, setIsSending] = useState(false);
   
   // Banner Edit State
   const [isEditingBanner, setIsEditingBanner] = useState(false);
@@ -51,26 +52,39 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
       }
   }, [user, thread]);
 
+  // 2. Fetch Data
   useEffect(() => {
     if (!thread) return;
+
+    // A. Listen to the Thread Document
     const unsubThread = onSnapshot(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), (doc) => {
         if (doc.exists()) { setLiveThread({ id: doc.id, ...doc.data() }); } 
         else { setView('region'); }
     });
-    const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'));
+
+    // B. Listen to Posts (OPTIMIZED)
+    const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'),
+        where('threadId', '==', thread.id)
+    );
+
     const unsubPosts = onSnapshot(q, (snapshot) => {
       const p = [];
-      snapshot.docs.forEach(d => { if (d.data().threadId === thread.id) p.push({ id: d.id, ...d.data() }); });
+      snapshot.docs.forEach(d => { p.push({ id: d.id, ...d.data() }); });
       p.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
       setPosts(p);
     });
+
     return () => { unsubThread(); unsubPosts(); };
   }, [thread]);
 
   const handleReply = async () => {
     if (!activeCharId) return alert("Please select a character from the roster before posting.");
     if (!replyContent.trim()) return;
+    
+    setIsSending(true);
     const char = characters.find(c => c.id === activeCharId);
+    
     try {
         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), {
             threadId: thread.id, content: replyContent, characterName: char.name, characterRace: char.race,
@@ -80,7 +94,12 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { updatedAt: serverTimestamp(), postCount: (liveThread.postCount || 0) + 1 });
         await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), { lastRead: serverTimestamp() }, { merge: true });
         setReplyContent('');
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error(e); 
+        alert("Failed to post reply.");
+    } finally {
+        setIsSending(false);
+    }
   };
 
   const handleEditPostStart = (post) => {
@@ -197,7 +216,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                             {copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500"/> : <User className="w-3 h-3"/>} ID
                         </button>
                         
-                        {/* THE NEW ROLE BUTTON */}
+                        {/* ROLE BUTTON */}
                         {isAdmin && (
                             <button 
                                 onClick={() => setManagingUser({ id: post.userId, name: post.characterName })}
@@ -214,7 +233,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
-                      <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="h-64" />
+                      <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="min-h-[250px]" />
                       <div className="flex gap-2 justify-end"><button onClick={() => setEditingPostId(null)} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button><button onClick={handleEditPostSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button></div>
                   </div>
               ) : (
@@ -281,19 +300,14 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                     value={replyContent} 
                     onChange={(e) => setReplyContent(e.target.value)} 
                     placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
-                    minHeight="h-48"
+                    // NEW: Start small, grow automatically
+                    minHeight="min-h-[100px]"
+                    // NEW: Integrated Post Button
+                    onPost={handleReply}
+                    submitLabel="Post Reply"
+                    disabled={!activeCharId || !replyContent.trim()}
+                    isSubmitting={isSending}
                 />
-                
-                {/* ACTION BAR (Now Outside the Editor) */}
-                <div className="flex justify-end">
-                   <button 
-                      onClick={handleReply} 
-                      disabled={!activeCharId || !replyContent.trim()} 
-                      className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-amber-900/20 transition-all hover:scale-105"
-                   >
-                      <Feather className="w-4 h-4" /> Post Reply
-                   </button>
-                </div>
              </div>
         </div>
       </div>

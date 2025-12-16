@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   collection, query, addDoc, onSnapshot, doc, setDoc, 
-  serverTimestamp 
+  serverTimestamp, where 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -11,7 +11,7 @@ import {
   Users, ImageIcon, Loader, Edit3, Save, X
 } from 'lucide-react';
 import ImageUploader from '@/components/ImageUploader';
-import MarkdownEditor from '@/components/MarkdownEditor'; // NEW
+import MarkdownEditor from '@/components/MarkdownEditor'; 
 
 const formatTimestamp = (firestoreTimestamp) => {
   if (!firestoreTimestamp?.toDate) return 'Just now';
@@ -39,6 +39,8 @@ export default function RegionView({ region, setView, setActiveThread }) {
 
   useEffect(() => {
     if (!region || region.id === undefined) return;
+
+    // 1. Metadata Query (Single Doc)
     const metaRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString());
     const unsubMeta = onSnapshot(metaRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -50,16 +52,24 @@ export default function RegionView({ region, setView, setActiveThread }) {
         setNameInput(region.name);
       }
     });
-    const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'));
+
+    // 2. Threads Query (OPTIMIZED: Only fetch threads for THIS region)
+    const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'),
+        where('regionId', '==', region.id.toString())
+    );
+
     const unsubThreads = onSnapshot(q, (snapshot) => {
       const t = [];
       snapshot.docs.forEach(d => {
-        const data = d.data();
-        if (data.regionId === region.id.toString()) t.push({ id: d.id, ...data });
+        // We push all results because the Query 'where' clause already filtered them
+        t.push({ id: d.id, ...d.data() });
       });
+      // Sort client-side to avoid needing a Composite Index immediately
       t.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
       setThreads(t);
     });
+
     return () => { unsubMeta(); unsubThreads(); };
   }, [region]);
 
@@ -70,7 +80,6 @@ export default function RegionView({ region, setView, setActiveThread }) {
         bannerUrl: url,
         bannerPosition: position
       }, { merge: true });
-      // We don't close immediately to allow tweaking, user can close manually
     } catch (e) { console.error(e); }
   };
 
@@ -138,7 +147,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-linear-to-b from-slate-950 to-slate-900 pb-48">
-      {/* Banner Header - INCREASED HEIGHT */}
+      {/* Banner Header */}
       <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group/banner">
          {bannerUrl ? (
             <img 
@@ -216,7 +225,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
                 <ImageUploader folder="thread_banners" shape="banner" onImageChanged={(url, pos) => setNewBanner({ url, position: pos })} />
              </div>
              
-             {/* NEW MARKDOWN EDITOR */}
+             {/* Markdown Editor */}
              <div className="mb-4">
                  <MarkdownEditor 
                     value={newContent}
