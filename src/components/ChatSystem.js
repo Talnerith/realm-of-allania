@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   collection, query, where, onSnapshot, addDoc, 
-  serverTimestamp, orderBy, getDocs, doc, updateDoc, setDoc 
+  serverTimestamp, orderBy, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
-import { MessageCircle, X, Send, User, ChevronLeft, Loader } from 'lucide-react';
+import { MessageCircle, X, Send, User, ChevronLeft, Loader, Trash2 } from 'lucide-react';
 
 export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   const { user } = useGame();
@@ -67,7 +67,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
     }
 
     return () => unsub();
-  }, [activeChatId, user]); // Run whenever we open a chat
+  }, [activeChatId, user]); 
 
   const messagesEndRef = useRef(null);
   const scrollToBottom = () => {
@@ -128,6 +128,38 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
       }
   };
 
+  const deleteChat = async () => {
+      if (!activeChatId || !user) return;
+      if (!window.confirm("Are you sure? This will delete the ENTIRE chat history for BOTH users.")) return;
+
+      try {
+          // 1. Delete all messages (Firestore requires deleting subcollections manually or via cloud functions, 
+          //    but for client-side cleanliness we'll batch delete what we can see)
+          const q = query(collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'));
+          const snapshot = await getDocs(q);
+          const batch = writeBatch(db);
+          
+          snapshot.docs.forEach((doc) => {
+              batch.delete(doc.ref);
+          });
+          
+          // 2. Delete the chat document itself
+          batch.delete(doc(db, 'artifacts', APP_ID, 'chats', activeChatId));
+          
+          await batch.commit();
+          
+          setActiveChatId(null);
+      } catch (e) {
+          console.error("Error deleting chat:", e);
+          alert("Failed to delete chat.");
+      }
+  };
+
+  const formatTime = (timestamp) => {
+      if (!timestamp?.toDate) return '';
+      return timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -147,7 +179,15 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                   }
               </h3>
           </div>
-          <button onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-5 h-5"/></button>
+          <div className="flex items-center gap-2">
+              {/* DELETE BUTTON */}
+              {activeChatId && (
+                  <button onClick={deleteChat} className="text-slate-600 hover:text-red-500 mr-2" title="Delete Chat Forever">
+                      <Trash2 className="w-4 h-4"/>
+                  </button>
+              )}
+              <button onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-5 h-5"/></button>
+          </div>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-900/50">
@@ -179,10 +219,14 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                   {messages.map(msg => {
                       const isMe = msg.senderId === user.uid;
                       return (
-                          <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                               <div className={`max-w-[80%] rounded-lg p-3 text-sm ${isMe ? 'bg-amber-900/40 text-amber-100 border border-amber-900/50' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
                                   {msg.text}
                               </div>
+                              {/* TIMESTAMP */}
+                              <span className="text-[10px] text-slate-600 mt-1 px-1">
+                                  {formatTime(msg.createdAt)}
+                              </span>
                           </div>
                       );
                   })}
