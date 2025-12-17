@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { 
-  collection, query, addDoc, onSnapshot, doc, setDoc,
+  collection, query, addDoc, onSnapshot, doc, setDoc, getDoc,
   serverTimestamp, updateDoc, deleteDoc, getDocs, writeBatch, where 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -8,7 +8,7 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Ghost, 
-  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert
+  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle
 } from 'lucide-react';
 import RichText from '@/components/RichText';
 import ImageUploader from '@/components/ImageUploader';
@@ -19,7 +19,7 @@ const formatTimestamp = (timestamp) => {
     return timestamp.toDate().toLocaleString();
 };
 
-export default function ThreadView({ thread, setView, region, onOpenCodex }) {
+export default function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser }) {
   const { user, userRole, characters, activeCharId } = useGame();
   const [posts, setPosts] = useState([]);
   const [liveThread, setLiveThread] = useState(thread);
@@ -36,6 +36,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
   // Admin Helper
   const [copiedUserId, setCopiedUserId] = useState(null);
   const [managingUser, setManagingUser] = useState(null); // { id, name }
+  const [managingUserRole, setManagingUserRole] = useState(null); // NEW: Stores fetched role
 
   const isAdmin = userRole === 'admin';
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
@@ -77,6 +78,27 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
     return () => { unsubThread(); unsubPosts(); };
   }, [thread]);
+
+  // 3. NEW: Admin Role Fetcher
+  useEffect(() => {
+      if (managingUser) {
+          setManagingUserRole(null); // Reset while fetching
+          const fetchRole = async () => {
+              try {
+                  const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'));
+                  if (snap.exists()) {
+                      setManagingUserRole(snap.data().role || 'user');
+                  } else {
+                      setManagingUserRole('user');
+                  }
+              } catch (e) {
+                  console.error("Error fetching role:", e);
+                  setManagingUserRole('error');
+              }
+          };
+          fetchRole();
+      }
+  }, [managingUser]);
 
   const handleReply = async () => {
     if (!activeCharId) return alert("Please select a character from the roster before posting.");
@@ -147,7 +169,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
 
   return (
     // FIX: Increased padding to pb-80 (20rem) to account for floating editor + character drawer
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 pb-80">
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-900 pb-80">
        {/* Thread Banner */}
        {threadBanner && (
          <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
@@ -211,24 +233,35 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
                  
                  {/* ID and Admin Tools */}
-                 {isAdminOrMod && (
-                    <div className="mt-1 flex flex-wrap justify-center gap-1">
-                        <button onClick={() => handleCopyUserId(post.userId)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors">
+                 <div className="mt-1 flex flex-wrap justify-center gap-1">
+                     {/* NEW: Message User Button (For everyone) */}
+                     {user && user.uid !== post.userId && (
+                         <button 
+                             onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
+                             className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
+                             title="Send Message"
+                         >
+                             <MessageCircle className="w-3 h-3"/> DM
+                         </button>
+                     )}
+
+                     {isAdminOrMod && (
+                         <button onClick={() => handleCopyUserId(post.userId)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors">
                             {copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500"/> : <User className="w-3 h-3"/>} ID
-                        </button>
-                        
-                        {/* ROLE BUTTON */}
-                        {isAdmin && (
-                            <button 
-                                onClick={() => setManagingUser({ id: post.userId, name: post.characterName })}
-                                className="text-[10px] bg-slate-800 hover:bg-amber-900 text-slate-400 hover:text-amber-500 border border-slate-700 hover:border-amber-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
-                                title="Manage User Role"
-                            >
-                                <Shield className="w-3 h-3"/> Role
-                            </button>
-                        )}
-                    </div>
-                 )}
+                         </button>
+                     )}
+                     
+                     {/* ROLE BUTTON */}
+                     {isAdmin && (
+                         <button 
+                             onClick={() => setManagingUser({ id: post.userId, name: post.characterName })}
+                             className="text-[10px] bg-slate-800 hover:bg-amber-900 text-slate-400 hover:text-amber-500 border border-slate-700 hover:border-amber-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
+                             title="Manage User Role"
+                         >
+                             <Shield className="w-3 h-3"/> Role
+                         </button>
+                     )}
+                 </div>
                </div>
             </div>
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
@@ -260,9 +293,25 @@ export default function ThreadView({ thread, setView, region, onOpenCodex }) {
                   </div>
                   
                   <p className="text-slate-300 mb-6">
-                      Assign a new role for the player of <span className="font-bold text-white">{managingUser.name}</span>.
+                      Managing access for <span className="font-bold text-white">{managingUser.name}</span>.
                   </p>
                   
+                  {/* NEW: Current Role Indicator */}
+                  <div className="mb-6 p-3 bg-slate-950 border border-slate-800 rounded flex items-center justify-between">
+                      <span className="text-sm text-slate-500 uppercase font-bold">Current Status:</span>
+                      {managingUserRole === null ? (
+                          <span className="flex items-center gap-2 text-slate-400 text-sm"><Loader className="w-3 h-3 animate-spin"/> Checking...</span>
+                      ) : (
+                          <span className={`text-sm font-bold uppercase ${
+                              managingUserRole === 'admin' ? 'text-red-400' : 
+                              managingUserRole === 'moderator' ? 'text-indigo-400' : 
+                              managingUserRole === 'banned' ? 'text-slate-600 line-through' : 'text-emerald-400'
+                          }`}>
+                              {managingUserRole}
+                          </span>
+                      )}
+                  </div>
+
                   <div className="space-y-2">
                       <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex justify-between items-center group">
                           <span>User (Default)</span>

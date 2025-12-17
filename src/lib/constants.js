@@ -1,7 +1,8 @@
 // Make sure map.jpg is in your /public folder!
 export const MAP_IMAGE_URL = "/map.jpg";
 
-export const GRID_ROWS = 12;
+// UPDATED: Increased rows from 12 to 13 to add a blank row at the bottom
+export const GRID_ROWS = 13; 
 export const GRID_COLS = 20;
 export const TOTAL_REGIONS = GRID_ROWS * GRID_COLS;
 

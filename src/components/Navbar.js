@@ -1,8 +1,8 @@
-import { Crown, Search, Book, LogOut, User, Copy, Check } from 'lucide-react';
+import { Crown, Search, Book, LogOut, User, Copy, Check, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useGame } from '@/context/GameContext';
 
-export default function Navbar({ setView, onSearch }) {
+export default function Navbar({ setView, onSearch, onOpenChat }) {
   const { user, logout } = useGame();
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
@@ -58,7 +58,18 @@ export default function Navbar({ setView, onSearch }) {
       </div>
       
       {/* User / Logout Area */}
-      <div className="flex items-center gap-6 text-sm text-slate-500 shrink-0">
+      <div className="flex items-center gap-4 md:gap-6 text-sm text-slate-500 shrink-0">
+        
+        {/* NEW: Chat Toggle */}
+        <button 
+           onClick={onOpenChat}
+           className="relative p-2 text-slate-400 hover:text-amber-500 transition-colors"
+           title="Messages"
+        >
+            <MessageCircle className="w-5 h-5" />
+            {/* Optional: Add a red dot here if unread messages exist in future updates */}
+        </button>
+
         {/* User Status with Copy ID */}
         <div className="hidden md:flex items-center gap-2 cursor-pointer group" onClick={copyUserId} title="Click to copy User ID for Admin">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>

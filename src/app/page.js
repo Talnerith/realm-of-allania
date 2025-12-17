@@ -14,6 +14,7 @@ import CodexIndex from '@/components/Codex/CodexIndex';
 import CodexEntry from '@/components/Codex/CodexEntry';
 import SearchResults from '@/components/Codex/SearchResults';
 import AuthScreen from '@/components/AuthScreen';
+import ChatSystem from '@/components/ChatSystem'; // NEW
 import { Loader } from 'lucide-react';
 
 export default function Home() {
@@ -37,6 +38,10 @@ function GameContainer() {
   const [codexPages, setCodexPages] = useState([]);
   const [searchResults, setSearchResults] = useState({ pages: [], posts: [] });
   const [isSearching, setIsSearching] = useState(false);
+
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatTarget, setChatTarget] = useState(null); // { id, name }
 
   // History State Tracker
   const isPopping = useRef(false);
@@ -219,6 +224,11 @@ function GameContainer() {
      }
   };
 
+  const handleOpenChat = (targetUser = null) => {
+      setChatTarget(targetUser);
+      setIsChatOpen(true);
+  };
+
   // --- RENDERING ---
 
   if (loading) {
@@ -231,15 +241,18 @@ function GameContainer() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans flex flex-col overflow-hidden">
-      <Navbar setView={setView} onSearch={handleSearch} />
+      <Navbar setView={setView} onSearch={handleSearch} onOpenChat={() => handleOpenChat(null)} />
       <main className="flex-1 relative overflow-hidden flex flex-col">
         {view === 'map' && <WorldMap setView={setView} setActiveRegion={setActiveRegion} />}
         {view === 'region' && <RegionView region={activeRegion} setView={setView} setActiveThread={setActiveThread} />}
-        {view === 'thread' && <ThreadView thread={activeThread} setView={setView} region={activeRegion} onOpenCodex={handleOpenCodexByRelatedId} />}
+        {view === 'thread' && <ThreadView thread={activeThread} setView={setView} region={activeRegion} onOpenCodex={handleOpenCodexByRelatedId} onMessageUser={handleOpenChat} />}
         {view === 'codex' && <CodexIndex pages={codexPages} openPage={handleOpenCodexPage} createPage={handleCreateCodexPage} />}
         {view === 'codex_page' && <CodexEntry page={activeCodexPage} goBack={() => setView('codex')} />}
         {view === 'search' && <SearchResults query={isSearching ? "Searching..." : "Results"} results={searchResults} openPage={handleOpenCodexPage} openThread={handleJumpToThread} />}
       </main>
+      
+      {/* Overlays */}
+      <ChatSystem isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} initialChatUser={chatTarget} />
       <CharacterDrawer />
     </div>
   );
