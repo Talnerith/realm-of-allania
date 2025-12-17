@@ -1,9 +1,9 @@
 // Make sure map.jpg is in your /public folder!
 export const MAP_IMAGE_URL = "/map.jpg";
 
-// UPDATED: Increased rows from 12 to 13 to add a blank row at the bottom
-export const GRID_ROWS = 13; 
-export const GRID_COLS = 20;
+// UPDATED: 10 Rows Total, 16 Columns.
+export const GRID_ROWS = 10; 
+export const GRID_COLS = 16;
 export const TOTAL_REGIONS = GRID_ROWS * GRID_COLS;
 
 export const APP_ID = 'realm-of-allania-v2'; 
@@ -18,8 +18,17 @@ export const CATEGORIES = ["General", "Lore", "Characters", "Regions", "Bestiary
 export const isRegionPlayable = (index) => {
   const row = Math.floor(index / GRID_COLS);
   const col = index % GRID_COLS;
-  if (row < 2 || row > GRID_ROWS - 3) return false;
+  
+  // Logic updated to allow playability on the bottom row (Row 10)
+  // Top margin: 2 rows (Standard)
+  if (row < 2) return false; 
+  
+  // Bottom margin: REMOVED to allow the last row to be playable
+  if (row >= GRID_ROWS) return false; 
+
+  // Side margins: 2 cols (Standard)
   if (col < 2 || col > GRID_COLS - 3) return false;
+  
   return true;
 };
 

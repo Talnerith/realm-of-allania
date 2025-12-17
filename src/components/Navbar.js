@@ -1,11 +1,41 @@
 import { Crown, Search, Book, LogOut, User, Copy, Check, MessageCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore'; // NEW Imports
+import { db } from '@/lib/firebase';
+import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
 
 export default function Navbar({ setView, onSearch, onOpenChat }) {
-  const { user, logout } = useGame();
+  const { user, logout, readReceipts } = useGame(); // We need readReceipts from Context
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
+
+  // NEW: Listen for Unread Chats
+  useEffect(() => {
+    if (!user) return;
+
+    // Listen to all chats I am in
+    const q = query(collection(db, 'artifacts', APP_ID, 'chats'), where('participants', 'array-contains', user.uid));
+    
+    const unsub = onSnapshot(q, (snapshot) => {
+        let foundUnread = false;
+        snapshot.docs.forEach(doc => {
+            const chat = doc.data();
+            // Get my last read time for this specific chat
+            const lastRead = readReceipts[doc.id] || 0;
+            const updated = chat.updatedAt?.toMillis() || 0;
+            
+            // If the chat has been updated since I last read it...
+            if (updated > lastRead) {
+                foundUnread = true;
+            }
+        });
+        setHasUnread(foundUnread);
+    });
+
+    return () => unsub();
+  }, [user, readReceipts]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -24,7 +54,6 @@ export default function Navbar({ setView, onSearch, onOpenChat }) {
 
   return (
     <header className="h-16 border-b border-amber-900/30 bg-slate-950 flex items-center justify-between px-6 z-40 shrink-0 shadow-lg gap-4">
-      {/* Logo Area */}
       <div 
         className="flex items-center gap-3 shrink-0 cursor-pointer group" 
         onClick={() => setView('map')}
@@ -35,7 +64,6 @@ export default function Navbar({ setView, onSearch, onOpenChat }) {
         </h1>
       </div>
       
-      {/* Search Bar */}
       <div className="flex-1 max-w-lg flex items-center gap-2">
           <div className="relative flex-1">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
@@ -57,20 +85,21 @@ export default function Navbar({ setView, onSearch, onOpenChat }) {
           </button>
       </div>
       
-      {/* User / Logout Area */}
       <div className="flex items-center gap-4 md:gap-6 text-sm text-slate-500 shrink-0">
         
-        {/* NEW: Chat Toggle */}
+        {/* Chat Toggle with Notification Dot */}
         <button 
            onClick={onOpenChat}
            className="relative p-2 text-slate-400 hover:text-amber-500 transition-colors"
            title="Messages"
         >
             <MessageCircle className="w-5 h-5" />
-            {/* Optional: Add a red dot here if unread messages exist in future updates */}
+            {/* The Red Dot */}
+            {hasUnread && (
+                <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-slate-950 animate-pulse"></span>
+            )}
         </button>
 
-        {/* User Status with Copy ID */}
         <div className="hidden md:flex items-center gap-2 cursor-pointer group" onClick={copyUserId} title="Click to copy User ID for Admin">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
             <span className="text-slate-400 font-medium max-w-[150px] truncate group-hover:text-amber-500 transition-colors">
@@ -79,7 +108,6 @@ export default function Navbar({ setView, onSearch, onOpenChat }) {
             {copied ? <Check className="w-3 h-3 text-emerald-500"/> : <Copy className="w-3 h-3 text-slate-600 group-hover:text-amber-500"/>}
         </div>
         
-        {/* Logout Button */}
         <button 
             onClick={logout}
             className="flex items-center gap-2 text-slate-400 hover:text-red-400 transition-colors"

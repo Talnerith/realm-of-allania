@@ -27,24 +27,27 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   useEffect(() => {
     if (!user) return;
     
+    // FIX: Removed 'orderBy' to prevent "Requires Index" error.
     const q = query(
       collection(db, 'artifacts', APP_ID, 'chats'),
-      where('participants', 'array-contains', user.uid),
-      orderBy('updatedAt', 'desc')
+      where('participants', 'array-contains', user.uid)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
       const c = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // FIX: Sort by date (newest first) in JavaScript
+      c.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
       setChats(c);
     });
 
     return () => unsub();
   }, [user]);
 
-  // 2. Listen for Messages in Active Chat
+  // 2. Listen for Messages in Active Chat & MARK READ
   useEffect(() => {
     if (!activeChatId) return;
 
+    // A. Subscribe to Messages
     const q = query(
       collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'),
       orderBy('createdAt', 'asc')
@@ -56,8 +59,15 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
       scrollToBottom();
     });
 
+    // B. Mark as Read (Update Read Receipt)
+    if (user) {
+         setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId), {
+            lastRead: serverTimestamp()
+        }, { merge: true });
+    }
+
     return () => unsub();
-  }, [activeChatId]);
+  }, [activeChatId, user]); // Run whenever we open a chat
 
   const messagesEndRef = useRef(null);
   const scrollToBottom = () => {
@@ -65,20 +75,17 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   };
 
   const initiateChat = async (targetUser) => {
-      // 1. Check if chat already exists
       const existing = chats.find(c => c.participants.includes(targetUser.id));
       if (existing) {
           setActiveChatId(existing.id);
           return;
       }
-
-      // 2. Create new chat
       try {
           const chatRef = await addDoc(collection(db, 'artifacts', APP_ID, 'chats'), {
               participants: [user.uid, targetUser.id],
               participantNames: {
                   [user.uid]: user.displayName || 'Me',
-                  [targetUser.id]: targetUser.name || 'Unknown' // We pass character/user name in targetUser object
+                  [targetUser.id]: targetUser.name || 'Unknown' 
               },
               updatedAt: serverTimestamp(),
               lastMessage: 'Chat started'
@@ -95,18 +102,23 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
       
       setIsSending(true);
       try {
-          // Add message
+          // 1. Add message
           await addDoc(collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'), {
               text: newMessage,
               senderId: user.uid,
               createdAt: serverTimestamp()
           });
           
-          // Update chat metadata
+          // 2. Update chat metadata (bumps updatedAt for everyone)
           await updateDoc(doc(db, 'artifacts', APP_ID, 'chats', activeChatId), {
               lastMessage: newMessage,
               updatedAt: serverTimestamp()
           });
+
+          // 3. Mark my own read receipt so I don't see a notification for my own message
+          await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId), {
+              lastRead: serverTimestamp()
+          }, { merge: true });
           
           setNewMessage('');
       } catch (e) {
@@ -119,9 +131,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   if (!isOpen) return null;
 
   return (
-    // FIX: Changed bottom-4 to bottom-20 (5rem) to sit ABOVE the Character Drawer (h-16 / 4rem)
     <div className="fixed bottom-20 right-4 z-50 w-full max-w-sm h-[500px] bg-slate-900 border border-amber-900/50 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
-      {/* Header */}
       <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2">
               {activeChatId && (
@@ -140,10 +150,8 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
           <button onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-5 h-5"/></button>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-900/50">
           {!activeChatId ? (
-              // Chat List
               <div className="p-2">
                   {chats.length === 0 ? (
                       <div className="text-center py-8 text-slate-500 text-sm p-4">
@@ -167,7 +175,6 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                   )}
               </div>
           ) : (
-              // Active Chat
               <div className="p-4 space-y-3 flex flex-col justify-end min-h-full">
                   {messages.map(msg => {
                       const isMe = msg.senderId === user.uid;
@@ -184,7 +191,6 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
           )}
       </div>
 
-      {/* Input Area (Only visible when active chat) */}
       {activeChatId && (
           <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex gap-2">
               <input 
