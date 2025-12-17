@@ -119,7 +119,8 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-full max-w-sm h-[500px] bg-slate-900 border border-amber-900/50 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
+    // FIX: Changed bottom-4 to bottom-20 (5rem) to sit ABOVE the Character Drawer (h-16 / 4rem)
+    <div className="fixed bottom-20 right-4 z-50 w-full max-w-sm h-[500px] bg-slate-900 border border-amber-900/50 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
       {/* Header */}
       <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2">
