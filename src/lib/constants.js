@@ -1,14 +1,14 @@
 // Make sure map.jpg is in your /public folder!
 export const MAP_IMAGE_URL = "/map.jpg";
 
-// UPDATED: 10 Rows Total, 16 Columns.
-export const GRID_ROWS = 10; 
-export const GRID_COLS = 16;
+// REVERTED: Kept at 20 Columns to fix the "Moving Regions" bug.
+// Kept at 13 Rows to ensure we have the extra space at the bottom you requested.
+export const GRID_ROWS = 13; 
+export const GRID_COLS = 20;
 export const TOTAL_REGIONS = GRID_ROWS * GRID_COLS;
 
 export const APP_ID = 'realm-of-allania-v2'; 
 
-// EMPTY NAMES to encourage user creativity
 export const BASE_REGION_NAMES = []; 
 
 export const RACES = ["Human", "Elf", "Dwarf", "Orc", "Halfling", "Tiefling", "Dragonborn", "Gnome"];
@@ -19,20 +19,19 @@ export const isRegionPlayable = (index) => {
   const row = Math.floor(index / GRID_COLS);
   const col = index % GRID_COLS;
   
-  // Logic updated to allow playability on the bottom row (Row 10)
-  // Top margin: 2 rows (Standard)
-  if (row < 2) return false; 
-  
-  // Bottom margin: REMOVED to allow the last row to be playable
-  if (row >= GRID_ROWS) return false; 
+  // 1. Header (Top 2 Rows) - Unplayable
+  if (row < 2) return false;
 
-  // Side margins: 2 cols (Standard)
+  // 2. Footer (Bottom 2 Rows) - Unplayable
+  // This leaves Row 10 open for playing if the total is 13 (Rows 0-12)
+  if (row > GRID_ROWS - 3) return false;
+
+  // 3. Side Margins (Left/Right 2 Cols) - Unplayable
   if (col < 2 || col > GRID_COLS - 3) return false;
   
   return true;
 };
 
 export const getRegionName = (index) => {
-  // Return empty string by default so users see "Unnamed" in UI logic
   return ""; 
 };
