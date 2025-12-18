@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { 
   collection, addDoc, doc, updateDoc, deleteDoc, 
-  serverTimestamp, writeBatch, getDocs, query, where 
+  serverTimestamp, writeBatch, getDocs, query, where, increment 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -29,6 +29,9 @@ export default function CharacterDrawer() {
   const [confirmDeleteStep, setConfirmDeleteStep] = useState(false);
   const [formError, setFormError] = useState('');
 
+  const CHARACTER_LIMIT = 10;
+  const atLimit = characters.length >= CHARACTER_LIMIT;
+
   const resetForm = () => {
     setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '', imagePosition: 'center' });
     setCreateCodex(true);
@@ -36,7 +39,11 @@ export default function CharacterDrawer() {
     setIsSubmitting(false);
   };
 
-  const openCreator = () => { resetForm(); setMode('create'); };
+  const openCreator = () => { 
+      if (atLimit) return alert(`You have reached the maximum of ${CHARACTER_LIMIT} characters.`);
+      resetForm(); 
+      setMode('create'); 
+  };
   
   const openEditor = (e, char) => {
     e.stopPropagation();
@@ -60,17 +67,26 @@ export default function CharacterDrawer() {
   const handleCreate = async () => {
     if (!formData.name) return setFormError('Name is required');
     if (!user) return setFormError('You must be logged in.');
+    if (atLimit) return setFormError('Character limit reached.');
 
     setIsSubmitting(true);
     setFormError('');
 
     try {
-      const charRef = await addDoc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'characters'), {
-        ...formData, createdAt: serverTimestamp()
-      });
+      const batch = writeBatch(db);
 
+      // 1. Create Character Doc Ref
+      const charRef = doc(collection(db, 'artifacts', APP_ID, 'users', user.uid, 'characters'));
+      batch.set(charRef, { ...formData, createdAt: serverTimestamp() });
+
+      // 2. Increment User Character Count (For Security Rules)
+      const userSettingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'account');
+      batch.update(userSettingsRef, { characterCount: increment(1) });
+
+      // 3. Optional Codex Entry
       if (createCodex) {
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
+        const codexRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'));
+        batch.set(codexRef, {
           title: formData.name,
           category: 'Characters',
           content: `**Race:** ${formData.race}\n**Class:** ${formData.class}\n\n${formData.description}`,
@@ -81,6 +97,8 @@ export default function CharacterDrawer() {
           updatedBy: 'System'
         });
       }
+
+      await batch.commit();
 
       resetForm();
       setMode('view');
@@ -93,7 +111,6 @@ export default function CharacterDrawer() {
     }
   };
 
-  // --- THE FIX: Retroactive Post Updates ---
   const handleUpdate = async () => {
     if (!editingId) return;
     setIsSubmitting(true);
@@ -106,17 +123,13 @@ export default function CharacterDrawer() {
       const snapshot = await getDocs(q);
       
       // 3. Batch Update (Chunked to safe-guard against Firestore 500 limit)
-      // This updates text fields only, preserving bandwidth.
       if (!snapshot.empty) {
           const chunks = [];
           const docs = snapshot.docs;
-          
-          // Split into chunks of 450 (safe limit)
           for (let i = 0; i < docs.length; i += 450) {
               chunks.push(docs.slice(i, i + 450));
           }
 
-          // Commit chunks sequentially
           for (const chunk of chunks) {
               const batch = writeBatch(db);
               chunk.forEach(d => {
@@ -148,20 +161,25 @@ export default function CharacterDrawer() {
     if (!char) return;
     setIsSubmitting(true);
     try {
-        await deleteDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
         const batch = writeBatch(db);
+
+        // 1. Delete Character
+        batch.delete(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
+
+        // 2. Decrement User Character Count
+        const userSettingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'account');
+        batch.update(userSettingsRef, { characterCount: increment(-1) });
         
-        // Mark Codex as Archived
+        // 3. Mark Codex as Archived
         const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), where('relatedId', '==', deleteId));
         const codexSnap = await getDocs(codexQ);
         codexSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), { title: `[Archived] ${char.name}`, category: 'Lore' }));
         
-        // Mark Posts as Deleted User (Optional: You could leave them, but this clarifies they are gone)
-        // We do a limited batch here for immediate feedback, deep cleaning might require a cloud function if thousands of posts.
+        // 4. Mark Posts as Deleted User
         const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', deleteId));
         const postsSnap = await getDocs(postsQ);
         
-        // Simple safety cap for deletion to prevent browser hang on massive deletes
+        // Simple safety cap
         let limit = 0;
         postsSnap.forEach(d => {
             if (limit < 450) {
@@ -189,6 +207,9 @@ export default function CharacterDrawer() {
             ) : (
                 <span className="text-sm text-slate-500 italic">No character selected</span>
             )}
+            <span className={`text-[10px] ml-2 px-2 py-0.5 rounded-full ${atLimit ? 'bg-red-900 text-red-200' : 'bg-slate-800 text-slate-400'}`}>
+                {characters.length} / {CHARACTER_LIMIT}
+            </span>
         </div>
         <div className="flex items-center gap-4">
             <button onClick={(e) => openDelete(e)} className="text-slate-500 hover:text-red-500 transition-colors" title="Delete Character"><Trash2 className="w-5 h-5" /></button>
@@ -219,8 +240,18 @@ export default function CharacterDrawer() {
                             <button onClick={(e) => openEditor(e, char)} className="p-2 text-slate-500 hover:text-amber-500 transition-colors"><Edit3 className="w-4 h-4"/></button>
                         </div>
                     ))}
-                    <button onClick={openCreator} className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed border-slate-700 text-slate-500 hover:text-amber-500 hover:border-amber-500 hover:bg-slate-900/50 transition-all gap-2 h-24">
-                        <Plus className="w-6 h-6" /><span className="text-xs font-bold uppercase tracking-wide">New Character</span>
+                    
+                    {/* Create Button (Disabled if Limit Reached) */}
+                    <button 
+                        onClick={openCreator} 
+                        disabled={atLimit}
+                        className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed transition-all gap-2 h-24 ${atLimit ? 'border-slate-800 text-slate-600 cursor-not-allowed bg-slate-950/50' : 'border-slate-700 text-slate-500 hover:text-amber-500 hover:border-amber-500 hover:bg-slate-900/50'}`}
+                    >
+                        {atLimit ? (
+                             <><AlertTriangle className="w-6 h-6"/><span className="text-xs font-bold uppercase tracking-wide">Limit Reached</span></>
+                        ) : (
+                             <><Plus className="w-6 h-6" /><span className="text-xs font-bold uppercase tracking-wide">New Character</span></>
+                        )}
                     </button>
                 </div>
             )}
@@ -238,7 +269,7 @@ export default function CharacterDrawer() {
                                 <div><label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Class</label><select className="w-full bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-amber-500 focus:outline-none" value={formData.class} onChange={e => setFormData({...formData, class: e.target.value})}>{CLASSES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
                             </div>
                             
-                            {/* NEW: Image Uploader */}
+                            {/* Image Uploader */}
                             <div className="p-4 bg-slate-950 rounded border border-slate-800">
                                 <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Portrait</label>
                                 <ImageUploader 

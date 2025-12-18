@@ -8,7 +8,7 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Ghost, 
-  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle
+  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle, AlertCircle
 } from 'lucide-react';
 import RichText from '@/components/RichText';
 import ImageUploader from '@/components/ImageUploader';
@@ -25,6 +25,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const [liveThread, setLiveThread] = useState(thread);
   const [replyContent, setReplyContent] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [cooldown, setCooldown] = useState(false); // Rate Limit State
   
   // Banner Edit State
   const [isEditingBanner, setIsEditingBanner] = useState(false);
@@ -35,8 +36,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   
   // Admin Helper
   const [copiedUserId, setCopiedUserId] = useState(null);
-  const [managingUser, setManagingUser] = useState(null); // { id, name }
-  const [managingUserRole, setManagingUserRole] = useState(null); // NEW: Stores fetched role
+  const [managingUser, setManagingUser] = useState(null); 
+  const [managingUserRole, setManagingUserRole] = useState(null); 
 
   const isAdmin = userRole === 'admin';
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
@@ -79,22 +80,16 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     return () => { unsubThread(); unsubPosts(); };
   }, [thread]);
 
-  // 3. NEW: Admin Role Fetcher
+  // Admin Role Fetcher...
   useEffect(() => {
       if (managingUser) {
-          setManagingUserRole(null); // Reset while fetching
+          setManagingUserRole(null); 
           const fetchRole = async () => {
               try {
                   const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'));
-                  if (snap.exists()) {
-                      setManagingUserRole(snap.data().role || 'user');
-                  } else {
-                      setManagingUserRole('user');
-                  }
-              } catch (e) {
-                  console.error("Error fetching role:", e);
-                  setManagingUserRole('error');
-              }
+                  if (snap.exists()) setManagingUserRole(snap.data().role || 'user');
+                  else setManagingUserRole('user');
+              } catch (e) { console.error("Error fetching role:", e); setManagingUserRole('error'); }
           };
           fetchRole();
       }
@@ -102,8 +97,9 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
   const handleReply = async () => {
     if (!activeCharId) return alert("Please select a character from the roster before posting.");
-    if (!replyContent.trim()) return;
-    
+    if (replyContent.trim().length < 10) return alert("Post must be at least 10 characters.");
+    if (cooldown) return; // Prevent spam
+
     setIsSending(true);
     const char = characters.find(c => c.id === activeCharId);
     
@@ -116,9 +112,14 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
         await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { updatedAt: serverTimestamp(), postCount: (liveThread.postCount || 0) + 1 });
         await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), { lastRead: serverTimestamp() }, { merge: true });
         setReplyContent('');
+        
+        // Trigger Cooldown
+        setCooldown(true);
+        setTimeout(() => setCooldown(false), 2000); // 2 Second Cooldown
+
     } catch (e) { 
         console.error(e); 
-        alert("Failed to post reply.");
+        alert("Failed to post reply. Please check connection or limits.");
     } finally {
         setIsSending(false);
     }
@@ -131,6 +132,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
   const handleEditPostSave = async () => {
       if (!editingPostId || !editPostContent.trim()) return;
+      if (editPostContent.length < 10) return alert("Content too short.");
       try {
           await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', editingPostId), { content: editPostContent, isEdited: true, editedAt: serverTimestamp() });
           setEditingPostId(null); setEditPostContent('');
@@ -144,22 +146,14 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const handleDeletePost = async (postId) => { if (!window.confirm("Delete this post? This action is reserved for Moderators.")) return; try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', postId)); } catch (e) { console.error(e); } };
   const handleDeleteThread = async () => { if (!window.confirm("Delete this ENTIRE thread?")) return; try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id)); const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where("threadId", "==", thread.id)); const snapshot = await getDocs(q); const batch = writeBatch(db); snapshot.docs.forEach((doc) => batch.delete(doc.ref)); await batch.commit(); setView('region'); } catch (e) { console.error(e); } };
   const handleCopyUserId = (id) => { navigator.clipboard.writeText(id); setCopiedUserId(id); setTimeout(() => setCopiedUserId(null), 2000); };
-
-  // --- Admin Role Management ---
+  
   const handleUpdateRole = async (newRole) => {
       if (!managingUser) return;
       if (!window.confirm(`Are you sure you want to set ${managingUser.name || 'this user'} to ${newRole.toUpperCase()}?`)) return;
-      
       try {
-          await setDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), {
-              role: newRole
-          }, { merge: true });
-          alert(`Success! User is now a ${newRole}.`);
-          setManagingUser(null);
-      } catch (e) {
-          console.error("Role update failed:", e);
-          alert(`Failed to update role. Error: ${e.message}`);
-      }
+          await setDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), { role: newRole }, { merge: true });
+          alert(`Success! User is now a ${newRole}.`); setManagingUser(null);
+      } catch (e) { console.error(e); alert("Failed to update role."); }
   };
 
   if (!liveThread) return <div className="h-full flex items-center justify-center text-slate-500"><Loader className="animate-spin mr-2"/> Loading...</div>;
@@ -168,7 +162,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const bannerPos = liveThread.bannerPosition || 'center';
 
   return (
-    // FIX: Increased padding to pb-80 (20rem) to account for floating editor + character drawer
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-900 pb-80">
        {/* Thread Banner */}
        {threadBanner && (
@@ -218,13 +211,29 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
       <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
         {posts.map((post) => (
-          <div key={post.id} className="flex gap-4 md:gap-6 group relative">
+          <div key={post.id} className="flex flex-col md:flex-row gap-4 md:gap-6 group relative">
+            
+            {/* ADMIN TOOLS */}
             <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
                 {user && user.uid === post.userId && !editingPostId && <button onClick={() => handleEditPostStart(post)} className="text-slate-500 hover:text-amber-500 bg-slate-900/50 rounded p-1"><Edit3 className="w-4 h-4"/></button>}
                 {isAdminOrMod && !editingPostId && <button onClick={() => handleDeletePost(post.id)} className="text-red-900/50 hover:text-red-500 bg-slate-900/50 rounded p-1"><Trash2 className="w-4 h-4"/></button>}
             </div>
-            <div className="flex flex-col items-center gap-2 w-24 shrink-0">
-               <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="w-16 h-16 md:w-20 md:h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors">
+
+            {/* MOBILE AVATAR HEADER */}
+            <div className="md:hidden flex items-center gap-3 bg-slate-800/50 p-2 rounded-t-lg border-b border-slate-700">
+               <div className="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 relative shrink-0">
+                  <img src={post.characterImageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: post.characterImagePosition || 'center' }} onError={(e) => e.target.style.display = 'none'}/>
+               </div>
+               <div className="flex-1">
+                  <div className="text-amber-500 font-bold text-sm">{post.characterName}</div>
+                  <div className="text-[10px] text-slate-500 uppercase">{post.characterRace} {post.characterClass}</div>
+               </div>
+               <span className="text-[10px] text-slate-600">{formatTimestamp(post.createdAt)}</span>
+            </div>
+
+            {/* DESKTOP AVATAR SIDEBAR */}
+            <div className="hidden md:flex flex-col items-center gap-2 w-24 shrink-0">
+               <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="w-20 h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors">
                  <img src={post.characterImageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: post.characterImagePosition || 'center' }} onError={(e) => e.target.style.display = 'none'}/>
                  <div className="absolute inset-0 flex items-center justify-center text-3xl bg-slate-700 text-slate-300 font-bold -z-10">{post.characterName ? post.characterName.substring(0,1) : '?'}</div>
                </div>
@@ -232,9 +241,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                  <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline">{post.characterName}</div>
                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
                  
-                 {/* ID and Admin Tools */}
+                 {/* Buttons */}
                  <div className="mt-1 flex flex-wrap justify-center gap-1">
-                     {/* NEW: Message User Button (For everyone) */}
                      {user && user.uid !== post.userId && (
                          <button 
                              onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
@@ -244,14 +252,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                              <MessageCircle className="w-3 h-3"/> DM
                          </button>
                      )}
-
                      {isAdminOrMod && (
                          <button onClick={() => handleCopyUserId(post.userId)} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors">
                             {copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500"/> : <User className="w-3 h-3"/>} ID
                          </button>
                      )}
-                     
-                     {/* ROLE BUTTON */}
                      {isAdmin && (
                          <button 
                              onClick={() => setManagingUser({ id: post.userId, name: post.characterName })}
@@ -264,7 +269,9 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                  </div>
                </div>
             </div>
-            <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl rounded-tl-none relative shadow-sm">
+
+            {/* CONTENT CARD */}
+            <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl md:rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
                       <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="min-h-[250px]" />
@@ -273,7 +280,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
               ) : (
                   <>
                     <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none"><RichText content={post.content} className="font-serif text-lg" /></div>
-                    <div className="absolute top-2 right-4 flex gap-2 items-center">{post.isEdited && <span className="text-[10px] text-slate-600 italic">(Edited)</span>}<span className="text-[10px] text-slate-700">{formatTimestamp(post.createdAt)}</span></div>
+                    {/* Timestamp for Desktop */}
+                    <div className="absolute top-2 right-4 hidden md:flex gap-2 items-center">{post.isEdited && <span className="text-[10px] text-slate-600 italic">(Edited)</span>}<span className="text-[10px] text-slate-700">{formatTimestamp(post.createdAt)}</span></div>
                   </>
               )}
             </div>
@@ -286,58 +294,30 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-slate-900 border border-amber-900 rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
                   <button onClick={() => setManagingUser(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X className="w-5 h-5"/></button>
+                  <div className="flex items-center gap-3 mb-4 text-amber-500"><Gavel className="w-8 h-8"/><h3 className="text-xl font-bold font-serif">Admin Court</h3></div>
+                  <p className="text-slate-300 mb-6">Managing access for <span className="font-bold text-white">{managingUser.name}</span>.</p>
                   
-                  <div className="flex items-center gap-3 mb-4 text-amber-500">
-                      <Gavel className="w-8 h-8"/>
-                      <h3 className="text-xl font-bold font-serif">Admin Court</h3>
-                  </div>
-                  
-                  <p className="text-slate-300 mb-6">
-                      Managing access for <span className="font-bold text-white">{managingUser.name}</span>.
-                  </p>
-                  
-                  {/* NEW: Current Role Indicator */}
                   <div className="mb-6 p-3 bg-slate-950 border border-slate-800 rounded flex items-center justify-between">
                       <span className="text-sm text-slate-500 uppercase font-bold">Current Status:</span>
-                      {managingUserRole === null ? (
-                          <span className="flex items-center gap-2 text-slate-400 text-sm"><Loader className="w-3 h-3 animate-spin"/> Checking...</span>
-                      ) : (
-                          <span className={`text-sm font-bold uppercase ${
-                              managingUserRole === 'admin' ? 'text-red-400' : 
-                              managingUserRole === 'moderator' ? 'text-indigo-400' : 
-                              managingUserRole === 'banned' ? 'text-slate-600 line-through' : 'text-emerald-400'
-                          }`}>
-                              {managingUserRole}
-                          </span>
+                      {managingUserRole === null ? (<span className="flex items-center gap-2 text-slate-400 text-sm"><Loader className="w-3 h-3 animate-spin"/> Checking...</span>) : (
+                          <span className={`text-sm font-bold uppercase ${managingUserRole === 'admin' ? 'text-red-400' : managingUserRole === 'moderator' ? 'text-indigo-400' : managingUserRole === 'banned' ? 'text-slate-600 line-through' : 'text-emerald-400'}`}>{managingUserRole}</span>
                       )}
                   </div>
 
                   <div className="space-y-2">
-                      <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex justify-between items-center group">
-                          <span>User (Default)</span>
-                          <User className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
-                      </button>
-                      <button onClick={() => handleUpdateRole('moderator')} className="w-full text-left px-4 py-3 rounded bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-900/50 flex justify-between items-center group">
-                          <span>Moderator</span>
-                          <Shield className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
-                      </button>
-                      <button onClick={() => handleUpdateRole('admin')} className="w-full text-left px-4 py-3 rounded bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 border border-amber-900/50 flex justify-between items-center group">
-                          <span>Administrator</span>
-                          <ShieldAlert className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
-                      </button>
+                      <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex justify-between items-center group"><span>User (Default)</span><User className="w-4 h-4 opacity-0 group-hover:opacity-100"/></button>
+                      <button onClick={() => handleUpdateRole('moderator')} className="w-full text-left px-4 py-3 rounded bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-900/50 flex justify-between items-center group"><span>Moderator</span><Shield className="w-4 h-4 opacity-0 group-hover:opacity-100"/></button>
+                      <button onClick={() => handleUpdateRole('admin')} className="w-full text-left px-4 py-3 rounded bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 border border-amber-900/50 flex justify-between items-center group"><span>Administrator</span><ShieldAlert className="w-4 h-4 opacity-0 group-hover:opacity-100"/></button>
                       <div className="h-px bg-slate-800 my-2"></div>
-                      <button onClick={() => handleUpdateRole('banned')} className="w-full text-left px-4 py-3 rounded bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 flex justify-between items-center group">
-                          <span>Ban User</span>
-                          <Gavel className="w-4 h-4 opacity-0 group-hover:opacity-100"/>
-                      </button>
+                      <button onClick={() => handleUpdateRole('banned')} className="w-full text-left px-4 py-3 rounded bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 flex justify-between items-center group"><span>Ban User</span><Gavel className="w-4 h-4 opacity-0 group-hover:opacity-100"/></button>
                   </div>
               </div>
           </div>
       )}
 
       {/* Reply Box */}
-      <div className="fixed bottom-16 md:bottom-20 left-0 right-0 p-4 bg-slate-950/95 border-t border-amber-900/30 z-30 backdrop-blur-md transition-all">
-        <div className="max-w-4xl mx-auto flex gap-4 items-start">
+      <div className="fixed bottom-0 md:bottom-2 left-0 right-0 p-4 z-30 transition-all">
+        <div className="max-w-4xl mx-auto flex gap-4 items-end bg-slate-950/90 backdrop-blur-md border border-amber-900/30 p-3 rounded-xl shadow-2xl">
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
                 {activeCharId && characters.find(c => c.id === activeCharId) ? (
                   <><img src={characters.find(c => c.id === activeCharId).imageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => e.target.style.display='none'}/><div className="absolute inset-0 flex items-center justify-center font-bold text-amber-500 bg-slate-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0,1)}</div></>
@@ -350,11 +330,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                     value={replyContent} 
                     onChange={(e) => setReplyContent(e.target.value)} 
                     placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
-                    minHeight="min-h-[100px]"
+                    minHeight="min-h-[60px]"
                     onPost={handleReply}
-                    submitLabel="Post Reply"
-                    disabled={isSending} // Only disable editor if sending
-                    isSubmitDisabled={!replyContent.trim() || !activeCharId} // Disable button if empty
+                    submitLabel={cooldown ? "Cooling..." : "Post Reply"}
+                    disabled={isSending || cooldown} 
+                    isSubmitDisabled={!replyContent.trim() || !activeCharId || cooldown} 
                     isSubmitting={isSending}
                 />
              </div>

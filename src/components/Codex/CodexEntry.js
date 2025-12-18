@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, Edit3, Save, Trash2, Image as ImageIcon, X, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, Edit3, Save, Trash2, Image as ImageIcon, X, ChevronRight, Plus, AlertCircle } from 'lucide-react';
 import { doc, updateDoc, addDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -23,6 +23,7 @@ export default function CodexEntry({ page, goBack }) {
   const [category, setCategory] = useState(page.category || 'General');
   const [content, setContent] = useState(page.content || '');
   const [gallery, setGallery] = useState(page.gallery || []);
+  const [error, setError] = useState('');
   
   // Staging state for the Image Uploader
   const [stagedUrl, setStagedUrl] = useState('');
@@ -42,7 +43,10 @@ export default function CodexEntry({ page, goBack }) {
   }, [page]);
 
   const handleSave = async () => {
-    if (!title.trim() || !content.trim()) return alert("Title and Content required");
+    setError('');
+    if (!title.trim() || title.length < 3) return setError("Title must be at least 3 characters.");
+    if (!content.trim() || content.length < 10) return setError("Content must be at least 10 characters.");
+    if (gallery.length > 5) return setError("Gallery cannot exceed 5 images.");
 
     const pageData = {
         title, category, content, gallery,
@@ -63,7 +67,10 @@ export default function CodexEntry({ page, goBack }) {
             setLocalPage(prev => ({ ...prev, ...pageData, updatedAt: { toDate: () => new Date() } }));
         }
         setIsEditing(false);
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+        console.error(e); 
+        setError("Save failed: " + e.message);
+    }
   };
 
   const handleDelete = async () => {
@@ -85,9 +92,14 @@ export default function CodexEntry({ page, goBack }) {
   };
 
   const addStagedToGallery = () => {
+     if (gallery.length >= 5) {
+         setError("Maximum 5 images allowed in gallery.");
+         return;
+     }
      if (stagedUrl && !gallery.includes(stagedUrl)) {
          setGallery([...gallery, stagedUrl]);
          setStagedUrl(''); 
+         setError('');
      }
   };
 
@@ -147,7 +159,15 @@ export default function CodexEntry({ page, goBack }) {
        </div>
 
        {/* Content Card */}
-       <div className="bg-slate-900 border border-amber-900/30 rounded-xl overflow-hidden shadow-2xl">
+       <div className="bg-slate-900 border border-amber-900/30 rounded-xl overflow-hidden shadow-2xl relative">
+          
+          {/* Error Banner */}
+          {error && (
+              <div className="absolute top-0 left-0 right-0 bg-red-900/90 text-white p-2 text-center text-sm font-bold z-50 animate-in slide-in-from-top flex items-center justify-center gap-2">
+                  <AlertCircle className="w-4 h-4"/> {error}
+              </div>
+          )}
+
           {/* Title Area */}
           <div className="h-32 bg-linear-to-r from-amber-900/20 to-slate-900 border-b border-amber-900/30 p-6 flex items-end">
               <div className="w-full">
@@ -174,33 +194,39 @@ export default function CodexEntry({ page, goBack }) {
                       <MarkdownEditor 
                         value={content} 
                         onChange={e => setContent(e.target.value)} 
-                        placeholder="Write your lore..."
+                        placeholder="Write your lore (Min 10 characters)..."
                         minHeight="min-h-[400px]"
                       />
+                      <div className="text-right text-[10px] text-slate-500">{content.length} / 10000 chars</div>
                       
                       {/* Gallery Editor */}
                       <div className="bg-slate-950 p-4 rounded border border-slate-800">
-                          <h4 className="text-amber-500 font-bold mb-4 flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Gallery Manager</h4>
+                          <div className="flex justify-between items-center mb-4">
+                              <h4 className="text-amber-500 font-bold flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Gallery Manager</h4>
+                              <span className={`text-xs font-bold ${gallery.length >= 5 ? 'text-red-500' : 'text-slate-500'}`}>{gallery.length}/5 Images</span>
+                          </div>
                           
                           {/* Image Uploader Integration */}
-                          <div className="mb-6 bg-slate-900/50 p-4 rounded border border-slate-800">
-                              <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Add New Image</label>
-                              <ImageUploader 
-                                  initialUrl={stagedUrl}
-                                  onImageChanged={handleStagedImage}
-                                  folder="codex_gallery"
-                                  shape="square"
-                              />
-                              <div className="mt-3 flex justify-end">
-                                  <button 
-                                    onClick={addStagedToGallery} 
-                                    disabled={!stagedUrl}
-                                    className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2"
-                                  >
-                                      <Plus className="w-4 h-4"/> Add to Gallery
-                                  </button>
+                          {gallery.length < 5 && (
+                              <div className="mb-6 bg-slate-900/50 p-4 rounded border border-slate-800">
+                                  <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Add New Image</label>
+                                  <ImageUploader 
+                                      initialUrl={stagedUrl}
+                                      onImageChanged={handleStagedImage}
+                                      folder="codex_gallery"
+                                      shape="square"
+                                  />
+                                  <div className="mt-3 flex justify-end">
+                                      <button 
+                                        onClick={addStagedToGallery} 
+                                        disabled={!stagedUrl}
+                                        className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2"
+                                      >
+                                          <Plus className="w-4 h-4"/> Add to Gallery
+                                      </button>
+                                  </div>
                               </div>
-                          </div>
+                          )}
 
                           <div className="grid grid-cols-4 gap-2">
                              {gallery.map((url, idx) => (

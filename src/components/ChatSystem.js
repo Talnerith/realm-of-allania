@@ -15,6 +15,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [cooldown, setCooldown] = useState(false); // Rate Limit
   
   // If we open with a specific user target, we handle that initialization
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   const sendMessage = async (e) => {
       e.preventDefault();
       if (!newMessage.trim() || !activeChatId) return;
+      if (cooldown) return; 
       
       setIsSending(true);
       try {
@@ -121,6 +123,8 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
           }, { merge: true });
           
           setNewMessage('');
+          setCooldown(true);
+          setTimeout(() => setCooldown(false), 1000); // 1 Second Cooldown for Chats
       } catch (e) {
           console.error(e);
       } finally {
@@ -239,11 +243,12 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
           <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex gap-2">
               <input 
                   className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-white placeholder:text-slate-600"
-                  placeholder="Type a message..."
+                  placeholder={cooldown ? "Slow down..." : "Type a message..."}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
+                  disabled={cooldown}
               />
-              <button disabled={isSending} className="p-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50">
+              <button disabled={isSending || cooldown} className="p-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50 transition-opacity">
                   {isSending ? <Loader className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
               </button>
           </form>

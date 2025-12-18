@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { 
@@ -10,7 +10,6 @@ export default function WorldMap({ setView, setActiveRegion }) {
   const { user, readReceipts } = useGame();
   
   // Stores the latest activity timestamp for each region (calculated from threads)
-  // Structure: { regionId: max(thread.updatedAt) }
   const [regionLastActivity, setRegionLastActivity] = useState({});
   
   // Stores mapping of RegionID -> [ThreadIDs]
@@ -30,9 +29,17 @@ export default function WorldMap({ setView, setActiveRegion }) {
         setCustomNames(names);
     });
 
-    // B. Thread Activity (The Heavy Lifter)
-    // We listen to all threads to determine where the action is.
-    const unsubActivity = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'), (snap) => {
+    // B. Thread Activity (OPTIMIZED)
+    // PREVIOUSLY: Listened to ALL threads (Expensive!)
+    // NOW: Listens only to the 50 most recently active threads.
+    // This gives us the "Hot" activity indicators without reading the entire database.
+    const q = query(
+      collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'),
+      orderBy('updatedAt', 'desc'),
+      limit(50)
+    );
+
+    const unsubActivity = onSnapshot(q, (snap) => {
       const activity = {};
       const mapping = {};
 
@@ -63,9 +70,6 @@ export default function WorldMap({ setView, setActiveRegion }) {
       const regionName = customNames[i.toString()] || getRegionName(i);
       setActiveRegion({ id: i, name: regionName });
       setView('region');
-      
-      // Note: We NO LONGER clear the "Region Read Receipt" here.
-      // The red dot only clears when specific threads are visited in ThreadView.
   };
 
   return (
@@ -86,7 +90,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
             const regionName = customNames[i.toString()] || getRegionName(i);
             
             // UNREAD LOGIC:
-            // Check if ANY thread in this region has (updatedAt > userReadReceipt[threadId])
+            // Check if ANY of the *fetched* threads (top 50 active) in this region has (updatedAt > userReadReceipt)
             let hasUnread = false;
             const threadsInRegion = regionThreads[i.toString()] || [];
             
@@ -94,7 +98,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
                 const lastRead = readReceipts[thread.id] || 0;
                 if (thread.updatedAt > lastRead) {
                     hasUnread = true;
-                    break; // Found one, map is red.
+                    break; 
                 }
             }
 

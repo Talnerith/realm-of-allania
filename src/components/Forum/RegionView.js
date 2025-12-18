@@ -36,6 +36,8 @@ export default function RegionView({ region, setView, setActiveThread }) {
   const [newContent, setNewContent] = useState('');
   const [newBanner, setNewBanner] = useState({ url: '', position: 'center' }); 
   const [createCodexEntry, setCreateCodexEntry] = useState(false);
+  
+  const [cooldown, setCooldown] = useState(false);
 
   useEffect(() => {
     if (!region || region.id === undefined) return;
@@ -93,8 +95,11 @@ export default function RegionView({ region, setView, setActiveThread }) {
 
   const handleCreateThread = async () => {
     if (!activeCharId) return alert("Please select a character before creating a thread.");
-    if (!newTitle || !newContent) return alert("Please fill in the title and content.");
+    if (!newTitle || newTitle.length < 3) return alert("Title must be at least 3 characters.");
+    if (!newContent || newContent.length < 10) return alert("Content must be at least 10 characters.");
+    if (cooldown) return;
     
+    setCooldown(true);
     const char = characters.find(c => c.id === activeCharId);
     const currentRegionName = regionMetadata?.name || region.name;
     
@@ -136,7 +141,12 @@ export default function RegionView({ region, setView, setActiveThread }) {
         });
       }
       setNewTitle(''); setNewContent(''); setNewBanner({url:'', position:'center'}); setIsCreating(false);
-    } catch (e) { console.error("Error creating thread:", e); }
+    } catch (e) { 
+        console.error("Error creating thread:", e); 
+        alert("Failed to create thread.");
+    } finally {
+        setTimeout(() => setCooldown(false), 2000);
+    }
   };
 
   if (!region || region.id === undefined) return <div className="h-full flex items-center justify-center bg-slate-950 text-slate-500"><Loader className="w-8 h-8 animate-spin text-amber-500"/></div>;
@@ -218,7 +228,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
         {isCreating && (
           <div className="bg-slate-900/80 p-6 rounded-lg border border-amber-900 mb-8 backdrop-blur-sm">
              <h3 className="text-amber-100 font-bold mb-4">Post a New Topic</h3>
-             <input className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-4 focus:border-amber-500 focus:outline-none" placeholder="Thread Title..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+             <input className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-4 focus:border-amber-500 focus:outline-none" placeholder="Thread Title (Min 3 chars)..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
              
              <div className="mb-4 bg-slate-950 p-4 rounded border border-slate-800">
                 <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Thread Banner (Optional)</h4>
@@ -230,7 +240,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
                  <MarkdownEditor 
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
-                    placeholder={`What does ${characters.find(c => c.id === activeCharId)?.name || 'your character'} do?`}
+                    placeholder={`What does ${characters.find(c => c.id === activeCharId)?.name || 'your character'} do? (Min 10 chars)`}
                  />
              </div>
 
@@ -240,7 +250,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
              </div>
              <div className="flex justify-end gap-2">
                <button onClick={() => setIsCreating(false)} className="text-slate-400 hover:text-white px-4 py-2">Cancel</button>
-               <button onClick={handleCreateThread} className="bg-amber-700 hover:bg-amber-600 text-white px-4 py-2 rounded">Post Thread</button>
+               <button onClick={handleCreateThread} disabled={cooldown} className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white px-4 py-2 rounded">{cooldown ? 'Wait...' : 'Post Thread'}</button>
              </div>
           </div>
         )}
