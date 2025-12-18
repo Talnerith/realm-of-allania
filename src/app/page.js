@@ -10,13 +10,13 @@ import CodexIndex from '@/components/Codex/CodexIndex';
 import CodexEntry from '@/components/Codex/CodexEntry';
 import CharacterDrawer from '@/components/CharacterDrawer';
 import ChatSystem from '@/components/ChatSystem';
-import AdminMigrationTool from '@/components/AdminMigrationTool'; // IMPORTED
+import AdminMigrationTool from '@/components/AdminMigrationTool'; 
 
 export default function Home() {
-  const { user, loading } = useGame();
+  const gameContext = useGame();
   
   // Navigation State
-  const [view, setView] = useState('map'); // map, region, thread, codex, codex_entry
+  const [view, setView] = useState('map'); 
   const [activeRegion, setActiveRegion] = useState(null);
   const [activeThread, setActiveThread] = useState(null);
   const [activeCodexPage, setActiveCodexPage] = useState(null);
@@ -24,6 +24,13 @@ export default function Home() {
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
+
+  // BUILD SAFETY CHECK
+  // If the context is undefined (during build/prerender), return a loader or null
+  // This prevents the destructuring error: const { user } = undefined;
+  if (!gameContext) return null;
+
+  const { user, loading } = gameContext;
 
   // Handlers
   const handleRegionSelect = (region) => {
@@ -37,9 +44,6 @@ export default function Home() {
   };
 
   const handleCodexOpen = (pageId = null) => {
-      // If pageId is passed (e.g. from a post avatar click), we'd usually fetch that page.
-      // For now, we just open the index. 
-      // In a full implementation, you'd fetch the codex page by 'relatedId' == characterId
       setView('codex');
   };
   
@@ -53,8 +57,10 @@ export default function Home() {
       setIsChatOpen(true);
   };
 
+  // 1. Loading State
   if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
 
+  // 2. Auth State
   if (!user) return <AuthScreen />;
 
   return (
@@ -68,7 +74,6 @@ export default function Home() {
       />
 
       {/* 2. ADMIN MIGRATION TOOL (Temporary) */}
-      {/* Only visible to admins, checks handled inside component */}
       <div className="relative z-50">
           <AdminMigrationTool />
       </div>
