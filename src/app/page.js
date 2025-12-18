@@ -10,7 +10,6 @@ import CodexIndex from '@/components/Codex/CodexIndex';
 import CodexEntry from '@/components/Codex/CodexEntry';
 import CharacterDrawer from '@/components/CharacterDrawer';
 import ChatSystem from '@/components/ChatSystem';
-import AdminMigrationTool from '@/components/AdminMigrationTool'; 
 
 export default function Home() {
   const gameContext = useGame();
@@ -26,8 +25,6 @@ export default function Home() {
   const [chatTarget, setChatTarget] = useState(null);
 
   // BUILD SAFETY CHECK
-  // If the context is undefined (during build/prerender), return a loader or null
-  // This prevents the destructuring error: const { user } = undefined;
   if (!gameContext) return null;
 
   const { user, loading } = gameContext;
@@ -73,12 +70,7 @@ export default function Home() {
         onToggleChat={() => setIsChatOpen(!isChatOpen)} 
       />
 
-      {/* 2. ADMIN MIGRATION TOOL (Temporary) */}
-      <div className="relative z-50">
-          <AdminMigrationTool />
-      </div>
-
-      {/* 3. MAIN CONTENT AREA */}
+      {/* 2. MAIN CONTENT AREA */}
       <div className="flex-1 relative overflow-hidden">
         
         {view === 'map' && (
@@ -122,7 +114,7 @@ export default function Home() {
 
       </div>
 
-      {/* 4. OVERLAYS */}
+      {/* 3. OVERLAYS */}
       <CharacterDrawer />
       
       <ChatSystem 
