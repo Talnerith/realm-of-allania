@@ -21,22 +21,24 @@ export default function AdminMigrationTool() {
   const addLog = (msg) => setLogs(prev => [...prev, `> ${msg}`]);
 
   const runMigration = async () => {
-    if (!window.confirm("Run Character Count Backfill? This will scan all users and update their characterCount field.")) return;
+    if (!window.confirm("Run Character Count Backfill?")) return;
     
     setIsRunning(true);
-    setLogs(['Starting migration...', 'Scanning for user accounts...']);
+    setLogs(['Starting migration...', 'Scanning for user settings...']);
     setProgress(0);
 
     try {
-      // 1. Find all 'account' documents (this finds all users even if parent docs are phantom)
-      // We assume your user settings are at: users/{userId}/settings/account
-      const accountsQuery = query(collectionGroup(db, 'account'));
-      const accountsSnap = await getDocs(accountsQuery);
+      // FIX: Query the 'settings' collection group, then filter for 'account' doc
+      const settingsQuery = query(collectionGroup(db, 'settings'));
+      const settingsSnap = await getDocs(settingsQuery);
       
       const targets = [];
 
-      // Filter to ensure we only touch docs in THIS app's namespace
-      accountsSnap.forEach(docSnap => {
+      settingsSnap.forEach(docSnap => {
+          // 1. Ensure it is the 'account' document
+          if (docSnap.id !== 'account') return;
+
+          // 2. Ensure it belongs to THIS app
           const path = docSnap.ref.path;
           if (path.includes(APP_ID)) {
               // Path: artifacts/{appId}/users/{userId}/settings/account
@@ -53,51 +55,54 @@ export default function AdminMigrationTool() {
       });
 
       setTotal(targets.length);
-      addLog(`Found ${targets.length} users to check.`);
+      addLog(`Found ${targets.length} valid user accounts.`);
+
+      if (targets.length === 0) {
+          addLog("WARNING: No users found. Check database structure.");
+          setIsRunning(false);
+          return;
+      }
 
       let processed = 0;
-      let updated = 0;
-      const batchSize = 400; // Firestore batch limit is 500
       let batch = writeBatch(db);
       let batchCount = 0;
 
       for (const target of targets) {
-          // 2. Count Characters for this user
+          // Count Characters
           const charColRef = collection(db, 'artifacts', APP_ID, 'users', target.userId, 'characters');
           const charSnap = await getDocs(charColRef);
           const realCount = charSnap.size;
 
-          // 3. Add to batch
+          // Add to batch
           batch.update(target.accountRef, { characterCount: realCount });
           batchCount++;
           
-          addLog(`User ${target.userId.substring(0,6)}... has ${realCount} characters. Updating.`);
+          addLog(`User ${target.userId.substring(0,6)}... has ${realCount} chars. Queued.`);
 
-          // 4. Commit if batch full
-          if (batchCount >= batchSize) {
+          if (batchCount >= 400) {
               await batch.commit();
               batch = writeBatch(db);
               batchCount = 0;
+              addLog("-- Batch Committed --");
           }
 
           processed++;
           setProgress(processed);
       }
 
-      // Commit remaining
       if (batchCount > 0) {
           await batch.commit();
       }
 
       addLog('-----------------------------------');
-      addLog(`Migration Complete.`);
-      addLog(`Scanned: ${processed} users.`);
-      addLog(`All character counts synchronized.`);
+      addLog(`Migration Complete. Updated ${processed} users.`);
 
     } catch (e) {
         console.error(e);
         addLog(`ERROR: ${e.message}`);
-        addLog(`Make sure you have the necessary indexes if prompted.`);
+        if (e.message.includes('requires an index')) {
+             addLog("Link to create index should be in Browser Console (F12).");
+        }
     } finally {
         setIsRunning(false);
     }
@@ -109,7 +114,7 @@ export default function AdminMigrationTool() {
           <div className="flex items-center gap-3">
               <Shield className="w-6 h-6 text-amber-500"/>
               <div>
-                  <h3 className="text-amber-100 font-bold">Admin Migration Tool</h3>
+                  <h3 className="text-amber-100 font-bold">Admin Migration Tool (Fixed)</h3>
                   <p className="text-xs text-amber-500/80">Database Maintenance</p>
               </div>
           </div>
@@ -124,15 +129,6 @@ export default function AdminMigrationTool() {
       </div>
 
       <div className="p-6 bg-slate-950">
-          <div className="mb-4">
-             <h4 className="text-slate-400 text-sm uppercase font-bold mb-2">Task: Backfill Character Counts</h4>
-             <p className="text-slate-500 text-sm">
-                 This script will scan every user profile, count their actual number of characters in the database, 
-                 and update their <code className="bg-slate-800 px-1 rounded text-slate-300">settings/account</code> document 
-                 with a <code className="bg-slate-800 px-1 rounded text-slate-300">characterCount</code> field.
-             </p>
-          </div>
-
           {isRunning && (
               <div className="mb-6">
                   <div className="flex justify-between text-xs text-amber-500 mb-1">
@@ -158,7 +154,6 @@ export default function AdminMigrationTool() {
                       <div key={i} className="text-green-500/80 mb-1">{log}</div>
                   ))
               )}
-              {isRunning && <div className="text-amber-500 animate-pulse mt-2">Processing...</div>}
           </div>
       </div>
     </div>
