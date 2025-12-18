@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, Edit3, Save, Trash2, Image as ImageIcon, X, ChevronRight, Plus } from 'lucide-react';
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, CATEGORIES } from '@/lib/constants';
 import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor'; 
-import RichText from '@/components/RichText'; // <--- ADDED THIS MISSING IMPORT
+import RichText from '@/components/RichText';
 
 // Helper for timestamp
 const formatTime = (ts) => {
@@ -15,7 +15,7 @@ const formatTime = (ts) => {
 };
 
 export default function CodexEntry({ page, goBack }) {
-  const { user, characters, activeCharId } = useGame();
+  const { user, characters, activeCharId, userRole } = useGame();
   
   // State
   const [isEditing, setIsEditing] = useState(page.isNew || false);
@@ -33,6 +33,9 @@ export default function CodexEntry({ page, goBack }) {
   // Lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Permission Check
+  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
 
   useEffect(() => {
     if (page.isNew) setIsEditing(true);
@@ -61,6 +64,19 @@ export default function CodexEntry({ page, goBack }) {
         }
         setIsEditing(false);
     } catch (e) { console.error(e); }
+  };
+
+  const handleDelete = async () => {
+      if (!isAdminOrMod) return;
+      if (!window.confirm("Are you sure you want to delete this Codex Entry? This cannot be undone.")) return;
+
+      try {
+          await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id));
+          goBack(); // Return to index on success
+      } catch (e) {
+          console.error("Delete failed:", e);
+          alert("Failed to delete. You may not have permission.");
+      }
   };
 
   // Gallery Handlers
@@ -104,6 +120,18 @@ export default function CodexEntry({ page, goBack }) {
              <ChevronLeft className="w-5 h-5"/> Back to Index
           </button>
           <div className="flex-1"></div>
+          
+          {/* DELETE BUTTON (Admin/Mod Only) */}
+          {!isEditing && !page.isNew && isAdminOrMod && (
+              <button 
+                onClick={handleDelete} 
+                className="flex items-center gap-2 text-red-900 hover:text-red-500 px-3 py-1 mr-2 transition-colors border border-transparent hover:border-red-900/30 rounded"
+                title="Delete Entry"
+              >
+                  <Trash2 className="w-4 h-4"/> <span className="hidden md:inline text-xs font-bold uppercase">Delete</span>
+              </button>
+          )}
+
           {!isEditing ? (
              <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-slate-800 text-slate-200 px-3 py-1 rounded hover:bg-slate-700">
                 <Edit3 className="w-4 h-4"/> Edit Page
