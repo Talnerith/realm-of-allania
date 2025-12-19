@@ -1,22 +1,50 @@
-import { Plus, Book } from 'lucide-react';
-import { CATEGORIES } from '@/lib/constants';
+import { useState, useEffect } from 'react';
+import { Plus, Book, Loader, AlertCircle } from 'lucide-react';
+import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { APP_ID, CATEGORIES } from '@/lib/constants';
 
-export default function CodexIndex({ pages, openPage, createPage }) {
-  // Dynamically build categories based on constants
-  // This ensures "Bestiary", "Magic", etc. show up automatically
+export default function CodexIndex({ onOpenEntry }) {
+  const [pages, setPages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // FIX: Fetch pages directly here instead of relying on props
+  useEffect(() => {
+      const q = query(
+          collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+          orderBy('title', 'asc')
+      );
+
+      const unsub = onSnapshot(q, (snapshot) => {
+          const p = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          setPages(p);
+          setLoading(false);
+      }, (err) => {
+          console.error("Codex Error:", err);
+          setError("Failed to load Codex entries.");
+          setLoading(false);
+      });
+
+      return () => unsub();
+  }, []);
+
+  // Dynamically build categories
   const categories = {};
   CATEGORIES.forEach(cat => {
     categories[cat] = [];
   });
   
-  // Fallback bucket for anything that doesn't match
+  // Fallback bucket
   categories['Uncategorized'] = [];
 
   pages.forEach(p => {
-    // Check if the page's category exists in our defined list
     const cat = categories[p.category] ? p.category : 'Uncategorized';
     categories[cat].push(p);
   });
+
+  if (loading) return <div className="h-full flex items-center justify-center text-slate-500"><Loader className="w-6 h-6 animate-spin mr-2"/> Accessing Archives...</div>;
+  if (error) return <div className="h-full flex items-center justify-center text-red-500"><AlertCircle className="w-6 h-6 mr-2"/> {error}</div>;
 
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in fade-in pb-48">
@@ -26,7 +54,7 @@ export default function CodexIndex({ pages, openPage, createPage }) {
               <p className="text-slate-400">Archives of knowledge, history, and known figures.</p>
           </div>
           <button 
-             onClick={createPage}
+             onClick={() => onOpenEntry({ isNew: true })} // Handle create logic via the same prop
              className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 text-white px-4 py-2 rounded"
           >
              <Plus className="w-4 h-4"/> New Page
@@ -41,7 +69,7 @@ export default function CodexIndex({ pages, openPage, createPage }) {
               {pageList.map(page => (
                 <div 
                   key={page.id}
-                  onClick={() => openPage(page)}
+                  onClick={() => onOpenEntry(page)}
                   className="group flex items-center gap-3 p-2 rounded hover:bg-slate-800 cursor-pointer transition-colors"
                 >
                   <Book className="w-4 h-4 text-slate-600 group-hover:text-amber-400" />

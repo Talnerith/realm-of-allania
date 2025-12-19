@@ -316,7 +316,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
       )}
 
       {/* Reply Box */}
-      <div className="fixed bottom-0 md:bottom-2 left-0 right-0 p-4 z-30 transition-all">
+      {/* FIX: Raised bottom to bottom-14 (mobile) and bottom-16 (desktop) to clear Character Drawer */}
+      <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-4 z-30 transition-all">
         <div className="max-w-4xl mx-auto flex gap-4 items-end bg-slate-950/90 backdrop-blur-md border border-amber-900/30 p-3 rounded-xl shadow-2xl">
              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
                 {activeCharId && characters.find(c => c.id === activeCharId) ? (
