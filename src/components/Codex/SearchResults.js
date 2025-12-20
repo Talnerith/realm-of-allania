@@ -2,22 +2,27 @@ import { useState, useEffect } from 'react';
 import { collection, query, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
-import { Loader, FileText, MessageSquare, AlertCircle, Search } from 'lucide-react';
+import { Loader, FileText, MessageSquare, AlertCircle, Search, WifiOff } from 'lucide-react';
 
 export default function SearchResults({ query: searchQuery, onNavigate, onOpenThread, onOpenCodex }) {
   const [results, setResults] = useState({ threads: [], codex: [] });
   const [loading, setLoading] = useState(true);
+  const [searchError, setSearchError] = useState(null);
 
   useEffect(() => {
-    if (!searchQuery) return;
+    // Don't search if empty, but clear results
+    if (!searchQuery) {
+        setLoading(false);
+        return;
+    }
 
     const performSearch = async () => {
       setLoading(true);
+      setSearchError(null);
       const lowerQuery = searchQuery.toLowerCase();
       
       try {
         // 1. Search Codex (Fetch metadata and filter client-side)
-        // We fetch the last 100 entries to keep it fast. For larger apps, use Algolia.
         const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), limit(100));
         const codexSnap = await getDocs(codexQ);
         const codexResults = codexSnap.docs
@@ -28,6 +33,8 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
             );
 
         // 2. Search Threads (Fetch recent threads)
+        // Note: Client-side filtering is used here because Firestore doesn't support 
+        // partial string matching (e.g. "drag" matching "dragon") natively.
         const threadsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'), orderBy('updatedAt', 'desc'), limit(50));
         const threadsSnap = await getDocs(threadsQ);
         const threadResults = threadsSnap.docs
@@ -40,20 +47,27 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
 
       } catch (e) {
         console.error("Search error:", e);
+        // Check for common blocking errors
+        if (e.message && (e.message.includes('offline') || e.message.includes('client'))) {
+            setSearchError("Connection blocked. Please disable ad-blockers for Firestore.");
+        } else {
+            setSearchError("Failed to search archives. The library is closed.");
+        }
       } finally {
         setLoading(false);
       }
     };
 
+    // Small delay to allow UI to settle before firing network request
     const timer = setTimeout(() => {
         performSearch();
-    }, 500); // Debounce
+    }, 100); 
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 p-6 md:p-12">
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 p-6 md:p-12 animate-in slide-in-from-bottom-2">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-3xl font-serif font-bold text-amber-100 mb-2 flex items-center gap-3">
             <Search className="w-8 h-8 text-amber-500"/>
@@ -67,6 +81,12 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
             <div className="flex flex-col items-center justify-center py-20 text-amber-500">
                 <Loader className="w-8 h-8 animate-spin mb-4"/>
                 <p>Scouring the archives...</p>
+            </div>
+        ) : searchError ? (
+             <div className="text-center py-12 bg-red-900/20 rounded-xl border border-red-900/50">
+                <WifiOff className="w-12 h-12 text-red-500 mx-auto mb-3"/>
+                <p className="text-red-400 font-bold mb-2">Search Failed</p>
+                <p className="text-slate-500 text-sm">{searchError}</p>
             </div>
         ) : (
             <div className="space-y-8">

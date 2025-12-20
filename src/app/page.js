@@ -8,6 +8,7 @@ import RegionView from '@/components/Forum/RegionView';
 import ThreadView from '@/components/Forum/ThreadView';
 import CodexIndex from '@/components/Codex/CodexIndex';
 import CodexEntry from '@/components/Codex/CodexEntry';
+import SearchResults from '@/components/Codex/SearchResults';
 import CharacterDrawer from '@/components/CharacterDrawer';
 import ChatSystem from '@/components/ChatSystem';
 
@@ -20,6 +21,10 @@ export default function Home() {
   const [activeThread, setActiveThread] = useState(null);
   const [activeCodexPage, setActiveCodexPage] = useState(null);
   
+  // Search State
+  const [searchQuery, setSearchQuery] = useState(''); 
+  const [searchKey, setSearchKey] = useState(0); // Forces re-render on new search
+  
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
@@ -27,19 +32,21 @@ export default function Home() {
   // --- HISTORY MANAGEMENT (Back Button Logic) ---
   useEffect(() => {
     // 1. Initialize History State on Mount
-    window.history.replaceState({ view: 'map' }, '');
+    if (typeof window !== 'undefined') {
+        window.history.replaceState({ view: 'map' }, '');
+    }
 
     // 2. Listen for PopState (Back Button)
     const onPopState = (event) => {
         const state = event.state;
         if (state && state.view) {
-            // Restore View
             setView(state.view);
-            // Note: Complex objects like activeRegion/Thread usually persist in React State 
-            // because we are just changing the 'view' variable.
-            // But if we want to be safe, we could check state.region, etc.
+            // Restore search query if going back to search
+            if (state.view === 'search' && state.query) {
+                setSearchQuery(state.query);
+                setSearchKey(prev => prev + 1); // Ensure results refresh
+            }
         } else {
-            // Default Fallback
             setView('map');
         }
     };
@@ -50,17 +57,14 @@ export default function Home() {
 
   // Helper: Wraps setView to also Push History
   const navigateTo = (newView, extraState = {}) => {
-      // Don't push duplicates if we are already there (optional check)
-      if (view === newView) return;
+      // Allow re-navigation to search even if current view is search
+      if (view === newView && newView !== 'search') return; 
 
       setView(newView);
       window.history.pushState({ view: newView, ...extraState }, '');
   };
 
-
-  // BUILD SAFETY CHECK
   if (!gameContext) return null;
-
   const { user, loading } = gameContext;
 
   // Handlers
@@ -83,14 +87,22 @@ export default function Home() {
       navigateTo('codex_entry', { pageId: page.id });
   };
 
-  // Back Button Handlers (UI Buttons)
-  // We use navigateTo here to push a new history state, effectively creating a "forward" history
-  // that looks like going back, OR we can use history.back() to actually go back.
-  // Using navigateTo keeps the logic linear and safe from "empty stack" errors.
-  
   const handleMessageUser = (targetUser) => {
       setChatTarget(targetUser);
       setIsChatOpen(true);
+  };
+
+  // --- SEARCH HANDLER (Fixed) ---
+  const handleSearch = (query) => {
+      if (!query || !query.trim()) return;
+      const cleanQuery = query.trim();
+      
+      setSearchQuery(cleanQuery);
+      setSearchKey(prev => prev + 1); // Force re-render of SearchResults
+      
+      // Update View
+      setView('search');
+      window.history.pushState({ view: 'search', query: cleanQuery }, '');
   };
 
   // 1. Loading State
@@ -105,7 +117,8 @@ export default function Home() {
       {/* 1. TOP NAVIGATION */}
       <Navbar 
         currentView={view} 
-        setView={navigateTo}  // Pass our history-aware navigator
+        setView={navigateTo}
+        onSearch={handleSearch} 
         onToggleChat={() => setIsChatOpen(!isChatOpen)} 
       />
 
@@ -147,6 +160,16 @@ export default function Home() {
             <CodexEntry 
                 page={activeCodexPage}
                 goBack={() => navigateTo('codex')}
+            />
+        )}
+
+        {view === 'search' && (
+            <SearchResults 
+                key={searchKey} // KEY PROP IS CRITICAL FOR RE-RENDERING
+                query={searchQuery}
+                onNavigate={navigateTo}
+                onOpenThread={handleThreadSelect}
+                onOpenCodex={handleOpenCodexEntry}
             />
         )}
 

@@ -19,9 +19,10 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
 
   const handleSubmitSearch = (e) => {
       e.preventDefault();
-      if (searchInput.trim() && onSearch) {
+      if (searchInput.trim()) {
           onSearch(searchInput);
           setMobileMenuOpen(false);
+          // Optional: Clear input after search, or keep it to show what they searched
           setSearchInput('');
       }
   };
@@ -70,7 +71,6 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
 
         <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors">
             <MessageCircle className="w-5 h-5" />
-            {/* Optional: Add Unread Dot Here if passed from props */}
         </button>
 
         <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
