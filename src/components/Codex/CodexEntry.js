@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, Edit3, Save, Trash2, Image as ImageIcon, X, ChevronRight, Plus, AlertCircle } from 'lucide-react';
 import { doc, updateDoc, addDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, CATEGORIES } from '@/lib/constants';
 import ImageUploader from '@/components/ImageUploader';
@@ -78,8 +79,17 @@ export default function CodexEntry({ page, goBack }) {
       if (!window.confirm("Are you sure you want to delete this Codex Entry? This cannot be undone.")) return;
 
       try {
+          // CLEANUP: Delete all gallery images associated with this page
+          if (localPage.gallery && localPage.gallery.length > 0) {
+              for (const url of localPage.gallery) {
+                  if (url.includes('firebasestorage')) {
+                      try { await deleteObject(ref(storage, url)); } catch(e) { console.warn("Cleanup failed:", e); }
+                  }
+              }
+          }
+
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id));
-          goBack(); // Return to index on success
+          goBack(); 
       } catch (e) {
           console.error("Delete failed:", e);
           alert("Failed to delete. You may not have permission.");
@@ -103,7 +113,18 @@ export default function CodexEntry({ page, goBack }) {
      }
   };
 
-  const removeImage = (url) => setGallery(gallery.filter(u => u !== url));
+  const removeImage = async (url) => {
+      // Remove from UI immediately
+      setGallery(gallery.filter(u => u !== url));
+      
+      // Cleanup file if it was just uploaded (staged) OR if we are saving immediately? 
+      // NOTE: We only delete from storage if the user hits SAVE and this url is no longer in the final list?
+      // actually, let's just delete it immediately from storage if it is a firebase URL.
+      // This is slightly risky if they don't save the page update, but it keeps storage clean.
+      if (url.includes('firebasestorage')) {
+          try { await deleteObject(ref(storage, url)); } catch(e) { console.warn("Cleanup failed:", e); }
+      }
+  };
 
   // Lightbox Handlers
   const openLightbox = (idx) => { setLightboxIndex(idx); setLightboxOpen(true); };
@@ -111,9 +132,8 @@ export default function CodexEntry({ page, goBack }) {
   const prevImage = (e) => { e.stopPropagation(); setLightboxIndex((i) => (i - 1 + gallery.length) % gallery.length); };
 
   return (
-    // FIX: Added outer scroll container
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950">
-        <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 pb-48">
+        <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 pb-96">
         {/* Lightbox */}
         {lightboxOpen && (
             <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxOpen(false)}>

@@ -3,7 +3,8 @@ import {
   collection, query, addDoc, onSnapshot, doc, setDoc, 
   serverTimestamp, where 
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
@@ -55,7 +56,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
       }
     });
 
-    // 2. Threads Query (OPTIMIZED: Only fetch threads for THIS region)
+    // 2. Threads Query
     const q = query(
         collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'),
         where('regionId', '==', region.id.toString())
@@ -64,10 +65,8 @@ export default function RegionView({ region, setView, setActiveThread }) {
     const unsubThreads = onSnapshot(q, (snapshot) => {
       const t = [];
       snapshot.docs.forEach(d => {
-        // We push all results because the Query 'where' clause already filtered them
         t.push({ id: d.id, ...d.data() });
       });
-      // Sort client-side to avoid needing a Composite Index immediately
       t.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
       setThreads(t);
     });
@@ -78,6 +77,12 @@ export default function RegionView({ region, setView, setActiveThread }) {
   const handleSaveBanner = async (url, position) => {
     if (!region) return;
     try {
+      // CLEANUP: If there was an old banner, delete it
+      const oldBannerUrl = regionMetadata?.bannerUrl;
+      if (oldBannerUrl && oldBannerUrl !== url && oldBannerUrl.includes('firebasestorage')) {
+           try { await deleteObject(ref(storage, oldBannerUrl)); } catch(e) { console.warn("Cleanup failed:", e); }
+      }
+
       await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString()), { 
         bannerUrl: url,
         bannerPosition: position
@@ -240,7 +245,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
                  <MarkdownEditor 
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
-                    placeholder={`What does ${characters.find(c => c.id === activeCharId)?.name || 'your character'} do? (Min 10 chars)`}
+                    placeholder="Describe your thread, recommend italics"
                  />
              </div>
 

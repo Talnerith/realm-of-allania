@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Upload, Link as LinkIcon, Move, Loader } from 'lucide-react';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { Upload, Link as LinkIcon, Move, Loader, AlertCircle } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 
@@ -16,6 +16,9 @@ export default function ImageUploader({
   const [position, setPosition] = useState(initialPosition);
   const [isUploading, setIsUploading] = useState(false);
   const [dragStart, setDragStart] = useState(null);
+  
+  // Track the last file we uploaded in this session to clean it up if replaced
+  const [lastUploadedUrl, setLastUploadedUrl] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -30,13 +33,27 @@ export default function ImageUploader({
 
     setIsUploading(true);
     try {
-      const resizedBlob = await resizeImage(file, 1600); // Increased max width for banners
+      // 1. Intermediate Cleanup: If we already uploaded a file in this session, delete it before uploading the new one
+      if (lastUploadedUrl) {
+          try {
+              const oldRef = ref(storage, lastUploadedUrl);
+              await deleteObject(oldRef);
+              console.log("Cleaned up intermediate file:", lastUploadedUrl);
+          } catch (delErr) {
+              console.warn("Failed to clean up intermediate file (might be already gone or permission issue):", delErr);
+          }
+      }
+
+      // 2. Upload New
+      const resizedBlob = await resizeImage(file, 1600); 
       const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
       const storageRef = ref(storage, `artifacts/${APP_ID}/public/${folder}/${filename}`);
       
       await uploadBytes(storageRef, resizedBlob);
       const url = await getDownloadURL(storageRef);
       
+      // 3. Update State
+      setLastUploadedUrl(url); // Mark this as the one to delete if they replace it again
       setPreviewUrl(url);
       onImageChanged(url, position);
       setMode('preview');

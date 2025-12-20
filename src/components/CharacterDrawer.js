@@ -3,7 +3,8 @@ import {
   collection, addDoc, doc, updateDoc, deleteDoc, 
   serverTimestamp, writeBatch, getDocs, query, where, increment 
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, deleteObject } from 'firebase/storage'; // Added deleteObject
+import { db, storage } from '@/lib/firebase'; // Added storage
 import { useGame } from '@/context/GameContext';
 import { APP_ID, RACES, CLASSES } from '@/lib/constants';
 import { 
@@ -115,14 +116,31 @@ export default function CharacterDrawer() {
     if (!editingId) return;
     setIsSubmitting(true);
     try {
+      // Get the old character data to check for image changes
+      const oldChar = characters.find(c => c.id === editingId);
+
       // 1. Update the Character Profile itself
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
 
-      // 2. Find ALL posts by this character
+      // 2. IMAGE CLEANUP: If image changed and old one existed, delete the old one
+      if (oldChar && oldChar.imageUrl && oldChar.imageUrl !== formData.imageUrl) {
+          try {
+              // Only delete if it looks like a firebase storage URL
+              if (oldChar.imageUrl.includes('firebasestorage.googleapis.com')) {
+                  const oldImageRef = ref(storage, oldChar.imageUrl);
+                  await deleteObject(oldImageRef);
+                  console.log("Deleted old character image");
+              }
+          } catch (delErr) {
+              console.warn("Failed to delete old image (might be used elsewhere or permission issue):", delErr);
+          }
+      }
+
+      // 3. Find ALL posts by this character
       const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', editingId));
       const snapshot = await getDocs(q);
       
-      // 3. Batch Update (Chunked to safe-guard against Firestore 500 limit)
+      // 4. Batch Update Posts (Chunked)
       if (!snapshot.empty) {
           const chunks = [];
           const docs = snapshot.docs;
@@ -160,39 +178,70 @@ export default function CharacterDrawer() {
     const char = characters.find(c => c.id === deleteId);
     if (!char) return;
     setIsSubmitting(true);
+    
     try {
-        const batch = writeBatch(db);
-
-        // 1. Delete Character
-        batch.delete(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
-
-        // 2. Decrement User Character Count
-        const userSettingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'account');
-        batch.update(userSettingsRef, { characterCount: increment(-1) });
-        
-        // 3. Mark Codex as Archived
-        const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), where('relatedId', '==', deleteId));
-        const codexSnap = await getDocs(codexQ);
-        codexSnap.forEach(d => batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), { title: `[Archived] ${char.name}`, category: 'Lore' }));
-        
-        // 4. Mark Posts as Deleted User
+        // --- STEP 1: Anonymize ALL Posts (Chunked) ---
         const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', deleteId));
         const postsSnap = await getDocs(postsQ);
         
-        // Simple safety cap
-        let limit = 0;
-        postsSnap.forEach(d => {
-            if (limit < 450) {
-                batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', d.id), { characterName: `${char.name} [Deleted]`, characterImageUrl: '' });
-                limit++;
+        if (!postsSnap.empty) {
+            const chunks = [];
+            const docs = postsSnap.docs;
+            // Split into chunks of 450 to avoid Firestore batch limits
+            for (let i = 0; i < docs.length; i += 450) {
+                chunks.push(docs.slice(i, i + 450));
             }
-        });
+
+            // Process each chunk
+            for (const chunk of chunks) {
+                const batch = writeBatch(db);
+                chunk.forEach(d => {
+                    batch.update(d.ref, { 
+                        characterName: `${char.name} [Deleted]`, 
+                        characterImageUrl: '' 
+                    });
+                });
+                await batch.commit();
+            }
+        }
+
+        // --- STEP 2: Mark Codex as Archived ---
+        const finalBatch = writeBatch(db);
         
-        await batch.commit();
+        const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), where('relatedId', '==', deleteId));
+        const codexSnap = await getDocs(codexQ);
+        codexSnap.forEach(d => {
+            finalBatch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), { 
+                title: `[Archived] ${char.name}`, 
+                category: 'Lore' 
+            });
+        });
+
+        // --- STEP 3: Delete Character & Decrement Count ---
+        finalBatch.delete(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
+        
+        const userSettingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'account');
+        finalBatch.update(userSettingsRef, { characterCount: increment(-1) });
+
+        await finalBatch.commit();
+        
+        // --- STEP 4: Image Cleanup (New) ---
+        if (char.imageUrl && char.imageUrl.includes('firebasestorage.googleapis.com')) {
+             try {
+                 await deleteObject(ref(storage, char.imageUrl));
+             } catch(e) { console.warn("Could not delete image:", e); }
+        }
+
+        // Cleanup UI
         setMode('view');
         if (activeCharId === deleteId) setActiveCharId(null);
-    } catch (e) { console.error("Cleanup error:", e); setFormError(`Delete failed: ${e.message}`); } 
-    finally { setIsSubmitting(false); }
+
+    } catch (e) { 
+        console.error("Cleanup error:", e); 
+        setFormError(`Delete failed: ${e.message}`); 
+    } finally { 
+        setIsSubmitting(false); 
+    }
   };
 
   return (

@@ -70,6 +70,13 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
     return () => unsub();
   }, [activeChatId, user]); 
 
+  // Scroll on Open
+  useEffect(() => {
+    if (isOpen && activeChatId) {
+        scrollToBottom();
+    }
+  }, [isOpen, activeChatId]);
+
   const messagesEndRef = useRef(null);
   const scrollToBottom = () => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -124,6 +131,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
           
           setNewMessage('');
           setCooldown(true);
+          scrollToBottom();
           setTimeout(() => setCooldown(false), 1000); // 1 Second Cooldown for Chats
       } catch (e) {
           console.error(e);
@@ -137,20 +145,32 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
       if (!window.confirm("Are you sure? This will delete the ENTIRE chat history for BOTH users.")) return;
 
       try {
-          // 1. Delete all messages (Firestore requires deleting subcollections manually or via cloud functions, 
-          //    but for client-side cleanliness we'll batch delete what we can see)
+          // 1. Fetch all messages
           const q = query(collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'));
           const snapshot = await getDocs(q);
-          const batch = writeBatch(db);
           
-          snapshot.docs.forEach((doc) => {
-              batch.delete(doc.ref);
-          });
+          // 2. CHUNK DELETION LOOP (Safeguard against 500 batch limit)
+          if (!snapshot.empty) {
+              const chunks = [];
+              const docs = snapshot.docs;
+              
+              // Split into chunks of 450
+              for (let i = 0; i < docs.length; i += 450) {
+                  chunks.push(docs.slice(i, i + 450));
+              }
+
+              // Execute batches
+              for (const chunk of chunks) {
+                  const batch = writeBatch(db);
+                  chunk.forEach(doc => {
+                      batch.delete(doc.ref);
+                  });
+                  await batch.commit();
+              }
+          }
           
-          // 2. Delete the chat document itself
-          batch.delete(doc(db, 'artifacts', APP_ID, 'chats', activeChatId));
-          
-          await batch.commit();
+          // 3. Delete the chat document itself
+          await deleteDoc(doc(db, 'artifacts', APP_ID, 'chats', activeChatId));
           
           setActiveChatId(null);
       } catch (e) {
@@ -167,7 +187,8 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 z-50 w-full max-w-sm h-[500px] bg-slate-900 border border-amber-900/50 rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-10">
+    // FIX: Adjusted layout for mobile (inset-0) vs desktop (bottom-20 right-4 w-96)
+    <div className="fixed z-50 flex flex-col bg-slate-900 border border-amber-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto">
       <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2">
               {activeChatId && (
@@ -176,7 +197,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                   </button>
               )}
               <MessageCircle className="w-5 h-5 text-amber-500" />
-              <h3 className="font-serif font-bold text-amber-100">
+              <h3 className="font-serif font-bold text-amber-100 truncate max-w-[150px]">
                   {activeChatId 
                     ? (chats.find(c => c.id === activeChatId)?.participantNames?.[chats.find(c => c.id === activeChatId)?.participants.find(p => p !== user.uid)] || 'Chat')
                     : 'Messages'
@@ -240,7 +261,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
       </div>
 
       {activeChatId && (
-          <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex gap-2">
+          <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex gap-2 pb-safe">
               <input 
                   className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-white placeholder:text-slate-600"
                   placeholder={cooldown ? "Slow down..." : "Type a message..."}

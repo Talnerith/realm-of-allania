@@ -24,6 +24,40 @@ export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
 
+  // --- HISTORY MANAGEMENT (Back Button Logic) ---
+  useEffect(() => {
+    // 1. Initialize History State on Mount
+    window.history.replaceState({ view: 'map' }, '');
+
+    // 2. Listen for PopState (Back Button)
+    const onPopState = (event) => {
+        const state = event.state;
+        if (state && state.view) {
+            // Restore View
+            setView(state.view);
+            // Note: Complex objects like activeRegion/Thread usually persist in React State 
+            // because we are just changing the 'view' variable.
+            // But if we want to be safe, we could check state.region, etc.
+        } else {
+            // Default Fallback
+            setView('map');
+        }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // Helper: Wraps setView to also Push History
+  const navigateTo = (newView, extraState = {}) => {
+      // Don't push duplicates if we are already there (optional check)
+      if (view === newView) return;
+
+      setView(newView);
+      window.history.pushState({ view: newView, ...extraState }, '');
+  };
+
+
   // BUILD SAFETY CHECK
   if (!gameContext) return null;
 
@@ -32,23 +66,28 @@ export default function Home() {
   // Handlers
   const handleRegionSelect = (region) => {
     setActiveRegion(region);
-    setView('region');
+    navigateTo('region', { regionId: region.id });
   };
 
   const handleThreadSelect = (thread) => {
     setActiveThread(thread);
-    setView('thread');
+    navigateTo('thread', { threadId: thread.id });
   };
 
   const handleCodexOpen = (pageId = null) => {
-      setView('codex');
+      navigateTo('codex');
   };
   
   const handleOpenCodexEntry = (page) => {
       setActiveCodexPage(page);
-      setView('codex_entry');
+      navigateTo('codex_entry', { pageId: page.id });
   };
 
+  // Back Button Handlers (UI Buttons)
+  // We use navigateTo here to push a new history state, effectively creating a "forward" history
+  // that looks like going back, OR we can use history.back() to actually go back.
+  // Using navigateTo keeps the logic linear and safe from "empty stack" errors.
+  
   const handleMessageUser = (targetUser) => {
       setChatTarget(targetUser);
       setIsChatOpen(true);
@@ -66,7 +105,7 @@ export default function Home() {
       {/* 1. TOP NAVIGATION */}
       <Navbar 
         currentView={view} 
-        setView={setView} 
+        setView={navigateTo}  // Pass our history-aware navigator
         onToggleChat={() => setIsChatOpen(!isChatOpen)} 
       />
 
@@ -75,7 +114,7 @@ export default function Home() {
         
         {view === 'map' && (
           <WorldMap 
-            setView={setView} 
+            setView={navigateTo} 
             setActiveRegion={handleRegionSelect} 
           />
         )}
@@ -83,7 +122,7 @@ export default function Home() {
         {view === 'region' && (
           <RegionView 
             region={activeRegion} 
-            setView={setView} 
+            setView={navigateTo} 
             setActiveThread={handleThreadSelect}
           />
         )}
@@ -92,7 +131,7 @@ export default function Home() {
           <ThreadView 
             thread={activeThread} 
             region={activeRegion}
-            setView={setView}
+            setView={navigateTo}
             onOpenCodex={handleCodexOpen}
             onMessageUser={handleMessageUser}
           />
@@ -107,7 +146,7 @@ export default function Home() {
         {view === 'codex_entry' && (
             <CodexEntry 
                 page={activeCodexPage}
-                goBack={() => setView('codex')}
+                goBack={() => navigateTo('codex')}
             />
         )}
 
