@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell } from 'lucide-react';
+import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell, Shield, Crown } from 'lucide-react';
 import { useGame } from '@/context/GameContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
@@ -35,12 +35,19 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
   return (
     <nav className="h-16 bg-slate-950 border-b border-amber-900/50 flex items-center justify-between px-4 md:px-8 z-40 relative shadow-lg">
       
-      {/* 1. Logo */}
-      <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('map')}>
-        <div className="w-8 h-8 bg-amber-600 rounded-full flex items-center justify-center border-2 border-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.5)]">
-            <span className="font-serif font-bold text-slate-900">R</span>
+      {/* 1. Logo / Brand */}
+      <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('map')}>
+        {/* Styled Logo Icon */}
+        <div className="relative w-10 h-10 flex items-center justify-center">
+            {/* Background Shield */}
+            <Shield className="w-10 h-10 text-amber-900 fill-amber-950 absolute inset-0 drop-shadow-md group-hover:text-amber-800 transition-colors" />
+            {/* Inner Crown/Crest */}
+            <Crown className="w-5 h-5 text-amber-500 relative z-10 drop-shadow-sm" />
         </div>
-        <span className="font-serif font-bold text-xl text-amber-100 hidden md:block tracking-wide">Realm of Allania</span>
+        <div className="flex flex-col">
+            <span className="font-serif font-bold text-lg text-amber-100 leading-none tracking-wide group-hover:text-amber-50 transition-colors">Realm of Allania</span>
+            <span className="text-[10px] text-amber-500/80 uppercase tracking-[0.2em] leading-none">Chronicles</span>
+        </div>
       </div>
 
       {/* 2. Desktop Navigation */}
