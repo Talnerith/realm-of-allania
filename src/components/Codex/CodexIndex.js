@@ -28,14 +28,23 @@ export default function CodexIndex({ onOpenEntry }) {
       return () => unsub();
   }, []);
 
+  // OPTIMIZATION: Memoize the categorization logic.
+  // This prevents rebuilding the entire category structure on every render.
   const categorizedPages = useMemo(() => {
       const cats = {};
-      CATEGORIES.forEach(cat => { cats[cat] = []; });
+      
+      // Initialize buckets
+      CATEGORIES.forEach(cat => {
+        cats[cat] = [];
+      });
       cats['Uncategorized'] = [];
+
+      // Sort pages into buckets
       pages.forEach(p => {
         const targetCat = cats[p.category] ? p.category : 'Uncategorized';
         cats[targetCat].push(p);
       });
+
       return cats;
   }, [pages]);
 
@@ -43,8 +52,7 @@ export default function CodexIndex({ onOpenEntry }) {
   if (error) return <div className="h-full flex items-center justify-center text-red-500"><AlertCircle className="w-6 h-6 mr-2"/> {error}</div>;
 
   return (
-    // UPDATED: Semi-transparent background
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950/80 backdrop-blur-sm">
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950">
         <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in fade-in pb-48">
             <div className="flex justify-between items-center mb-8">
                 <div>
@@ -68,7 +76,7 @@ export default function CodexIndex({ onOpenEntry }) {
                         <div 
                         key={page.id}
                         onClick={() => onOpenEntry(page)}
-                        className="group flex items-center gap-3 p-2 rounded hover:bg-slate-800/80 cursor-pointer transition-colors"
+                        className="group flex items-center gap-3 p-2 rounded hover:bg-slate-800 cursor-pointer transition-colors"
                         >
                         <Book className="w-4 h-4 text-slate-600 group-hover:text-amber-400" />
                         <span className="text-slate-300 group-hover:text-amber-100">{page.title}</span>

@@ -19,7 +19,7 @@ const formatTimestamp = (firestoreTimestamp) => {
   return firestoreTimestamp.toDate().toLocaleDateString();
 };
 
-export default function RegionView({ region, setView, setActiveThread, onWikiLink }) {
+export default function RegionView({ region, setView, setActiveThread }) {
   const { user, readReceipts, characters, activeCharId } = useGame();
   
   // State
@@ -161,10 +161,9 @@ export default function RegionView({ region, setView, setActiveThread, onWikiLin
   const displayName = regionMetadata?.name || region.name;
 
   return (
-    // UPDATED: bg-slate-950/80 (Transparent)
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950/80 backdrop-blur-sm pb-48 animate-in fade-in">
+    <div className="h-full overflow-y-auto custom-scrollbar bg-linear-to-b from-slate-950 to-slate-900 pb-48">
       {/* Banner Header */}
-      <div className="relative w-full h-64 md:h-96 bg-transparent border-b border-amber-900/50 overflow-hidden shrink-0 group/banner">
+      <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group/banner">
          {bannerUrl ? (
             <img 
                 src={bannerUrl} 
@@ -173,7 +172,7 @@ export default function RegionView({ region, setView, setActiveThread, onWikiLin
                 onError={(e) => e.target.style.display = 'none'}
             />
          ) : (
-            <div className="w-full h-full bg-linear-to-b from-slate-800/50 to-slate-950/50 opacity-50" />
+            <div className="w-full h-full bg-linear-to-b from-slate-800 to-slate-950 opacity-50" />
          )}
          <div className="absolute inset-0 flex flex-col justify-end p-6 md:p-8 bg-linear-to-t from-slate-950 via-slate-950/50 to-transparent">
             <div className="max-w-4xl mx-auto w-full flex items-end justify-between">
@@ -232,7 +231,7 @@ export default function RegionView({ region, setView, setActiveThread, onWikiLin
         </div>
 
         {isCreating && (
-          <div className="bg-slate-900/80 p-6 rounded-lg border border-amber-900 mb-8 backdrop-blur-sm shadow-xl">
+          <div className="bg-slate-900/80 p-6 rounded-lg border border-amber-900 mb-8 backdrop-blur-sm">
              <h3 className="text-amber-100 font-bold mb-4">Post a New Topic</h3>
              <input className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-4 focus:border-amber-500 focus:outline-none" placeholder="Thread Title (Min 3 chars)..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
              
@@ -247,7 +246,6 @@ export default function RegionView({ region, setView, setActiveThread, onWikiLin
                     value={newContent}
                     onChange={(e) => setNewContent(e.target.value)}
                     placeholder="Describe your thread, recommend italics"
-                    onWikiLink={onWikiLink}
                  />
              </div>
 
@@ -268,7 +266,7 @@ export default function RegionView({ region, setView, setActiveThread, onWikiLin
                  const lastRead = readReceipts[thread.id] || 0;
                  const isUnread = (thread.updatedAt?.toMillis() || 0) > lastRead;
                  return (
-                   <div key={thread.id} onClick={() => { setActiveThread(thread); setView('thread'); }} className="bg-slate-900/60 backdrop-blur-sm hover:bg-slate-800/80 border border-slate-800 hover:border-amber-700 p-4 rounded-lg cursor-pointer transition-all group relative overflow-hidden shadow-sm">
+                   <div key={thread.id} onClick={() => { setActiveThread(thread); setView('thread'); }} className="bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-amber-700 p-4 rounded-lg cursor-pointer transition-all group relative overflow-hidden">
                      {isUnread && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-400 shadow-[0_0_10px_cyan]" />}
                      <div className="flex justify-between items-start pl-2">
                        <div>
