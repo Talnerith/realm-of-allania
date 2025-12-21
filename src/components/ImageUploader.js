@@ -20,6 +20,10 @@ export default function ImageUploader({
   // Track the last file we uploaded in this session to clean it up if replaced
   const [lastUploadedUrl, setLastUploadedUrl] = useState(null);
 
+  // OPTIMIZATION: Throttling for Drag Events
+  // We use a timestamp to ensure we don't update state more than 30 times a second
+  const lastDragUpdate = useRef(0);
+
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -77,6 +81,12 @@ export default function ImageUploader({
 
   const handleMove = (clientX, clientY) => {
     if (!dragStart) return;
+
+    // OPTIMIZATION: Throttle to ~30fps (33ms)
+    const now = Date.now();
+    if (now - lastDragUpdate.current < 30) return;
+    lastDragUpdate.current = now;
+
     const dx = clientX - dragStart.x;
     const dy = clientY - dragStart.y;
     const sensitivity = 0.4; 
@@ -86,10 +96,15 @@ export default function ImageUploader({
     newY = Math.max(0, Math.min(100, newY));
     const newPosString = `${newX.toFixed(0)}% ${newY.toFixed(0)}%`;
     setPosition(newPosString);
+    
+    // NOTE: We only update local state here. 
+    // We do NOT call onImageChanged repeatedly to avoid parent re-renders while dragging.
+    // We call it on END.
   };
 
   const handleEnd = () => {
     if (dragStart) {
+        // Final update to parent when drag stops
         onImageChanged(previewUrl, position);
         setDragStart(null);
     }

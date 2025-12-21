@@ -22,7 +22,6 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
       if (searchInput.trim()) {
           onSearch(searchInput);
           setMobileMenuOpen(false);
-          // Optional: Clear input after search, or keep it to show what they searched
           setSearchInput('');
       }
   };
@@ -80,6 +79,11 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
             <MessageCircle className="w-5 h-5" />
         </button>
 
+        {/* Legal Link (Desktop) */}
+        <button onClick={() => setView('legal')} className="p-2 text-slate-500 hover:text-amber-500 transition-colors" title="Legal & Terms">
+            <Shield className="w-5 h-5" />
+        </button>
+
         <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
             <LogOut className="w-5 h-5" />
         </button>
@@ -115,6 +119,13 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
                     <span className="font-bold">{item.label}</span>
                 </button>
             ))}
+            
+            {/* Legal Mobile Link */}
+            <button onClick={() => { setView('legal'); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800 rounded">
+                <Shield className="w-5 h-5 text-amber-600" />
+                <span>Legal & Copyright</span>
+            </button>
+
             <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-400 hover:bg-red-900/20 rounded">
                 <LogOut className="w-5 h-5" />
                 <span>Sign Out</span>

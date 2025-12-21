@@ -11,6 +11,8 @@ import CodexEntry from '@/components/Codex/CodexEntry';
 import SearchResults from '@/components/Codex/SearchResults';
 import CharacterDrawer from '@/components/CharacterDrawer';
 import ChatSystem from '@/components/ChatSystem';
+import LegalDocs from '@/components/Legal/LegalDocs';
+import CookieBanner from '@/components/Legal/CookieBanner';
 
 export default function Home() {
   const gameContext = useGame();
@@ -31,20 +33,17 @@ export default function Home() {
 
   // --- HISTORY MANAGEMENT (Back Button Logic) ---
   useEffect(() => {
-    // 1. Initialize History State on Mount
     if (typeof window !== 'undefined') {
         window.history.replaceState({ view: 'map' }, '');
     }
 
-    // 2. Listen for PopState (Back Button)
     const onPopState = (event) => {
         const state = event.state;
         if (state && state.view) {
             setView(state.view);
-            // Restore search query if going back to search
             if (state.view === 'search' && state.query) {
                 setSearchQuery(state.query);
-                setSearchKey(prev => prev + 1); // Ensure results refresh
+                setSearchKey(prev => prev + 1);
             }
         } else {
             setView('map');
@@ -55,9 +54,7 @@ export default function Home() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  // Helper: Wraps setView to also Push History
   const navigateTo = (newView, extraState = {}) => {
-      // Allow re-navigation to search even if current view is search
       if (view === newView && newView !== 'search') return; 
 
       setView(newView);
@@ -92,15 +89,11 @@ export default function Home() {
       setIsChatOpen(true);
   };
 
-  // --- SEARCH HANDLER (Fixed) ---
   const handleSearch = (query) => {
       if (!query || !query.trim()) return;
       const cleanQuery = query.trim();
-      
       setSearchQuery(cleanQuery);
-      setSearchKey(prev => prev + 1); // Force re-render of SearchResults
-      
-      // Update View
+      setSearchKey(prev => prev + 1);
       setView('search');
       window.history.pushState({ view: 'search', query: cleanQuery }, '');
   };
@@ -108,8 +101,8 @@ export default function Home() {
   // 1. Loading State
   if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
 
-  // 2. Auth State
-  if (!user) return <AuthScreen />;
+  // 2. Auth State (Pass setView to allow Legal access from Login)
+  if (!user) return <AuthScreen onLegalClick={() => navigateTo('legal')} currentView={view} onBack={() => setView('map')} />;
 
   return (
     <main className="h-screen w-screen bg-black overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
@@ -165,12 +158,17 @@ export default function Home() {
 
         {view === 'search' && (
             <SearchResults 
-                key={searchKey} // KEY PROP IS CRITICAL FOR RE-RENDERING
+                key={searchKey}
                 query={searchQuery}
                 onNavigate={navigateTo}
                 onOpenThread={handleThreadSelect}
                 onOpenCodex={handleOpenCodexEntry}
             />
+        )}
+
+        {/* NEW LEGAL VIEW */}
+        {view === 'legal' && (
+            <LegalDocs goBack={() => navigateTo('map')} />
         )}
 
       </div>
@@ -183,6 +181,8 @@ export default function Home() {
         onClose={() => setIsChatOpen(false)}
         initialChatUser={chatTarget}
       />
+
+      <CookieBanner />
 
     </main>
   );

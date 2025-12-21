@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   collection, query, where, onSnapshot, addDoc, 
-  serverTimestamp, orderBy, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch 
+  serverTimestamp, orderBy, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch, limitToLast 
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -48,10 +48,11 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
   useEffect(() => {
     if (!activeChatId) return;
 
-    // A. Subscribe to Messages
+    // OPTIMIZATION: Added limitToLast(50) to prevent loading thousands of messages
     const q = query(
       collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'asc'),
+      limitToLast(50)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -111,28 +112,34 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
       
       setIsSending(true);
       try {
-          // 1. Add message
-          await addDoc(collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'), {
+          // OPTIMIZATION: Use Batch Write for atomicity and speed (1 RTT instead of 3)
+          const batch = writeBatch(db);
+          
+          // 1. Add message ref
+          const msgRef = doc(collection(db, 'artifacts', APP_ID, 'chats', activeChatId, 'messages'));
+          batch.set(msgRef, {
               text: newMessage,
               senderId: user.uid,
               createdAt: serverTimestamp()
           });
           
-          // 2. Update chat metadata (bumps updatedAt for everyone)
-          await updateDoc(doc(db, 'artifacts', APP_ID, 'chats', activeChatId), {
+          // 2. Update chat metadata
+          const chatRef = doc(db, 'artifacts', APP_ID, 'chats', activeChatId);
+          batch.update(chatRef, {
               lastMessage: newMessage,
               updatedAt: serverTimestamp()
           });
 
-          // 3. Mark my own read receipt so I don't see a notification for my own message
-          await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId), {
-              lastRead: serverTimestamp()
-          }, { merge: true });
+          // 3. Update my read receipt
+          const receiptRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId);
+          batch.set(receiptRef, { lastRead: serverTimestamp() }, { merge: true });
+
+          await batch.commit();
           
           setNewMessage('');
           setCooldown(true);
           scrollToBottom();
-          setTimeout(() => setCooldown(false), 1000); // 1 Second Cooldown for Chats
+          setTimeout(() => setCooldown(false), 1000); 
       } catch (e) {
           console.error(e);
       } finally {

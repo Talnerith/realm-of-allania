@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Plus, Book, Loader, AlertCircle } from 'lucide-react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -28,25 +28,30 @@ export default function CodexIndex({ onOpenEntry }) {
       return () => unsub();
   }, []);
 
-  // Dynamically build categories
-  const categories = {};
-  CATEGORIES.forEach(cat => {
-    categories[cat] = [];
-  });
-  
-  // Fallback bucket
-  categories['Uncategorized'] = [];
+  // OPTIMIZATION: Memoize the categorization logic.
+  // This prevents rebuilding the entire category structure on every render.
+  const categorizedPages = useMemo(() => {
+      const cats = {};
+      
+      // Initialize buckets
+      CATEGORIES.forEach(cat => {
+        cats[cat] = [];
+      });
+      cats['Uncategorized'] = [];
 
-  pages.forEach(p => {
-    const cat = categories[p.category] ? p.category : 'Uncategorized';
-    categories[cat].push(p);
-  });
+      // Sort pages into buckets
+      pages.forEach(p => {
+        const targetCat = cats[p.category] ? p.category : 'Uncategorized';
+        cats[targetCat].push(p);
+      });
+
+      return cats;
+  }, [pages]);
 
   if (loading) return <div className="h-full flex items-center justify-center text-slate-500"><Loader className="w-6 h-6 animate-spin mr-2"/> Accessing Archives...</div>;
   if (error) return <div className="h-full flex items-center justify-center text-red-500"><AlertCircle className="w-6 h-6 mr-2"/> {error}</div>;
 
   return (
-    // FIX: Added outer scroll container
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950">
         <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in fade-in pb-48">
             <div className="flex justify-between items-center mb-8">
@@ -63,7 +68,7 @@ export default function CodexIndex({ onOpenEntry }) {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {Object.entries(categories).map(([catName, pageList]) => (
+                {Object.entries(categorizedPages).map(([catName, pageList]) => (
                 pageList.length > 0 && (
                     <div key={catName} className="space-y-3">
                     <h3 className="text-amber-500 font-bold uppercase tracking-widest border-b border-amber-900/50 pb-2">{catName}</h3>

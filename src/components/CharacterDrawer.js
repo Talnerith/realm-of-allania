@@ -3,8 +3,8 @@ import {
   collection, addDoc, doc, updateDoc, deleteDoc, 
   serverTimestamp, writeBatch, getDocs, query, where, increment 
 } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage'; // Added deleteObject
-import { db, storage } from '@/lib/firebase'; // Added storage
+import { ref, deleteObject } from 'firebase/storage';
+import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, RACES, CLASSES } from '@/lib/constants';
 import { 
@@ -116,8 +116,18 @@ export default function CharacterDrawer() {
     if (!editingId) return;
     setIsSubmitting(true);
     try {
-      // Get the old character data to check for image changes
+      // Get the old character data to check for identity changes
       const oldChar = characters.find(c => c.id === editingId);
+      
+      // OPTIMIZATION: Check if visual identity fields have actually changed.
+      // If only the description changed, we skip the expensive operation of updating all old posts.
+      const identityChanged = oldChar && (
+          oldChar.name !== formData.name ||
+          oldChar.race !== formData.race ||
+          oldChar.class !== formData.class ||
+          oldChar.imageUrl !== formData.imageUrl ||
+          oldChar.imagePosition !== formData.imagePosition
+      );
 
       // 1. Update the Character Profile itself
       await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
@@ -125,7 +135,6 @@ export default function CharacterDrawer() {
       // 2. IMAGE CLEANUP: If image changed and old one existed, delete the old one
       if (oldChar && oldChar.imageUrl && oldChar.imageUrl !== formData.imageUrl) {
           try {
-              // Only delete if it looks like a firebase storage URL
               if (oldChar.imageUrl.includes('firebasestorage.googleapis.com')) {
                   const oldImageRef = ref(storage, oldChar.imageUrl);
                   await deleteObject(oldImageRef);
@@ -136,31 +145,36 @@ export default function CharacterDrawer() {
           }
       }
 
-      // 3. Find ALL posts by this character
-      const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', editingId));
-      const snapshot = await getDocs(q);
-      
-      // 4. Batch Update Posts (Chunked)
-      if (!snapshot.empty) {
-          const chunks = [];
-          const docs = snapshot.docs;
-          for (let i = 0; i < docs.length; i += 450) {
-              chunks.push(docs.slice(i, i + 450));
-          }
+      // 3. Conditional Bulk Update
+      if (identityChanged) {
+        console.log("Identity changed, updating historical posts...");
+        const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', editingId));
+        const snapshot = await getDocs(q);
+        
+        // Batch Update Posts (Chunked)
+        if (!snapshot.empty) {
+            const chunks = [];
+            const docs = snapshot.docs;
+            for (let i = 0; i < docs.length; i += 450) {
+                chunks.push(docs.slice(i, i + 450));
+            }
 
-          for (const chunk of chunks) {
-              const batch = writeBatch(db);
-              chunk.forEach(d => {
-                 batch.update(d.ref, { 
-                    characterImageUrl: formData.imageUrl,
-                    characterImagePosition: formData.imagePosition || 'center',
-                    characterName: formData.name, // Also update name in case it changed
-                    characterRace: formData.race,
-                    characterClass: formData.class
-                 });
-              });
-              await batch.commit();
-          }
+            for (const chunk of chunks) {
+                const batch = writeBatch(db);
+                chunk.forEach(d => {
+                   batch.update(d.ref, { 
+                      characterImageUrl: formData.imageUrl,
+                      characterImagePosition: formData.imagePosition || 'center',
+                      characterName: formData.name, 
+                      characterRace: formData.race,
+                      characterClass: formData.class
+                   });
+                });
+                await batch.commit();
+            }
+        }
+      } else {
+          console.log("Identity unchanged, skipping post updates.");
       }
 
       setMode('view');
@@ -187,12 +201,10 @@ export default function CharacterDrawer() {
         if (!postsSnap.empty) {
             const chunks = [];
             const docs = postsSnap.docs;
-            // Split into chunks of 450 to avoid Firestore batch limits
             for (let i = 0; i < docs.length; i += 450) {
                 chunks.push(docs.slice(i, i + 450));
             }
 
-            // Process each chunk
             for (const chunk of chunks) {
                 const batch = writeBatch(db);
                 chunk.forEach(d => {
@@ -225,7 +237,7 @@ export default function CharacterDrawer() {
 
         await finalBatch.commit();
         
-        // --- STEP 4: Image Cleanup (New) ---
+        // --- STEP 4: Image Cleanup ---
         if (char.imageUrl && char.imageUrl.includes('firebasestorage.googleapis.com')) {
              try {
                  await deleteObject(ref(storage, char.imageUrl));

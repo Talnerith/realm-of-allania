@@ -115,13 +115,37 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     const char = characters.find(c => c.id === activeCharId);
     
     try {
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), {
-            threadId: thread.id, content: replyContent, characterName: char.name, characterRace: char.race,
-            characterClass: char.class, characterImageUrl: char.imageUrl || '', characterImagePosition: char.imagePosition || 'center',
-            characterId: char.id, userId: user.uid, createdAt: serverTimestamp()
+        // OPTIMIZATION: Use WriteBatch for atomic updates (3 writes in 1 request)
+        const batch = writeBatch(db);
+
+        // 1. Create Post
+        const postRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'));
+        batch.set(postRef, {
+            threadId: thread.id, 
+            content: replyContent, 
+            characterName: char.name, 
+            characterRace: char.race,
+            characterClass: char.class, 
+            characterImageUrl: char.imageUrl || '', 
+            characterImagePosition: char.imagePosition || 'center',
+            characterId: char.id, 
+            userId: user.uid, 
+            createdAt: serverTimestamp()
         });
-        await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { updatedAt: serverTimestamp(), postCount: (liveThread.postCount || 0) + 1 });
-        await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), { lastRead: serverTimestamp() }, { merge: true });
+
+        // 2. Update Thread Metadata (Bump timestamps & count)
+        const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id);
+        batch.update(threadRef, { 
+            updatedAt: serverTimestamp(), 
+            postCount: (liveThread.postCount || 0) + 1 
+        });
+
+        // 3. Update User Read Receipt (So it doesn't show as unread to self)
+        const receiptRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id);
+        batch.set(receiptRef, { lastRead: serverTimestamp() }, { merge: true });
+
+        await batch.commit();
+
         setReplyContent('');
         setCooldown(true);
         setTimeout(() => setCooldown(false), 2000); 

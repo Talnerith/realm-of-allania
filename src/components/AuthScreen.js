@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
-import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader, LogOut } from 'lucide-react';
+import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader, LogOut, Shield } from 'lucide-react';
+import LegalDocs from '@/components/Legal/LegalDocs';
 
-export default function AuthScreen() {
+// NOTE: added props for legal view navigation from page.js
+export default function AuthScreen({ onLegalClick, currentView, onBack }) {
   const { login, signup, resendVerification, logout, user } = useGame();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -20,16 +22,23 @@ export default function AuthScreen() {
     }
   }, [user]);
 
+  // Handle Legal View directly inside Auth wrapper if triggered
+  if (currentView === 'legal') {
+      return (
+          <div className="min-h-screen bg-black">
+               <LegalDocs goBack={onBack} />
+          </div>
+      );
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     // --- HONEYPOT CHECK ---
-    // If the hidden field has any text, it's a bot.
     if (honeypot) {
         console.warn("Bot detected. Action blocked.");
         setLoading(true);
-        // Fake a delay so the bot thinks it's working
         setTimeout(() => setLoading(false), 2000); 
         return; 
     }
@@ -124,7 +133,6 @@ export default function AuthScreen() {
                  onChange={(e) => setUsername(e.target.value)}
                  required
                />
-               {/* THE HONEYPOT FIELD (Hidden from humans, visible to bots) */}
                <input 
                  type="text" 
                  name="website_url_confirm" 
@@ -177,13 +185,22 @@ export default function AuthScreen() {
            </button>
         </form>
 
-        <div className="mt-6 text-center">
+        <div className="mt-6 text-center space-y-4">
           <button 
             onClick={() => { setIsLogin(!isLogin); setError(''); }}
-            className="text-slate-400 hover:text-amber-500 text-sm transition-colors"
+            className="text-slate-400 hover:text-amber-500 text-sm transition-colors block w-full"
           >
             {isLogin ? "Need an account? Join the adventure" : "Already have a hero? Login"}
           </button>
+          
+          {/* Legal Links Footer */}
+          <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-600 flex flex-col items-center gap-1">
+              <button onClick={onLegalClick} className="flex items-center gap-1 hover:text-slate-400 transition-colors">
+                  <Shield className="w-3 h-3" />
+                  Legal & Privacy Policy
+              </button>
+              <p>&copy; 2025 Realm of Allania. All Rights Reserved.</p>
+          </div>
         </div>
       </div>
     </div>

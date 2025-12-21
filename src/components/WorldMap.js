@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -65,8 +65,55 @@ export default function WorldMap({ setView, setActiveRegion }) {
     return () => { unsubNames(); unsubActivity(); };
   }, [user]);
 
-  // 2. Handle Click
-  const handleRegionClick = async (i) => {
+  // 2. Memoize Region Calculations
+  // Only recalculate the grid elements when the underlying data changes, 
+  // preventing wasted render cycles on parent updates.
+  const regionGrid = useMemo(() => {
+    return Array.from({ length: TOTAL_REGIONS }).map((_, i) => {
+        const playable = isRegionPlayable(i);
+        const regionName = customNames[i.toString()] || getRegionName(i);
+        
+        // UNREAD LOGIC:
+        // Check if ANY of the *fetched* threads (top 50 active) in this region has (updatedAt > userReadReceipt)
+        let hasUnread = false;
+        const threadsInRegion = regionThreads[i.toString()] || [];
+        
+        for (const thread of threadsInRegion) {
+            const lastRead = readReceipts[thread.id] || 0;
+            if (thread.updatedAt > lastRead) {
+                hasUnread = true;
+                break; 
+            }
+        }
+
+        if (!playable) return <div key={i} className="pointer-events-none" />;
+
+        return (
+          <div 
+            key={i} 
+            onClick={() => handleRegionClick(i)} 
+            className="relative border border-transparent hover:border-amber-400/80 hover:bg-amber-500/10 cursor-pointer transition-all duration-300 group"
+          >
+            {hasUnread && (
+              <div className="absolute inset-0 z-0">
+                <div className="absolute inset-1 border-2 border-cyan-400/80 rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.6)] animate-pulse" />
+                <div className="absolute top-1 right-1 w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(34,211,238,1)]" />
+              </div>
+            )}
+            
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              <span className="bg-black/90 text-amber-100 text-[10px] leading-tight px-1.5 py-1 rounded border border-amber-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[120px] truncate">
+                {regionName} 
+                {hasUnread && <span className="text-cyan-400 ml-1">●</span>}
+              </span>
+            </div>
+          </div>
+        );
+      });
+  }, [customNames, regionThreads, readReceipts]);
+
+  // 3. Handle Click
+  const handleRegionClick = (i) => {
       const regionName = customNames[i.toString()] || getRegionName(i);
       setActiveRegion({ id: i, name: regionName });
       setView('region');
@@ -85,47 +132,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
           className="absolute inset-0 grid" 
           style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)` }}
         >
-          {Array.from({ length: TOTAL_REGIONS }).map((_, i) => {
-            const playable = isRegionPlayable(i);
-            const regionName = customNames[i.toString()] || getRegionName(i);
-            
-            // UNREAD LOGIC:
-            // Check if ANY of the *fetched* threads (top 50 active) in this region has (updatedAt > userReadReceipt)
-            let hasUnread = false;
-            const threadsInRegion = regionThreads[i.toString()] || [];
-            
-            for (const thread of threadsInRegion) {
-                const lastRead = readReceipts[thread.id] || 0;
-                if (thread.updatedAt > lastRead) {
-                    hasUnread = true;
-                    break; 
-                }
-            }
-
-            if (!playable) return <div key={i} className="pointer-events-none" />;
-
-            return (
-              <div 
-                key={i} 
-                onClick={() => handleRegionClick(i)} 
-                className="relative border border-transparent hover:border-amber-400/80 hover:bg-amber-500/10 cursor-pointer transition-all duration-300 group"
-              >
-                {hasUnread && (
-                  <div className="absolute inset-0 z-0">
-                    <div className="absolute inset-1 border-2 border-cyan-400/80 rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.6)] animate-pulse" />
-                    <div className="absolute top-1 right-1 w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(34,211,238,1)]" />
-                  </div>
-                )}
-                
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <span className="bg-black/90 text-amber-100 text-[10px] leading-tight px-1.5 py-1 rounded border border-amber-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[120px] truncate">
-                    {regionName} 
-                    {hasUnread && <span className="text-cyan-400 ml-1">●</span>}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
+          {regionGrid}
         </div>
       </div>
     </div>
