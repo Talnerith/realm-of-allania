@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
 import AuthScreen from '@/components/AuthScreen';
 import Navbar from '@/components/Navbar';
@@ -31,7 +34,7 @@ export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
 
-  // SEO: Guest Mode defaults to FALSE if checking auth, but we allow rendering now.
+  // SEO: Guest Mode
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   // --- HISTORY MANAGEMENT ---
@@ -77,13 +80,41 @@ export default function Home() {
     navigateTo('thread', { threadId: thread.id });
   };
 
-  const handleCodexOpen = (pageId = null) => {
-      navigateTo('codex');
-  };
-  
+  // Used by Search & Codex Index (Passes full Page Object)
   const handleOpenCodexEntry = (page) => {
       setActiveCodexPage(page);
       navigateTo('codex_entry', { pageId: page.id });
+  };
+
+  // Used by ThreadView (Passes Character ID string)
+  // FIX: Added lookup logic to find the codex page linked to the character
+  const handleCodexOpen = async (characterId = null) => {
+      if (!characterId) {
+          navigateTo('codex');
+          return;
+      }
+
+      try {
+          // Find the page where 'relatedId' matches the characterId
+          const q = query(
+             collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+             where('relatedId', '==', characterId),
+             limit(1)
+          );
+          const snap = await getDocs(q);
+
+          if (!snap.empty) {
+              const pageData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+              handleOpenCodexEntry(pageData);
+          } else {
+              // Graceful fallback
+              alert("This character has not yet been chronicled in the Codex.");
+              navigateTo('codex');
+          }
+      } catch (e) {
+          console.error("Codex Lookup Error:", e);
+          navigateTo('codex');
+      }
   };
 
   const handleMessageUser = (targetUser) => {
@@ -138,7 +169,7 @@ export default function Home() {
             thread={activeThread} 
             region={activeRegion}
             setView={navigateTo}
-            onOpenCodex={handleCodexOpen}
+            onOpenCodex={handleCodexOpen} 
             onMessageUser={handleMessageUser}
             onRequireAuth={() => setShowLoginModal(true)}
           />
@@ -175,10 +206,8 @@ export default function Home() {
 
       {/* 3. OVERLAYS */}
       
-      {/* Character Drawer - Only show if logged in */}
       {user && <CharacterDrawer />}
       
-      {/* Chat - Only show if logged in */}
       {user && (
         <ChatSystem 
             isOpen={isChatOpen} 
@@ -187,18 +216,14 @@ export default function Home() {
         />
       )}
 
-      {/* Cookie Banner - Show for everyone until accepted */}
       <CookieBanner />
 
-      {/* 4. AUTH MODAL (If Not Logged In and Requested) */}
+      {/* 4. AUTH MODAL */}
       {(!user && showLoginModal) && (
-          // FIX: Changed z-[100] to z-50. Since this is the last element in the DOM,
-          // it will stack on top of other z-50 elements (like Chat/Drawer) automatically.
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
               <div className="relative w-full max-w-md">
                 <button 
                     onClick={() => setShowLoginModal(false)}
-                    // FIX: Changed z-[110] to z-50. Sufficient to be above the AuthScreen content.
                     className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white"
                 >
                     Close
