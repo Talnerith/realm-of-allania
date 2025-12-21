@@ -15,7 +15,7 @@ const formatTime = (ts) => {
     return ts.toDate().toLocaleString();
 };
 
-export default function CodexEntry({ page, goBack }) {
+export default function CodexEntry({ page, goBack, onWikiLink }) {
   const { user, characters, activeCharId, userRole } = useGame();
   
   // State
@@ -117,10 +117,6 @@ export default function CodexEntry({ page, goBack }) {
       // Remove from UI immediately
       setGallery(gallery.filter(u => u !== url));
       
-      // Cleanup file if it was just uploaded (staged) OR if we are saving immediately? 
-      // NOTE: We only delete from storage if the user hits SAVE and this url is no longer in the final list?
-      // actually, let's just delete it immediately from storage if it is a firebase URL.
-      // This is slightly risky if they don't save the page update, but it keeps storage clean.
       if (url.includes('firebasestorage')) {
           try { await deleteObject(ref(storage, url)); } catch(e) { console.warn("Cleanup failed:", e); }
       }
@@ -133,10 +129,6 @@ export default function CodexEntry({ page, goBack }) {
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950">
-        {/* FIX: Added 'pb-32' (8rem) which creates space at the bottom of the scroll view
-           This ensures the last element is always visible ABOVE the fixed character drawer (h-16).
-           pb-[500px] was arguably too much empty space, pb-32 is usually sufficient for a toolbar.
-        */}
         <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 pb-32">
         {/* Lightbox */}
         {lightboxOpen && (
@@ -222,6 +214,7 @@ export default function CodexEntry({ page, goBack }) {
                             onChange={e => setContent(e.target.value)} 
                             placeholder="Write your lore (Min 10 characters)..."
                             minHeight="min-h-[400px]"
+                            onWikiLink={onWikiLink}
                         />
                         <div className="text-right text-[10px] text-slate-500">{content.length} / 10000 chars</div>
                         
@@ -267,7 +260,9 @@ export default function CodexEntry({ page, goBack }) {
                     </div>
                 ) : (
                     <>
-                        <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-lg text-slate-300 mb-8"><RichText content={content} /></div>
+                        <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-lg text-slate-300 mb-8">
+                            <RichText content={content} onWikiLink={onWikiLink} />
+                        </div>
                         
                         {/* View Mode Gallery */}
                         {gallery.length > 0 && (

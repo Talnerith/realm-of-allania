@@ -9,7 +9,7 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Ghost, 
-  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle, AlertCircle, Lock
+  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle
 } from 'lucide-react';
 import RichText from '@/components/RichText';
 import ImageUploader from '@/components/ImageUploader';
@@ -20,7 +20,7 @@ const formatTimestamp = (timestamp) => {
     return timestamp.toDate().toLocaleString();
 };
 
-export default function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser, onRequireAuth }) {
+export default function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser, onRequireAuth, onWikiLink }) {
   const { user, userRole, characters, activeCharId } = useGame();
   const [posts, setPosts] = useState([]);
   const [liveThread, setLiveThread] = useState(thread);
@@ -333,12 +333,14 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl md:rounded-tl-none relative shadow-sm">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
-                      <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="min-h-[250px]" />
+                      <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="min-h-[250px]" onWikiLink={onWikiLink} />
                       <div className="flex gap-2 justify-end"><button onClick={() => setEditingPostId(null)} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button><button onClick={handleEditPostSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button></div>
                   </div>
               ) : (
                   <>
-                    <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none"><RichText content={post.content} className="font-serif text-lg" /></div>
+                    <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none">
+                        <RichText content={post.content} className="font-serif text-lg" onWikiLink={onWikiLink} />
+                    </div>
                     <div className="absolute top-2 right-4 hidden md:flex gap-2 items-center">{post.isEdited && <span className="text-[10px] text-slate-600 italic">(Edited)</span>}<span className="text-[10px] text-slate-700">{formatTimestamp(post.createdAt)}</span></div>
                   </>
               )}
@@ -396,6 +398,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                       disabled={isSending || cooldown} 
                       isSubmitDisabled={!replyContent.trim() || !activeCharId || cooldown} 
                       isSubmitting={isSending}
+                      onWikiLink={onWikiLink}
                   />
               </div>
           </div>

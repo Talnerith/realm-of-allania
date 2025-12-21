@@ -10,9 +10,46 @@ export const APP_ID = 'realm-of-allania-v2';
 
 export const BASE_REGION_NAMES = []; 
 
-export const RACES = ["Human", "Elf", "Dwarf", "Orc", "Halfling", "Tiefling", "Dragonborn", "Gnome"];
-export const CLASSES = ["Warrior", "Mage", "Rogue", "Cleric", "Paladin", "Ranger", "Bard", "Druid"];
-export const CATEGORIES = ["General", "Lore", "Characters", "Regions", "Bestiary", "Magic"];
+export const RACES = [
+  "Human",
+  "Elf",
+  "Dwarf",
+  "Orc / Half-Orc",
+  "Halfling / Gnome",
+  "Dragonborn / Draconic",
+  "Beastfolk",
+  "Elemental / Planetouched",
+  "Arbori / Treant"
+];
+
+export const CLASSES = [
+  "Warrior / Fighter",
+  "Wizard / Mage",
+  "Cleric / Priest",
+  "Rogue / Thief",
+  "Ranger / Hunter",
+  "Bard",
+  "Druid",
+  "Paladin",
+  "Warlock",
+  "Monk",
+  "Alchemist / Tinker"
+];
+
+export const CATEGORIES = [
+  "Characters",
+  "Locations",
+  "Organizations",
+  "Species",
+  "History",
+  "Magic and Powers",
+  "Quests/Story Arcs",
+  "Items and Equipment",
+  "Culture and Society",
+  "In-Character Journals",
+  "OOC Notes/Guides",
+  "Character Resources"
+];
 
 export const isRegionPlayable = (index) => {
   const row = Math.floor(index / GRID_COLS);
@@ -23,9 +60,7 @@ export const isRegionPlayable = (index) => {
 
   // 2. Footer Logic (UPDATED)
   // GRID_ROWS is 13 (Indices 0-12).
-  // previously: > 10 (Excluded 11, 12).
-  // NOW: > 11. This means Row 11 is PLAYABLE. Only Row 12 is unplayable.
-  // Playable Rows: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 (Total 10 Rows)
+  // Playable Rows: 2-11. Row 12 is footer.
   if (row > GRID_ROWS - 2) return false; 
 
   // 3. Side Margins (Left/Right 2 Cols) - Unplayable

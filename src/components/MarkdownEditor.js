@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Bold, Italic, Underline, Image as ImageIcon, Quote, Eye, Edit2, Send, Loader } from 'lucide-react';
+import { Bold, Italic, Underline, Image as ImageIcon, Quote, Eye, Edit2, Send, Loader, Link2 } from 'lucide-react';
 import RichText from '@/components/RichText';
 
 export default function MarkdownEditor({ 
@@ -12,7 +12,8 @@ export default function MarkdownEditor({
   submitLabel = "Post",        
   disabled = false,            // Disables the INPUT area
   isSubmitting = false,        // Shows spinner
-  isSubmitDisabled = false     // Disables only the POST BUTTON
+  isSubmitDisabled = false,    // Disables only the POST BUTTON
+  onWikiLink = null            // Pass this for preview to work clickable
 }) {
   const textareaRef = useRef(null);
   const [isPreview, setIsPreview] = useState(false);
@@ -53,6 +54,11 @@ export default function MarkdownEditor({
     const url = prompt("Enter Image URL:");
     if (url) insertSyntax(`![Image](${url})`, '');
   };
+  
+  const handleWikiLink = () => {
+    const pageName = prompt("Enter the Page Title to link to:");
+    if (pageName) insertSyntax(`[[${pageName}]]`, '');
+  };
 
   return (
     <div className={`border border-slate-700 rounded-lg bg-slate-950 overflow-hidden focus-within:border-amber-500 transition-colors flex flex-col shadow-sm ${className}`}>
@@ -64,6 +70,7 @@ export default function MarkdownEditor({
           <ToolButton icon={<Underline className="w-4 h-4"/>} label="Underline" onClick={() => insertSyntax('__', '__')} disabled={isPreview || disabled} />
           <div className="w-px h-4 bg-slate-700 mx-1"></div>
           <ToolButton icon={<Quote className="w-4 h-4"/>} label="Quote" onClick={() => insertSyntax('\n> ', '')} disabled={isPreview || disabled} />
+          <ToolButton icon={<Link2 className="w-4 h-4"/>} label="Wiki Link" onClick={handleWikiLink} disabled={isPreview || disabled} />
           <ToolButton icon={<ImageIcon className="w-4 h-4"/>} label="Image" onClick={handleImage} disabled={isPreview || disabled} />
         </div>
         
@@ -94,7 +101,7 @@ export default function MarkdownEditor({
       <div className="relative w-full bg-slate-950">
           {isPreview ? (
               <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-slate-900/30 prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none ${minHeight} max-h-[500px]`}>
-                  {value ? <RichText content={value} /> : <span className="text-slate-600 italic">Nothing to preview...</span>}
+                  {value ? <RichText content={value} onWikiLink={onWikiLink} /> : <span className="text-slate-600 italic">Nothing to preview...</span>}
               </div>
           ) : (
               <textarea

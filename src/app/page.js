@@ -87,7 +87,6 @@ export default function Home() {
   };
 
   // Used by ThreadView (Passes Character ID string)
-  // FIX: Added lookup logic to find the codex page linked to the character
   const handleCodexOpen = async (characterId = null) => {
       if (!characterId) {
           navigateTo('codex');
@@ -107,13 +106,40 @@ export default function Home() {
               const pageData = { id: snap.docs[0].id, ...snap.docs[0].data() };
               handleOpenCodexEntry(pageData);
           } else {
-              // Graceful fallback
               alert("This character has not yet been chronicled in the Codex.");
               navigateTo('codex');
           }
       } catch (e) {
           console.error("Codex Lookup Error:", e);
           navigateTo('codex');
+      }
+  };
+
+  // NEW: Wiki Link Handler
+  // Tries to find a page by title. If not found, runs a search.
+  const handleWikiLink = async (targetTitle) => {
+      if (!targetTitle) return;
+      console.log("Navigating via Wiki Link:", targetTitle);
+
+      try {
+        // 1. Try Exact Title Match
+        const q = query(
+            collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+            where('title', '==', targetTitle),
+            limit(1)
+        );
+        const snap = await getDocs(q);
+
+        if (!snap.empty) {
+            const page = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            handleOpenCodexEntry(page);
+        } else {
+            // 2. Fallback to Search
+            handleSearch(targetTitle);
+        }
+      } catch (e) {
+          console.error("Wiki Link Error:", e);
+          handleSearch(targetTitle);
       }
   };
 
@@ -161,6 +187,7 @@ export default function Home() {
             region={activeRegion} 
             setView={navigateTo} 
             setActiveThread={handleThreadSelect}
+            onWikiLink={handleWikiLink}
           />
         )}
 
@@ -172,6 +199,7 @@ export default function Home() {
             onOpenCodex={handleCodexOpen} 
             onMessageUser={handleMessageUser}
             onRequireAuth={() => setShowLoginModal(true)}
+            onWikiLink={handleWikiLink}
           />
         )}
 
@@ -185,6 +213,7 @@ export default function Home() {
             <CodexEntry 
                 page={activeCodexPage}
                 goBack={() => navigateTo('codex')}
+                onWikiLink={handleWikiLink}
             />
         )}
 

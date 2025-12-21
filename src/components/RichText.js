@@ -1,8 +1,8 @@
 import React from 'react';
 
 // A lightweight Markdown parser for "Vibe Coding"
-// Supports: **bold**, *italic*, __underline__, > quotes, ![img](url), and line breaks.
-export default function RichText({ content, className = "" }) {
+// Supports: **bold**, *italic*, __underline__, > quotes, ![img](url), [[WikiLink]], and line breaks.
+export default function RichText({ content, className = "", onWikiLink }) {
   if (!content) return null;
 
   // 1. Split by newlines to handle paragraphs/blockquotes
@@ -15,7 +15,7 @@ export default function RichText({ content, className = "" }) {
         if (line.startsWith('> ')) {
             return (
                 <blockquote key={i} className="border-l-4 border-amber-600/50 pl-4 italic text-slate-400 bg-slate-900/30 py-1">
-                    {parseInline(line.substring(2))}
+                    {parseInline(line.substring(2), onWikiLink)}
                 </blockquote>
             );
         }
@@ -28,7 +28,7 @@ export default function RichText({ content, className = "" }) {
         // Standard Paragraph
         return (
             <p key={i} className="leading-relaxed whitespace-pre-wrap">
-                {parseInline(line)}
+                {parseInline(line, onWikiLink)}
             </p>
         );
       })}
@@ -37,20 +37,21 @@ export default function RichText({ content, className = "" }) {
 }
 
 // Helper: Parses inline styles
-function parseInline(text) {
+function parseInline(text, onWikiLink) {
     if (!text) return null;
 
     // We tokenize the string based on our delimiters
     // Regex explanation:
     // !\[(.*?)\]\((.*?)\)  -> Images: ![alt](url)
+    // \[\[(.*?)\]\]        -> Wiki Links: [[Page Title]] or [[Page Title|Display Text]]
     // \*\*.*?\*\* -> Bold
     // \_\_.*?\_\_          -> Underline
     // \*.*?\* -> Italic
     
-    // We start with images because they are the most complex
-    const imageParts = text.split(/(!\[.*?\]\(.*?\))/g);
+    // We handle Images and Wiki Links first as they are distinct blocks
+    const parts = text.split(/(!\[.*?\]\(.*?\)|\[\[.*?\]\])/g);
     
-    return imageParts.map((part, idx) => {
+    return parts.map((part, idx) => {
         // IMAGE MATCH
         const imgMatch = part.match(/^!\[(.*?)\]\((.*?)\)$/);
         if (imgMatch) {
@@ -64,17 +65,33 @@ function parseInline(text) {
                 />
             );
         }
+
+        // WIKI LINK MATCH
+        const wikiMatch = part.match(/^\[\[(.*?)\]\]$/);
+        if (wikiMatch) {
+            const inner = wikiMatch[1];
+            // Support [[Target|Display]] syntax
+            const [target, display] = inner.includes('|') ? inner.split('|') : [inner, inner];
+            
+            return (
+                <button
+                    key={idx}
+                    onClick={(e) => { e.stopPropagation(); if (onWikiLink) onWikiLink(target.trim()); }}
+                    className="text-amber-400 hover:text-amber-200 hover:underline font-bold decoration-amber-500/30 decoration-2 underline-offset-2 transition-colors inline-block"
+                    title={`Go to: ${target}`}
+                >
+                    {display.trim()}
+                </button>
+            );
+        }
         
-        // If not image, process text formatting
+        // If not special block, process formatting (Bold/Italic/etc)
         return <span key={idx}>{parseFormatting(part)}</span>;
     });
 }
 
 function parseFormatting(text) {
     // Split by bold (**), underline (__), italic (*)
-    // Note: The order matters. We split recursively or use a complex regex.
-    // For simplicity in this parser, we map tokens.
-    
     const tokens = text.split(/(\*\*.*?\*\*|\_\_.*?\_\_|\*.*?\*)/g);
 
     return tokens.map((token, i) => {
