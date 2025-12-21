@@ -22,23 +22,16 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
       const lowerQuery = searchQuery.toLowerCase();
       
       try {
-        // 1. Search Codex (Fetch metadata and filter client-side)
         const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), limit(100));
-        
-        // 2. Search Threads (Fetch recent threads)
         const threadsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'), orderBy('updatedAt', 'desc'), limit(50));
-        
-        // 3. Search Individual Posts (Fetch recent posts - Deep Search)
         const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(100));
 
-        // Execute all fetches in parallel
         const [codexSnap, threadsSnap, postsSnap] = await Promise.all([
             getDocs(codexQ),
             getDocs(threadsQ),
             getDocs(postsQ)
         ]);
 
-        // Filter Codex
         const codexResults = codexSnap.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(item => 
@@ -46,14 +39,12 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                 (item.category && item.category.toLowerCase().includes(lowerQuery))
             );
 
-        // Filter Thread Titles
         const threadResults = threadsSnap.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(item => 
                 (item.title && item.title.toLowerCase().includes(lowerQuery))
             );
 
-        // Filter Post Content
         const postResults = postsSnap.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(item => 
@@ -75,7 +66,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
       }
     };
 
-    // Small delay to allow UI to settle before firing network request
     const timer = setTimeout(() => {
         performSearch();
     }, 100); 
@@ -83,7 +73,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Helper to highlight text match
   const getSnippet = (text, query) => {
       if (!text) return '';
       const lowerText = text.toLowerCase();
@@ -96,7 +85,8 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
   };
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 p-6 md:p-12 animate-in slide-in-from-bottom-2">
+    // UPDATED: Semi-transparent background
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950/80 backdrop-blur-sm p-6 md:p-12 animate-in slide-in-from-bottom-2">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-3xl font-serif font-bold text-amber-100 mb-2 flex items-center gap-3">
             <Search className="w-8 h-8 text-amber-500"/>
@@ -119,7 +109,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
             </div>
         ) : (
             <div className="space-y-8 pb-20">
-                {/* NO RESULTS */}
                 {results.threads.length === 0 && results.codex.length === 0 && results.posts.length === 0 && (
                     <div className="text-center py-12 bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
                         <AlertCircle className="w-12 h-12 text-slate-600 mx-auto mb-3"/>
@@ -127,7 +116,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                     </div>
                 )}
 
-                {/* CODEX RESULTS */}
                 {results.codex.length > 0 && (
                     <div>
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -138,7 +126,7 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                                 <div 
                                     key={item.id} 
                                     onClick={() => onOpenCodex(item)}
-                                    className="bg-slate-900 border border-slate-800 hover:border-amber-500 p-4 rounded-lg cursor-pointer transition-colors group"
+                                    className="bg-slate-900/50 border border-slate-800 hover:border-amber-500 p-4 rounded-lg cursor-pointer transition-colors group"
                                 >
                                     <div className="text-xs text-amber-600 font-bold uppercase mb-1">{item.category}</div>
                                     <h4 className="text-lg font-serif font-bold text-slate-200 group-hover:text-amber-100">{item.title}</h4>
@@ -148,7 +136,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                     </div>
                 )}
 
-                {/* THREAD TITLES */}
                 {results.threads.length > 0 && (
                     <div>
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -174,7 +161,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                     </div>
                 )}
 
-                {/* POST MATCHES (NEW) */}
                 {results.posts.length > 0 && (
                     <div>
                         <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">

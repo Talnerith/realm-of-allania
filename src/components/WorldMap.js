@@ -13,10 +13,8 @@ export default function WorldMap({ setView, setActiveRegion }) {
   const [regionThreads, setRegionThreads] = useState({});
   const [customNames, setCustomNames] = useState({}); 
 
-  // 1. Fetch Data (Guest Safe)
+  // 1. Fetch Data
   useEffect(() => {
-    // NOTE: Removed "if (!user) return" to allow Guest/SEO fetching
-    
     // A. Custom Region Names
     const unsubNames = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata'), (snap) => {
         const names = {};
@@ -49,7 +47,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
     });
 
     return () => { unsubNames(); unsubActivity(); };
-  }, []); // Empty dependency array = runs for everyone
+  }, []); 
 
   // 2. Memoize Region Calculations
   const regionGrid = useMemo(() => {
@@ -57,7 +55,6 @@ export default function WorldMap({ setView, setActiveRegion }) {
         const playable = isRegionPlayable(i);
         const regionName = customNames[i.toString()] || getRegionName(i);
         
-        // UNREAD LOGIC (Only for Logged In Users)
         let hasUnread = false;
         if (user && readReceipts) {
             const threadsInRegion = regionThreads[i.toString()] || [];
@@ -103,7 +100,8 @@ export default function WorldMap({ setView, setActiveRegion }) {
   };
 
   return (
-    <div className="relative w-full h-full overflow-auto bg-black custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
+    // UPDATED: bg-transparent to show tapestry
+    <div className="relative w-full h-full overflow-auto bg-transparent custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
       <div className="relative m-auto inline-block shadow-2xl shadow-black rounded-lg border border-amber-900/50 select-none shrink-0">
         <img 
             src={MAP_IMAGE_URL} 

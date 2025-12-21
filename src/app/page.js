@@ -115,8 +115,7 @@ export default function Home() {
       }
   };
 
-  // NEW: Wiki Link Handler
-  // Tries to find a page by title. If not found, runs a search.
+  // Wiki Link Handler
   const handleWikiLink = async (targetTitle) => {
       if (!targetTitle) return;
       console.log("Navigating via Wiki Link:", targetTitle);
@@ -161,7 +160,8 @@ export default function Home() {
   if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
 
   return (
-    <main className="h-screen w-screen bg-black overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
+    // UPDATED: Removed 'bg-black'. Now using bg-transparent to show the new tapestry body background.
+    <main className="h-screen w-screen bg-transparent overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
       
       {/* 1. TOP NAVIGATION */}
       <Navbar 

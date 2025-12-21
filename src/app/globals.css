@@ -1,19 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 0, 0, 0;
-  --background-end-rgb: 0, 0, 0;
+  --foreground-rgb: 226, 232, 240; /* Slate 200 */
 }
 
 body {
   color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background-color: #020617; /* Fallback: Slate 950 */
+  
+  /* --- THE TATTERED TAPESTRY EFFECT --- */
+  background-image: 
+    /* 1. Heavy Vignette for "Tattered/Old" look (Darkens edges heavily) */
+    radial-gradient(circle at 50% 50%, transparent 20%, rgba(0,0,0,0.85) 120%),
+    
+    /* 2. Fabric Weave (Vertical Threads) */
+    repeating-linear-gradient(90deg, transparent 0, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px),
+    
+    /* 3. Fabric Weave (Horizontal Threads) */
+    repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(255, 255, 255, 0.02) 2px, rgba(255, 255, 255, 0.02) 4px),
+    
+    /* 4. Base Deep Blue/Indigo Gradient */
+    linear-gradient(160deg, #0f172a 0%, #1e1b4b 40%, #172554 100%);
+    
+  background-attachment: fixed;
+  background-size: cover;
+  min-height: 100vh;
 }
 
 /* Custom Scrollbar */
@@ -21,7 +32,7 @@ body {
   width: 8px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #0f172a; 
+  background: rgba(15, 23, 42, 0.5); 
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #334155; 

@@ -27,20 +27,13 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const [replyContent, setReplyContent] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [cooldown, setCooldown] = useState(false);
-  
-  // Banner Edit State
   const [isEditingBanner, setIsEditingBanner] = useState(false);
-  
-  // Post Edit State
   const [editingPostId, setEditingPostId] = useState(null);
   const [editPostContent, setEditPostContent] = useState('');
-  
-  // Admin Helper
   const [copiedUserId, setCopiedUserId] = useState(null);
   const [managingUser, setManagingUser] = useState(null); 
   const [managingUserRole, setManagingUserRole] = useState(null); 
 
-  // Scroll Ref
   const postsEndRef = useRef(null);
 
   const isAdmin = userRole === 'admin';
@@ -49,7 +42,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const canEditBanner = isAdminOrMod || isThreadOwner;
   const canDeleteThread = isAdminOrMod; 
 
-  // 1. MARK AS READ ON ENTRY (Only if User)
+  // 1. MARK AS READ
   useEffect(() => {
       if (user && thread) {
           setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), {
@@ -82,14 +75,14 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     return () => { unsubThread(); unsubPosts(); };
   }, [thread]);
 
-  // 3. Auto-Scroll on New Posts
+  // 3. Auto-Scroll
   useEffect(() => {
       if (postsEndRef.current) {
           postsEndRef.current.scrollIntoView({ behavior: 'smooth' });
       }
   }, [posts.length]);
 
-  // Admin Role Fetcher...
+  // Admin Role Fetcher
   useEffect(() => {
       if (managingUser) {
           setManagingUserRole(null); 
@@ -115,8 +108,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     
     try {
         const batch = writeBatch(db);
-
-        // 1. Create Post
         const postRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'));
         batch.set(postRef, {
             threadId: thread.id, 
@@ -130,18 +121,13 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             userId: user.uid, 
             createdAt: serverTimestamp()
         });
-
-        // 2. Update Thread Metadata
         const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id);
         batch.update(threadRef, { 
             updatedAt: serverTimestamp(), 
             postCount: (liveThread.postCount || 0) + 1 
         });
-
-        // 3. Update User Read Receipt
         const receiptRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id);
         batch.set(receiptRef, { lastRead: serverTimestamp() }, { merge: true });
-
         await batch.commit();
 
         setReplyContent('');
@@ -172,7 +158,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
   const handleBannerUpdate = async (url, position) => {
       try { 
-          // CLEANUP: Delete old banner
           if (liveThread.bannerUrl && liveThread.bannerUrl !== url && liveThread.bannerUrl.includes('firebasestorage')) {
              try { await deleteObject(ref(storage, liveThread.bannerUrl)); } catch(e) { console.warn("Cleanup failed:", e); }
           }
@@ -185,21 +170,15 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const handleDeleteThread = async () => { 
       if (!window.confirm("Delete this ENTIRE thread?")) return; 
       try { 
-          // 1. Delete Thread Doc
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id)); 
-          
-          // 2. Delete Posts Batch
           const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where("threadId", "==", thread.id)); 
           const snapshot = await getDocs(q); 
           const batch = writeBatch(db); 
           snapshot.docs.forEach((doc) => batch.delete(doc.ref)); 
           await batch.commit(); 
-          
-          // 3. CLEANUP: Delete Thread Banner if it exists
           if (liveThread.bannerUrl && liveThread.bannerUrl.includes('firebasestorage')) {
              try { await deleteObject(ref(storage, liveThread.bannerUrl)); } catch(e) { console.warn("Banner cleanup failed:", e); }
           }
-
           setView('region'); 
       } catch (e) { console.error(e); } 
   };
@@ -221,10 +200,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const bannerPos = liveThread.bannerPosition || 'center';
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-900 pb-80">
+    // UPDATED: bg-slate-900/80 + backdrop-blur to show tapestry
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950/80 backdrop-blur-sm pb-80 animate-in fade-in duration-500">
        {/* Thread Banner */}
        {threadBanner && (
-         <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
+         <div className="relative w-full h-64 md:h-96 bg-transparent border-b border-amber-900/50 overflow-hidden shrink-0 group">
              <img 
                 src={threadBanner} 
                 className="w-full h-full object-cover opacity-60 transition-all duration-300" 
@@ -292,7 +272,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
             {/* DESKTOP AVATAR SIDEBAR */}
             <div className="hidden md:flex flex-col items-center gap-2 w-24 shrink-0">
-               <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="w-20 h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors">
+               <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="w-20 h-20 bg-slate-800/80 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors">
                  <img src={post.characterImageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: post.characterImagePosition || 'center' }} onError={(e) => e.target.style.display = 'none'}/>
                  <div className="absolute inset-0 flex items-center justify-center text-3xl bg-slate-700 text-slate-300 font-bold -z-10">{post.characterName ? post.characterName.substring(0,1) : '?'}</div>
                </div>
@@ -300,7 +280,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                  <div onClick={() => onOpenCodex && onOpenCodex(post.characterId)} className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline">{post.characterName}</div>
                  <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
                  
-                 {/* Buttons */}
                  <div className="mt-1 flex flex-wrap justify-center gap-1">
                      {user && user.uid !== post.userId && (
                          <button 
@@ -330,7 +309,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             </div>
 
             {/* CONTENT CARD */}
-            <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl md:rounded-tl-none relative shadow-sm">
+            {/* UPDATED: Glass background for content */}
+            <div className="flex-1 bg-slate-900/60 backdrop-blur-sm border border-slate-800/50 p-4 md:p-6 rounded-xl md:rounded-tl-none relative shadow-sm hover:border-amber-900/50 transition-colors">
               {editingPostId === post.id ? (
                   <div className="space-y-2">
                       <MarkdownEditor value={editPostContent} onChange={(e) => setEditPostContent(e.target.value)} minHeight="min-h-[250px]" onWikiLink={onWikiLink} />
@@ -347,11 +327,10 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             </div>
           </div>
         ))}
-        {/* INVISIBLE SCROLL ANCHOR */}
         <div ref={postsEndRef} />
       </div>
       
-      {/* ADMIN ROLE MANAGER */}
+      {/* ADMIN ROLE MANAGER (Popup) */}
       {managingUser && (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-slate-900 border border-amber-900 rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
@@ -377,7 +356,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
           </div>
       )}
 
-      {/* Reply Box - FIXED FOR GUEST */}
+      {/* Reply Box */}
       <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-4 z-30 transition-all">
         {user ? (
           <div className="max-w-4xl mx-auto flex gap-4 items-end bg-slate-950/90 backdrop-blur-md border border-amber-900/30 p-3 rounded-xl shadow-2xl">
@@ -403,10 +382,8 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
               </div>
           </div>
         ) : (
-          /* GUEST CALL TO ACTION */
           <div className="max-w-xl mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-900/50 p-4 rounded-xl shadow-2xl flex items-center justify-between">
               <div className="flex items-center gap-3">
-                  <Lock className="w-5 h-5 text-amber-500" />
                   <p className="text-slate-300 text-sm">Join the chronicles to reply.</p>
               </div>
               <button 

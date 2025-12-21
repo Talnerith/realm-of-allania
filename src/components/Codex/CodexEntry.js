@@ -9,7 +9,6 @@ import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor'; 
 import RichText from '@/components/RichText';
 
-// Helper for timestamp
 const formatTime = (ts) => {
     if (!ts?.toDate) return 'Just now';
     return ts.toDate().toLocaleString();
@@ -26,17 +25,12 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
   const [gallery, setGallery] = useState(page.gallery || []);
   const [error, setError] = useState('');
   
-  // Staging state for the Image Uploader
   const [stagedUrl, setStagedUrl] = useState('');
-
-  // Local copy to prevent flicker when saving
   const [localPage, setLocalPage] = useState(page);
 
-  // Lightbox
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  // Permission Check
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
 
   useEffect(() => {
@@ -57,13 +51,11 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
 
     try {
         if (localPage.isNew) {
-            // Create
             const ref = await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
                 ...pageData, relatedId: localPage.relatedId || ''
             });
             setLocalPage({ ...pageData, id: ref.id, updatedAt: { toDate: () => new Date() } });
         } else {
-            // Update
             await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id), pageData);
             setLocalPage(prev => ({ ...prev, ...pageData, updatedAt: { toDate: () => new Date() } }));
         }
@@ -79,7 +71,6 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
       if (!window.confirm("Are you sure you want to delete this Codex Entry? This cannot be undone.")) return;
 
       try {
-          // CLEANUP: Delete all gallery images associated with this page
           if (localPage.gallery && localPage.gallery.length > 0) {
               for (const url of localPage.gallery) {
                   if (url.includes('firebasestorage')) {
@@ -87,7 +78,6 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                   }
               }
           }
-
           await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id));
           goBack(); 
       } catch (e) {
@@ -96,41 +86,24 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
       }
   };
 
-  // Gallery Handlers
-  const handleStagedImage = (url) => {
-      setStagedUrl(url);
-  };
-
+  const handleStagedImage = (url) => { setStagedUrl(url); };
   const addStagedToGallery = () => {
-     if (gallery.length >= 5) {
-         setError("Maximum 5 images allowed in gallery.");
-         return;
-     }
-     if (stagedUrl && !gallery.includes(stagedUrl)) {
-         setGallery([...gallery, stagedUrl]);
-         setStagedUrl(''); 
-         setError('');
-     }
+     if (gallery.length >= 5) { setError("Maximum 5 images allowed in gallery."); return; }
+     if (stagedUrl && !gallery.includes(stagedUrl)) { setGallery([...gallery, stagedUrl]); setStagedUrl(''); setError(''); }
   };
-
   const removeImage = async (url) => {
-      // Remove from UI immediately
       setGallery(gallery.filter(u => u !== url));
-      
-      if (url.includes('firebasestorage')) {
-          try { await deleteObject(ref(storage, url)); } catch(e) { console.warn("Cleanup failed:", e); }
-      }
+      if (url.includes('firebasestorage')) { try { await deleteObject(ref(storage, url)); } catch(e) { console.warn("Cleanup failed:", e); } }
   };
 
-  // Lightbox Handlers
   const openLightbox = (idx) => { setLightboxIndex(idx); setLightboxOpen(true); };
   const nextImage = (e) => { e.stopPropagation(); setLightboxIndex((i) => (i + 1) % gallery.length); };
   const prevImage = (e) => { e.stopPropagation(); setLightboxIndex((i) => (i - 1 + gallery.length) % gallery.length); };
 
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950">
+    // UPDATED: Semi-transparent background
+    <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950/80 backdrop-blur-sm">
         <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 pb-32">
-        {/* Lightbox */}
         {lightboxOpen && (
             <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxOpen(false)}>
                 <button className="absolute top-4 right-4 text-white hover:text-amber-500"><X className="w-8 h-8"/></button>
@@ -144,14 +117,12 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
             </div>
         )}
 
-        {/* Header Controls */}
         <div className="flex items-center gap-4 mb-6">
             <button onClick={goBack} className="text-slate-400 hover:text-white flex items-center gap-1">
                 <ChevronLeft className="w-5 h-5"/> Back to Index
             </button>
             <div className="flex-1"></div>
             
-            {/* DELETE BUTTON (Admin/Mod Only) */}
             {!isEditing && !page.isNew && isAdminOrMod && (
                 <button 
                     onClick={handleDelete} 
@@ -176,18 +147,15 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
             )}
         </div>
 
-        {/* Content Card */}
-        <div className="bg-slate-900 border border-amber-900/30 rounded-xl overflow-hidden shadow-2xl relative">
-            
-            {/* Error Banner */}
+        {/* Content Card with Glass effect */}
+        <div className="bg-slate-900/60 backdrop-blur-md border border-amber-900/30 rounded-xl overflow-hidden shadow-2xl relative">
             {error && (
                 <div className="absolute top-0 left-0 right-0 bg-red-900/90 text-white p-2 text-center text-sm font-bold z-50 animate-in slide-in-from-top flex items-center justify-center gap-2">
                     <AlertCircle className="w-4 h-4"/> {error}
                 </div>
             )}
 
-            {/* Title Area */}
-            <div className="h-32 bg-linear-to-r from-amber-900/20 to-slate-900 border-b border-amber-900/30 p-6 flex items-end">
+            <div className="h-32 bg-linear-to-r from-amber-900/20 to-slate-900/50 border-b border-amber-900/30 p-6 flex items-end">
                 <div className="w-full">
                     {isEditing ? (
                         <div className="flex flex-col gap-2">
@@ -208,7 +176,6 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
             <div className="p-8">
                 {isEditing ? (
                     <div className="space-y-6">
-                        {/* MARKDOWN EDITOR REPLACES TEXTAREA */}
                         <MarkdownEditor 
                             value={content} 
                             onChange={e => setContent(e.target.value)} 
@@ -218,14 +185,12 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                         />
                         <div className="text-right text-[10px] text-slate-500">{content.length} / 10000 chars</div>
                         
-                        {/* Gallery Editor */}
                         <div className="bg-slate-950 p-4 rounded border border-slate-800">
                             <div className="flex justify-between items-center mb-4">
                                 <h4 className="text-amber-500 font-bold flex items-center gap-2"><ImageIcon className="w-4 h-4"/> Gallery Manager</h4>
                                 <span className={`text-xs font-bold ${gallery.length >= 5 ? 'text-red-500' : 'text-slate-500'}`}>{gallery.length}/5 Images</span>
                             </div>
                             
-                            {/* Image Uploader Integration */}
                             {gallery.length < 5 && (
                                 <div className="mb-6 bg-slate-900/50 p-4 rounded border border-slate-800">
                                     <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Add New Image</label>
@@ -236,11 +201,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                                         shape="square"
                                     />
                                     <div className="mt-3 flex justify-end">
-                                        <button 
-                                            onClick={addStagedToGallery} 
-                                            disabled={!stagedUrl}
-                                            className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2"
-                                        >
+                                        <button onClick={addStagedToGallery} disabled={!stagedUrl} className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2">
                                             <Plus className="w-4 h-4"/> Add to Gallery
                                         </button>
                                     </div>
@@ -263,8 +224,6 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                         <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-lg text-slate-300 mb-8">
                             <RichText content={content} onWikiLink={onWikiLink} />
                         </div>
-                        
-                        {/* View Mode Gallery */}
                         {gallery.length > 0 && (
                             <div className="border-t border-slate-800 pt-8 mt-8">
                                 <h3 className="text-amber-100 font-bold mb-4 flex items-center gap-2"><ImageIcon className="w-5 h-5 text-amber-500"/> Gallery</h3>
@@ -277,7 +236,6 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                                 </div>
                             </div>
                         )}
-                        
                         <div className="mt-8 pt-8 border-t border-slate-800 text-xs text-slate-500 flex justify-between">
                             <span>Updated by <span className="text-amber-500">{localPage.updatedBy}</span></span>
                             <span>{formatTime(localPage.updatedAt)}</span>
