@@ -25,13 +25,16 @@ export default function Home() {
   
   // Search State
   const [searchQuery, setSearchQuery] = useState(''); 
-  const [searchKey, setSearchKey] = useState(0); // Forces re-render on new search
+  const [searchKey, setSearchKey] = useState(0); 
   
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
 
-  // --- HISTORY MANAGEMENT (Back Button Logic) ---
+  // SEO: Guest Mode defaults to FALSE if checking auth, but we allow rendering now.
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // --- HISTORY MANAGEMENT ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
         window.history.replaceState({ view: 'map' }, '');
@@ -56,7 +59,6 @@ export default function Home() {
 
   const navigateTo = (newView, extraState = {}) => {
       if (view === newView && newView !== 'search') return; 
-
       setView(newView);
       window.history.pushState({ view: newView, ...extraState }, '');
   };
@@ -85,6 +87,7 @@ export default function Home() {
   };
 
   const handleMessageUser = (targetUser) => {
+      if (!user) { setShowLoginModal(true); return; }
       setChatTarget(targetUser);
       setIsChatOpen(true);
   };
@@ -98,11 +101,7 @@ export default function Home() {
       window.history.pushState({ view: 'search', query: cleanQuery }, '');
   };
 
-  // 1. Loading State
   if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
-
-  // 2. Auth State (Pass setView to allow Legal access from Login)
-  if (!user) return <AuthScreen onLegalClick={() => navigateTo('legal')} currentView={view} onBack={() => setView('map')} />;
 
   return (
     <main className="h-screen w-screen bg-black overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
@@ -112,7 +111,8 @@ export default function Home() {
         currentView={view} 
         setView={navigateTo}
         onSearch={handleSearch} 
-        onToggleChat={() => setIsChatOpen(!isChatOpen)} 
+        onToggleChat={() => user ? setIsChatOpen(!isChatOpen) : setShowLoginModal(true)}
+        onLoginClick={() => setShowLoginModal(true)}
       />
 
       {/* 2. MAIN CONTENT AREA */}
@@ -140,6 +140,7 @@ export default function Home() {
             setView={navigateTo}
             onOpenCodex={handleCodexOpen}
             onMessageUser={handleMessageUser}
+            onRequireAuth={() => setShowLoginModal(true)}
           />
         )}
 
@@ -166,7 +167,6 @@ export default function Home() {
             />
         )}
 
-        {/* NEW LEGAL VIEW */}
         {view === 'legal' && (
             <LegalDocs goBack={() => navigateTo('map')} />
         )}
@@ -174,15 +174,43 @@ export default function Home() {
       </div>
 
       {/* 3. OVERLAYS */}
-      <CharacterDrawer />
       
-      <ChatSystem 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)}
-        initialChatUser={chatTarget}
-      />
+      {/* Character Drawer - Only show if logged in */}
+      {user && <CharacterDrawer />}
+      
+      {/* Chat - Only show if logged in */}
+      {user && (
+        <ChatSystem 
+            isOpen={isChatOpen} 
+            onClose={() => setIsChatOpen(false)}
+            initialChatUser={chatTarget}
+        />
+      )}
 
+      {/* Cookie Banner - Show for everyone until accepted */}
       <CookieBanner />
+
+      {/* 4. AUTH MODAL (If Not Logged In and Requested) */}
+      {(!user && showLoginModal) && (
+          // FIX: Changed z-[100] to z-50. Since this is the last element in the DOM,
+          // it will stack on top of other z-50 elements (like Chat/Drawer) automatically.
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+              <div className="relative w-full max-w-md">
+                <button 
+                    onClick={() => setShowLoginModal(false)}
+                    // FIX: Changed z-[110] to z-50. Sufficient to be above the AuthScreen content.
+                    className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white"
+                >
+                    Close
+                </button>
+                <AuthScreen 
+                    onLegalClick={() => { setShowLoginModal(false); navigateTo('legal'); }} 
+                    currentView={view} 
+                    onBack={() => { setShowLoginModal(false); navigateTo('map'); }}
+                />
+              </div>
+          </div>
+      )}
 
     </main>
   );

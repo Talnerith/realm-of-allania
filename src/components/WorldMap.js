@@ -9,19 +9,14 @@ import {
 export default function WorldMap({ setView, setActiveRegion }) {
   const { user, readReceipts } = useGame();
   
-  // Stores the latest activity timestamp for each region (calculated from threads)
   const [regionLastActivity, setRegionLastActivity] = useState({});
-  
-  // Stores mapping of RegionID -> [ThreadIDs]
-  // Used to cross-reference specific threads against readReceipts
   const [regionThreads, setRegionThreads] = useState({});
-
   const [customNames, setCustomNames] = useState({}); 
 
-  // 1. Fetch Data
+  // 1. Fetch Data (Guest Safe)
   useEffect(() => {
-    if (!user) return;
-
+    // NOTE: Removed "if (!user) return" to allow Guest/SEO fetching
+    
     // A. Custom Region Names
     const unsubNames = onSnapshot(collection(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata'), (snap) => {
         const names = {};
@@ -29,10 +24,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
         setCustomNames(names);
     });
 
-    // B. Thread Activity (OPTIMIZED)
-    // PREVIOUSLY: Listened to ALL threads (Expensive!)
-    // NOW: Listens only to the 50 most recently active threads.
-    // This gives us the "Hot" activity indicators without reading the entire database.
+    // B. Thread Activity
     const q = query(
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'),
       orderBy('updatedAt', 'desc'),
@@ -47,13 +39,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
         const d = doc.data();
         const t = d.updatedAt?.toMillis() || 0;
         const rid = d.regionId;
-
-        // Track max activity per region
-        if (!activity[rid] || t > activity[rid]) {
-            activity[rid] = t;
-        }
-
-        // Track threads belonging to region
+        if (!activity[rid] || t > activity[rid]) activity[rid] = t;
         if (!mapping[rid]) mapping[rid] = [];
         mapping[rid].push({ id: doc.id, updatedAt: t });
       });
@@ -63,26 +49,24 @@ export default function WorldMap({ setView, setActiveRegion }) {
     });
 
     return () => { unsubNames(); unsubActivity(); };
-  }, [user]);
+  }, []); // Empty dependency array = runs for everyone
 
   // 2. Memoize Region Calculations
-  // Only recalculate the grid elements when the underlying data changes, 
-  // preventing wasted render cycles on parent updates.
   const regionGrid = useMemo(() => {
     return Array.from({ length: TOTAL_REGIONS }).map((_, i) => {
         const playable = isRegionPlayable(i);
         const regionName = customNames[i.toString()] || getRegionName(i);
         
-        // UNREAD LOGIC:
-        // Check if ANY of the *fetched* threads (top 50 active) in this region has (updatedAt > userReadReceipt)
+        // UNREAD LOGIC (Only for Logged In Users)
         let hasUnread = false;
-        const threadsInRegion = regionThreads[i.toString()] || [];
-        
-        for (const thread of threadsInRegion) {
-            const lastRead = readReceipts[thread.id] || 0;
-            if (thread.updatedAt > lastRead) {
-                hasUnread = true;
-                break; 
+        if (user && readReceipts) {
+            const threadsInRegion = regionThreads[i.toString()] || [];
+            for (const thread of threadsInRegion) {
+                const lastRead = readReceipts[thread.id] || 0;
+                if (thread.updatedAt > lastRead) {
+                    hasUnread = true;
+                    break; 
+                }
             }
         }
 
@@ -110,9 +94,8 @@ export default function WorldMap({ setView, setActiveRegion }) {
           </div>
         );
       });
-  }, [customNames, regionThreads, readReceipts]);
+  }, [customNames, regionThreads, readReceipts, user]);
 
-  // 3. Handle Click
   const handleRegionClick = (i) => {
       const regionName = customNames[i.toString()] || getRegionName(i);
       setActiveRegion({ id: i, name: regionName });
@@ -124,7 +107,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
       <div className="relative m-auto inline-block shadow-2xl shadow-black rounded-lg border border-amber-900/50 select-none shrink-0">
         <img 
             src={MAP_IMAGE_URL} 
-            alt="World Map" 
+            alt="World Map of Allania" 
             className="max-w-[1400px] w-full h-auto block min-w-[800px] bg-slate-800"
             onError={(e) => e.target.src = "https://placehold.co/1200x800/1e293b/d97706?text=Map+Not+Found"} 
         />

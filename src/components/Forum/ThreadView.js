@@ -9,7 +9,7 @@ import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 import { 
   Map as MapIcon, ChevronLeft, Ghost, 
-  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle, AlertCircle
+  Edit3, Loader, Trash2, Shield, Check, User, X, Gavel, ShieldAlert, MessageCircle, AlertCircle, Lock
 } from 'lucide-react';
 import RichText from '@/components/RichText';
 import ImageUploader from '@/components/ImageUploader';
@@ -20,7 +20,7 @@ const formatTimestamp = (timestamp) => {
     return timestamp.toDate().toLocaleString();
 };
 
-export default function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser }) {
+export default function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser, onRequireAuth }) {
   const { user, userRole, characters, activeCharId } = useGame();
   const [posts, setPosts] = useState([]);
   const [liveThread, setLiveThread] = useState(thread);
@@ -49,7 +49,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   const canEditBanner = isAdminOrMod || isThreadOwner;
   const canDeleteThread = isAdminOrMod; 
 
-  // 1. MARK AS READ ON ENTRY
+  // 1. MARK AS READ ON ENTRY (Only if User)
   useEffect(() => {
       if (user && thread) {
           setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id), {
@@ -62,13 +62,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   useEffect(() => {
     if (!thread) return;
 
-    // A. Listen to the Thread Document
     const unsubThread = onSnapshot(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), (doc) => {
         if (doc.exists()) { setLiveThread({ id: doc.id, ...doc.data() }); } 
         else { setView('region'); }
     });
 
-    // B. Listen to Posts
     const q = query(
         collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'),
         where('threadId', '==', thread.id)
@@ -107,6 +105,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
   }, [managingUser]);
 
   const handleReply = async () => {
+    if (!user) return onRequireAuth();
     if (!activeCharId) return alert("Please select a character from the roster before posting.");
     if (replyContent.trim().length < 10) return alert("Post must be at least 10 characters.");
     if (cooldown) return; 
@@ -115,7 +114,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     const char = characters.find(c => c.id === activeCharId);
     
     try {
-        // OPTIMIZATION: Use WriteBatch for atomic updates (3 writes in 1 request)
         const batch = writeBatch(db);
 
         // 1. Create Post
@@ -133,14 +131,14 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             createdAt: serverTimestamp()
         });
 
-        // 2. Update Thread Metadata (Bump timestamps & count)
+        // 2. Update Thread Metadata
         const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id);
         batch.update(threadRef, { 
             updatedAt: serverTimestamp(), 
             postCount: (liveThread.postCount || 0) + 1 
         });
 
-        // 3. Update User Read Receipt (So it doesn't show as unread to self)
+        // 3. Update User Read Receipt
         const receiptRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', thread.id);
         batch.set(receiptRef, { lastRead: serverTimestamp() }, { merge: true });
 
@@ -377,29 +375,45 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
           </div>
       )}
 
-      {/* Reply Box */}
+      {/* Reply Box - FIXED FOR GUEST */}
       <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-4 z-30 transition-all">
-        <div className="max-w-4xl mx-auto flex gap-4 items-end bg-slate-950/90 backdrop-blur-md border border-amber-900/30 p-3 rounded-xl shadow-2xl">
-             <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
-                {activeCharId && characters.find(c => c.id === activeCharId) ? (
-                  <><img src={characters.find(c => c.id === activeCharId).imageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => e.target.style.display='none'}/><div className="absolute inset-0 flex items-center justify-center font-bold text-amber-500 bg-slate-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0,1)}</div></>
-                ) : <div className="w-full h-full flex items-center justify-center text-slate-600"><Ghost className="w-6 h-6"/></div>}
-             </div>
-             
-             <div className="flex-1 flex flex-col gap-3">
-                <MarkdownEditor 
-                    value={replyContent} 
-                    onChange={(e) => setReplyContent(e.target.value)} 
-                    placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
-                    minHeight="min-h-[60px]"
-                    onPost={handleReply}
-                    submitLabel={cooldown ? "Cooling..." : "Post Reply"}
-                    disabled={isSending || cooldown} 
-                    isSubmitDisabled={!replyContent.trim() || !activeCharId || cooldown} 
-                    isSubmitting={isSending}
-                />
-             </div>
-        </div>
+        {user ? (
+          <div className="max-w-4xl mx-auto flex gap-4 items-end bg-slate-950/90 backdrop-blur-md border border-amber-900/30 p-3 rounded-xl shadow-2xl">
+              <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
+                  {activeCharId && characters.find(c => c.id === activeCharId) ? (
+                    <><img src={characters.find(c => c.id === activeCharId).imageUrl || ''} className="w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => e.target.style.display='none'}/><div className="absolute inset-0 flex items-center justify-center font-bold text-amber-500 bg-slate-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0,1)}</div></>
+                  ) : <div className="w-full h-full flex items-center justify-center text-slate-600"><Ghost className="w-6 h-6"/></div>}
+              </div>
+              
+              <div className="flex-1 flex flex-col gap-3">
+                  <MarkdownEditor 
+                      value={replyContent} 
+                      onChange={(e) => setReplyContent(e.target.value)} 
+                      placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
+                      minHeight="min-h-[60px]"
+                      onPost={handleReply}
+                      submitLabel={cooldown ? "Cooling..." : "Post Reply"}
+                      disabled={isSending || cooldown} 
+                      isSubmitDisabled={!replyContent.trim() || !activeCharId || cooldown} 
+                      isSubmitting={isSending}
+                  />
+              </div>
+          </div>
+        ) : (
+          /* GUEST CALL TO ACTION */
+          <div className="max-w-xl mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-900/50 p-4 rounded-xl shadow-2xl flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-amber-500" />
+                  <p className="text-slate-300 text-sm">Join the chronicles to reply.</p>
+              </div>
+              <button 
+                onClick={onRequireAuth}
+                className="bg-amber-700 hover:bg-amber-600 text-white px-4 py-2 rounded text-sm font-bold shadow-lg"
+              >
+                Login / Signup
+              </button>
+          </div>
+        )}
       </div>
     </div>
   );

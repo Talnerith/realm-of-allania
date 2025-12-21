@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell, Shield, Crown } from 'lucide-react';
+import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell, Shield, Crown, LogIn } from 'lucide-react';
 import { useGame } from '@/context/GameContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-export default function Navbar({ currentView, setView, onSearch, onToggleChat }) {
-  const { user, userRole, logout } = useGame();
+export default function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) {
+  const { user, logout } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
 
@@ -36,11 +36,8 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
       
       {/* 1. Logo / Brand */}
       <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('map')}>
-        {/* Styled Logo Icon */}
         <div className="relative w-10 h-10 flex items-center justify-center">
-            {/* Background Shield */}
             <Shield className="w-10 h-10 text-amber-900 fill-amber-950 absolute inset-0 drop-shadow-md group-hover:text-amber-800 transition-colors" />
-            {/* Inner Crown/Crest */}
             <Crown className="w-5 h-5 text-amber-500 relative z-10 drop-shadow-sm" />
         </div>
         <div className="flex flex-col">
@@ -51,7 +48,6 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
 
       {/* 2. Desktop Navigation */}
       <div className="hidden md:flex items-center gap-6">
-        {/* Search Bar */}
         <form onSubmit={handleSubmitSearch} className="relative group">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-amber-500 transition-colors" />
             <input 
@@ -75,23 +71,29 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
             </button>
         ))}
 
-        <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors">
-            <MessageCircle className="w-5 h-5" />
-        </button>
+        {user ? (
+          <>
+            <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors">
+                <MessageCircle className="w-5 h-5" />
+            </button>
+            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
+                <LogOut className="w-5 h-5" />
+            </button>
+          </>
+        ) : (
+          <button onClick={onLoginClick} className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 text-white px-4 py-1.5 rounded text-sm font-bold transition-colors">
+            <LogIn className="w-4 h-4" /> Login
+          </button>
+        )}
 
-        {/* Legal Link (Desktop) */}
         <button onClick={() => setView('legal')} className="p-2 text-slate-500 hover:text-amber-500 transition-colors" title="Legal & Terms">
             <Shield className="w-5 h-5" />
-        </button>
-
-        <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
-            <LogOut className="w-5 h-5" />
         </button>
       </div>
 
       {/* 3. Mobile Menu Toggle */}
       <div className="flex md:hidden items-center gap-4">
-          <button onClick={onToggleChat} className="text-slate-400 hover:text-white"><MessageCircle className="w-6 h-6" /></button>
+          {user && <button onClick={onToggleChat} className="text-slate-400 hover:text-white"><MessageCircle className="w-6 h-6" /></button>}
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-slate-200">
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
@@ -120,15 +122,21 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat })
                 </button>
             ))}
             
-            {/* Legal Mobile Link */}
+            {user ? (
+                <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-400 hover:bg-red-900/20 rounded">
+                    <LogOut className="w-5 h-5" />
+                    <span>Sign Out</span>
+                </button>
+            ) : (
+                <button onClick={() => { onLoginClick(); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-amber-500 hover:bg-slate-800 rounded">
+                    <LogIn className="w-5 h-5" />
+                    <span>Login / Join</span>
+                </button>
+            )}
+
             <button onClick={() => { setView('legal'); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800 rounded">
                 <Shield className="w-5 h-5 text-amber-600" />
                 <span>Legal & Copyright</span>
-            </button>
-
-            <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-400 hover:bg-red-900/20 rounded">
-                <LogOut className="w-5 h-5" />
-                <span>Sign Out</span>
             </button>
         </div>
       )}
