@@ -226,7 +226,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                         {chats.length === 0 ? (
                             <div className="text-center py-8 text-slate-500 text-sm p-4">
                                 <p>No messages yet.</p>
-                                <p className="mt-2 text-xs">Visit a thread and click a user's avatar to send them a message.</p>
+                                <p className="mt-2 text-xs">Visit a thread and click a user&apos;s avatar to send them a message.</p>
                             </div>
                         ) : (
                             chats.map(chat => (

@@ -75,7 +75,11 @@ export default function WorldMap({ setView, setActiveRegion }) {
         return (
           <div 
             key={i} 
-            onClick={() => handleRegionClick(i)} 
+            onClick={() => {
+                const regionName = customNames[i.toString()] || getRegionName(i);
+                setActiveRegion({ id: i, name: regionName });
+                setView('region');
+            }}
             className="relative border border-transparent hover:border-amber-400/80 hover:bg-amber-500/10 cursor-pointer transition-all duration-300 group"
           >
             {hasUnread && (
@@ -94,7 +98,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
           </div>
         );
       });
-  }, [customNames, regionThreads, readReceipts, user]);
+  }, [customNames, regionThreads, readReceipts, user, setActiveRegion, setView]);
 
   const handleRegionClick = (i) => {
       const regionName = customNames[i.toString()] || getRegionName(i);
