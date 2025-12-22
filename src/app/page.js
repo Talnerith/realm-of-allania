@@ -61,7 +61,7 @@ export default function Home() {
   }, []);
 
   const navigateTo = (newView, extraState = {}) => {
-    if (view === newView && newView !== 'search') return;
+    if (view === newView && newView !== 'search' && newView !== 'codex_entry') return;
     setView(newView);
     window.history.pushState({ view: newView, ...extraState }, '');
   };
