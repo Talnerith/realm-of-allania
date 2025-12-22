@@ -19,17 +19,17 @@ import CookieBanner from '@/components/Legal/CookieBanner';
 
 export default function Home() {
   const gameContext = useGame();
-  
+
   // Navigation State
-  const [view, setView] = useState('map'); 
+  const [view, setView] = useState('map');
   const [activeRegion, setActiveRegion] = useState(null);
   const [activeThread, setActiveThread] = useState(null);
   const [activeCodexPage, setActiveCodexPage] = useState(null);
-  
+
   // Search State
-  const [searchQuery, setSearchQuery] = useState(''); 
-  const [searchKey, setSearchKey] = useState(0); 
-  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchKey, setSearchKey] = useState(0);
+
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
@@ -40,20 +40,20 @@ export default function Home() {
   // --- HISTORY MANAGEMENT ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
-        window.history.replaceState({ view: 'map' }, '');
+      window.history.replaceState({ view: 'map' }, '');
     }
 
     const onPopState = (event) => {
-        const state = event.state;
-        if (state && state.view) {
-            setView(state.view);
-            if (state.view === 'search' && state.query) {
-                setSearchQuery(state.query);
-                setSearchKey(prev => prev + 1);
-            }
-        } else {
-            setView('map');
+      const state = event.state;
+      if (state && state.view) {
+        setView(state.view);
+        if (state.view === 'search' && state.query) {
+          setSearchQuery(state.query);
+          setSearchKey(prev => prev + 1);
         }
+      } else {
+        setView('map');
+      }
     };
 
     window.addEventListener('popstate', onPopState);
@@ -61,9 +61,9 @@ export default function Home() {
   }, []);
 
   const navigateTo = (newView, extraState = {}) => {
-      if (view === newView && newView !== 'search') return; 
-      setView(newView);
-      window.history.pushState({ view: newView, ...extraState }, '');
+    if (view === newView && newView !== 'search') return;
+    setView(newView);
+    window.history.pushState({ view: newView, ...extraState }, '');
   };
 
   if (!gameContext) return null;
@@ -82,121 +82,121 @@ export default function Home() {
 
   // Used by Search & Codex Index (Passes full Page Object)
   const handleOpenCodexEntry = (page) => {
-      setActiveCodexPage(page);
-      navigateTo('codex_entry', { pageId: page.id });
+    setActiveCodexPage(page);
+    navigateTo('codex_entry', { pageId: page.id });
   };
 
   // Used by ThreadView (Passes Character ID string)
   const handleCodexOpen = async (characterId = null) => {
-      if (!characterId) {
-          navigateTo('codex');
-          return;
-      }
+    if (!characterId) {
+      navigateTo('codex');
+      return;
+    }
 
-      try {
-          // Find the page where 'relatedId' matches the characterId
-          const q = query(
-             collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
-             where('relatedId', '==', characterId),
-             limit(1)
-          );
-          const snap = await getDocs(q);
+    try {
+      // Find the page where 'relatedId' matches the characterId
+      const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+        where('relatedId', '==', characterId),
+        limit(1)
+      );
+      const snap = await getDocs(q);
 
-          if (!snap.empty) {
-              const pageData = { id: snap.docs[0].id, ...snap.docs[0].data() };
-              handleOpenCodexEntry(pageData);
-          } else {
-              alert("This character has not yet been chronicled in the Codex.");
-              navigateTo('codex');
-          }
-      } catch (e) {
-          console.error("Codex Lookup Error:", e);
-          navigateTo('codex');
+      if (!snap.empty) {
+        const pageData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        handleOpenCodexEntry(pageData);
+      } else {
+        alert("This character has not yet been chronicled in the Codex.");
+        navigateTo('codex');
       }
+    } catch (e) {
+      console.error("Codex Lookup Error:", e);
+      navigateTo('codex');
+    }
   };
 
   // NEW: Wiki Link Handler
   // Tries to find a page by title. If not found, runs a search.
   const handleWikiLink = async (targetTitle) => {
-      if (!targetTitle) return;
-      console.log("Navigating via Wiki Link:", targetTitle);
+    if (!targetTitle) return;
+    console.log("Navigating via Wiki Link:", targetTitle);
 
-      try {
-        // 1. Try Exact Title Match
-        const q = query(
-            collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
-            where('title', '==', targetTitle),
-            limit(1)
-        );
-        const snap = await getDocs(q);
+    try {
+      // 1. Try Exact Title Match
+      const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+        where('title', '==', targetTitle),
+        limit(1)
+      );
+      const snap = await getDocs(q);
 
-        if (!snap.empty) {
-            const page = { id: snap.docs[0].id, ...snap.docs[0].data() };
-            handleOpenCodexEntry(page);
-        } else {
-            // 2. Fallback to Search
-            handleSearch(targetTitle);
-        }
-      } catch (e) {
-          console.error("Wiki Link Error:", e);
-          handleSearch(targetTitle);
+      if (!snap.empty) {
+        const page = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        handleOpenCodexEntry(page);
+      } else {
+        // 2. Fallback to Search
+        handleSearch(targetTitle);
       }
+    } catch (e) {
+      console.error("Wiki Link Error:", e);
+      handleSearch(targetTitle);
+    }
   };
 
   const handleMessageUser = (targetUser) => {
-      if (!user) { setShowLoginModal(true); return; }
-      setChatTarget(targetUser);
-      setIsChatOpen(true);
+    if (!user) { setShowLoginModal(true); return; }
+    setChatTarget(targetUser);
+    setIsChatOpen(true);
   };
 
   const handleSearch = (query) => {
-      if (!query || !query.trim()) return;
-      const cleanQuery = query.trim();
-      setSearchQuery(cleanQuery);
-      setSearchKey(prev => prev + 1);
-      setView('search');
-      window.history.pushState({ view: 'search', query: cleanQuery }, '');
+    if (!query || !query.trim()) return;
+    const cleanQuery = query.trim();
+    setSearchQuery(cleanQuery);
+    setSearchKey(prev => prev + 1);
+    setView('search');
+    window.history.pushState({ view: 'search', query: cleanQuery }, '');
   };
 
   if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
 
   return (
     <main className="h-screen w-screen bg-black overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
-      
+
       {/* 1. TOP NAVIGATION */}
-      <Navbar 
-        currentView={view} 
+      <Navbar
+        currentView={view}
         setView={navigateTo}
-        onSearch={handleSearch} 
+        onSearch={handleSearch}
         onToggleChat={() => user ? setIsChatOpen(!isChatOpen) : setShowLoginModal(true)}
         onLoginClick={() => setShowLoginModal(true)}
       />
 
       {/* 2. MAIN CONTENT AREA */}
       <div className="flex-1 relative overflow-hidden">
-        
+
         {view === 'map' && (
-          <WorldMap 
-            setView={navigateTo} 
-            setActiveRegion={handleRegionSelect} 
+          <WorldMap
+            setView={navigateTo}
+            setActiveRegion={handleRegionSelect}
           />
         )}
 
         {view === 'region' && (
-          <RegionView 
-            region={activeRegion} 
-            setView={navigateTo} 
+          <RegionView
+            region={activeRegion}
+            setView={navigateTo}
             setActiveThread={handleThreadSelect}
             onWikiLink={handleWikiLink}
           />
         )}
 
         {view === 'thread' && (
-          <ThreadView 
-            thread={activeThread} 
+          <ThreadView
+            thread={activeThread}
             region={activeRegion}
             setView={navigateTo}
-            onOpenCodex={handleCodexOpen} 
+            onOpenCodex={handleCodexOpen}
             onMessageUser={handleMessageUser}
             onRequireAuth={() => setShowLoginModal(true)}
             onWikiLink={handleWikiLink}
@@ -204,66 +204,68 @@ export default function Home() {
         )}
 
         {view === 'codex' && (
-            <CodexIndex 
-                onOpenEntry={handleOpenCodexEntry}
-            />
+          <CodexIndex
+            onOpenEntry={handleOpenCodexEntry}
+          />
         )}
 
         {view === 'codex_entry' && (
-            <CodexEntry 
-                page={activeCodexPage}
-                goBack={() => navigateTo('codex')}
-                onWikiLink={handleWikiLink}
-            />
+          <CodexEntry
+            page={activeCodexPage}
+            goBack={() => navigateTo('codex')}
+            onWikiLink={handleWikiLink}
+          />
         )}
 
         {view === 'search' && (
-            <SearchResults 
-                key={searchKey}
-                query={searchQuery}
-                onNavigate={navigateTo}
-                onOpenThread={handleThreadSelect}
-                onOpenCodex={handleOpenCodexEntry}
-            />
+          <SearchResults
+            key={searchKey}
+            query={searchQuery}
+            onNavigate={navigateTo}
+            onOpenThread={handleThreadSelect}
+            onOpenCodex={handleOpenCodexEntry}
+          />
         )}
 
         {view === 'legal' && (
-            <LegalDocs goBack={() => navigateTo('map')} />
+          <LegalDocs goBack={() => navigateTo('map')} />
         )}
 
       </div>
 
       {/* 3. OVERLAYS */}
-      
+
       {user && <CharacterDrawer />}
-      
+
       {user && (
-        <ChatSystem 
-            isOpen={isChatOpen} 
-            onClose={() => setIsChatOpen(false)}
-            initialChatUser={chatTarget}
+        <ChatSystem
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          initialChatUser={chatTarget}
         />
       )}
 
       <CookieBanner />
 
       {/* 4. AUTH MODAL */}
-      {(!user && showLoginModal) && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
-              <div className="relative w-full max-w-md">
-                <button 
-                    onClick={() => setShowLoginModal(false)}
-                    className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white"
-                >
-                    Close
-                </button>
-                <AuthScreen 
-                    onLegalClick={() => { setShowLoginModal(false); navigateTo('legal'); }} 
-                    currentView={view} 
-                    onBack={() => { setShowLoginModal(false); navigateTo('map'); }}
-                />
-              </div>
+      {((!user && showLoginModal) || (user && !user.emailVerified && !user.isAnonymous)) && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="relative w-full max-w-md">
+            {(!user) && (
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white"
+              >
+                Close
+              </button>
+            )}
+            <AuthScreen
+              onLegalClick={() => { setShowLoginModal(false); navigateTo('legal'); }}
+              currentView={view}
+              onBack={() => { setShowLoginModal(false); navigateTo('map'); }}
+            />
           </div>
+        </div>
       )}
 
     </main>

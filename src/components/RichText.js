@@ -2,39 +2,41 @@ import React from 'react';
 
 // A lightweight Markdown parser for "Vibe Coding"
 // Supports: **bold**, *italic*, __underline__, > quotes, ![img](url), [[WikiLink]], and line breaks.
-export default function RichText({ content, className = "", onWikiLink }) {
-  if (!content) return null;
+const RichText = React.memo(function RichText({ content, className = "", onWikiLink }) {
+    if (!content) return null;
 
-  // 1. Split by newlines to handle paragraphs/blockquotes
-  const lines = content.split('\n');
+    // 1. Split by newlines to handle paragraphs/blockquotes
+    const lines = content.split('\n');
 
-  return (
-    <div className={`space-y-2 ${className}`}>
-      {lines.map((line, i) => {
-        // Handle Blockquotes
-        if (line.startsWith('> ')) {
-            return (
-                <blockquote key={i} className="border-l-4 border-amber-600/50 pl-4 italic text-slate-400 bg-slate-900/30 py-1">
-                    {parseInline(line.substring(2), onWikiLink)}
-                </blockquote>
-            );
-        }
-        
-        // Handle Empty Lines (Paragraph breaks)
-        if (!line.trim()) {
-            return <div key={i} className="h-2"></div>;
-        }
+    return (
+        <div className={`space-y-2 ${className}`}>
+            {lines.map((line, i) => {
+                // Handle Blockquotes
+                if (line.startsWith('> ')) {
+                    return (
+                        <blockquote key={i} className="border-l-4 border-amber-600/50 pl-4 italic text-slate-400 bg-slate-900/30 py-1">
+                            {parseInline(line.substring(2), onWikiLink)}
+                        </blockquote>
+                    );
+                }
 
-        // Standard Paragraph
-        return (
-            <p key={i} className="leading-relaxed whitespace-pre-wrap">
-                {parseInline(line, onWikiLink)}
-            </p>
-        );
-      })}
-    </div>
-  );
-}
+                // Handle Empty Lines (Paragraph breaks)
+                if (!line.trim()) {
+                    return <div key={i} className="h-2"></div>;
+                }
+
+                // Standard Paragraph
+                return (
+                    <p key={i} className="leading-relaxed whitespace-pre-wrap">
+                        {parseInline(line, onWikiLink)}
+                    </p>
+                );
+            })}
+        </div>
+    );
+});
+
+export default RichText;
 
 // Helper: Parses inline styles
 function parseInline(text, onWikiLink) {
@@ -47,21 +49,21 @@ function parseInline(text, onWikiLink) {
     // \*\*.*?\*\* -> Bold
     // \_\_.*?\_\_          -> Underline
     // \*.*?\* -> Italic
-    
+
     // We handle Images and Wiki Links first as they are distinct blocks
     const parts = text.split(/(!\[.*?\]\(.*?\)|\[\[.*?\]\])/g);
-    
+
     return parts.map((part, idx) => {
         // IMAGE MATCH
         const imgMatch = part.match(/^!\[(.*?)\]\((.*?)\)$/);
         if (imgMatch) {
             return (
-                <img 
-                    key={idx} 
-                    src={imgMatch[2]} 
-                    alt={imgMatch[1]} 
+                <img
+                    key={idx}
+                    src={imgMatch[2]}
+                    alt={imgMatch[1]}
                     className="max-w-full h-auto rounded border border-slate-700 my-2 block"
-                    onError={(e) => e.target.style.display='none'}
+                    onError={(e) => e.target.style.display = 'none'}
                 />
             );
         }
@@ -72,7 +74,7 @@ function parseInline(text, onWikiLink) {
             const inner = wikiMatch[1];
             // Support [[Target|Display]] syntax
             const [target, display] = inner.includes('|') ? inner.split('|') : [inner, inner];
-            
+
             return (
                 <button
                     key={idx}
@@ -84,7 +86,7 @@ function parseInline(text, onWikiLink) {
                 </button>
             );
         }
-        
+
         // If not special block, process formatting (Bold/Italic/etc)
         return <span key={idx}>{parseFormatting(part)}</span>;
     });
