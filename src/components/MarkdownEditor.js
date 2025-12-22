@@ -13,7 +13,7 @@ export default function MarkdownEditor({
   disabled = false,            // Disables the INPUT area
   isSubmitting = false,        // Shows spinner
   isSubmitDisabled = false,    // Disables only the POST BUTTON
-  onWikiLink = null            // Pass this for preview to work clickable
+  onWikiLink = null            
 }) {
   const textareaRef = useRef(null);
   const [isPreview, setIsPreview] = useState(false);
