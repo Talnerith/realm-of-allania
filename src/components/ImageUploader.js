@@ -3,6 +3,7 @@ import { Upload, Link as LinkIcon, Move, Loader, AlertCircle } from 'lucide-reac
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
+import { useGame } from '@/context/GameContext';
 
 export default function ImageUploader({ 
   initialUrl = '', 
@@ -11,6 +12,7 @@ export default function ImageUploader({
   folder = 'uploads',
   shape = 'square' // 'square' | 'banner' | 'circle'
 }) {
+  const { user } = useGame();
   const [mode, setMode] = useState('upload'); 
   const [previewUrl, setPreviewUrl] = useState(initialUrl);
   const [position, setPosition] = useState(initialPosition);
@@ -35,6 +37,11 @@ export default function ImageUploader({
     const file = e.target.files[0];
     if (!file) return;
 
+    if (!user) {
+        alert("You must be logged in to upload images.");
+        return;
+    }
+
     setIsUploading(true);
     try {
       // 1. Intermediate Cleanup: If we already uploaded a file in this session, delete it before uploading the new one
@@ -49,9 +56,10 @@ export default function ImageUploader({
       }
 
       // 2. Upload New
+      // SECURITY UPDATE: We now nest uploads under the user's ID
       const resizedBlob = await resizeImage(file, 1600); 
       const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
-      const storageRef = ref(storage, `artifacts/${APP_ID}/public/${folder}/${filename}`);
+      const storageRef = ref(storage, `artifacts/${APP_ID}/public/${folder}/${user.uid}/${filename}`);
       
       await uploadBytes(storageRef, resizedBlob);
       const url = await getDownloadURL(storageRef);
@@ -63,7 +71,11 @@ export default function ImageUploader({
       setMode('preview');
     } catch (err) {
       console.error("Upload failed", err);
-      alert("Upload failed. Please try again.");
+      if (err.code === 'storage/unauthorized') {
+          alert("Permission denied. You may not have access to upload here.");
+      } else {
+          alert("Upload failed. Please try again.");
+      }
     } finally {
       setIsUploading(false);
     }

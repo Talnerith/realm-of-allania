@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   collection, query, addDoc, onSnapshot, doc, setDoc, getDoc,
-  serverTimestamp, updateDoc, deleteDoc, getDocs, writeBatch, where 
+  serverTimestamp, updateDoc, deleteDoc, getDocs, writeBatch, where, increment 
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
@@ -122,7 +122,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             threadId: thread.id, 
             content: replyContent, 
             characterName: char.name, 
-            characterRace: char.race,
+            characterRace: char.race, 
             characterClass: char.class, 
             characterImageUrl: char.imageUrl || '', 
             characterImagePosition: char.imagePosition || 'center',
@@ -131,11 +131,11 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             createdAt: serverTimestamp()
         });
 
-        // 2. Update Thread Metadata
+        // 2. Update Thread Metadata (ATOMIC INCREMENT)
         const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id);
         batch.update(threadRef, { 
             updatedAt: serverTimestamp(), 
-            postCount: (liveThread.postCount || 0) + 1 
+            postCount: increment(1)
         });
 
         // 3. Update User Read Receipt
@@ -172,9 +172,9 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
   const handleBannerUpdate = async (url, position) => {
       try { 
-          // CLEANUP: Delete old banner
+          // CLEANUP: Delete old banner if it exists and we have permission
           if (liveThread.bannerUrl && liveThread.bannerUrl !== url && liveThread.bannerUrl.includes('firebasestorage')) {
-             try { await deleteObject(ref(storage, liveThread.bannerUrl)); } catch(e) { console.warn("Cleanup failed:", e); }
+             try { await deleteObject(ref(storage, liveThread.bannerUrl)); } catch(e) { console.warn("Cleanup failed (might not be owner):", e); }
           }
           await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { bannerUrl: url, bannerPosition: position }); 
       } catch(e) { console.error(e); }
