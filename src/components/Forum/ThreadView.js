@@ -76,15 +76,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
             p.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
             setPosts(p);
         }, (error) => {
-            // Fallback for missing index
-            console.warn("Index missing, falling back to client-sort", error);
-            const q2 = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('threadId', '==', thread.id));
-            onSnapshot(q2, (snap) => {
-                const p = [];
-                snap.docs.forEach(d => { p.push({ id: d.id, ...d.data() }); });
-                p.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
-                setPosts(p);
-            });
+            console.error("Error fetching posts:", error);
         });
 
         return () => { unsubThread(); unsubPosts(); };
