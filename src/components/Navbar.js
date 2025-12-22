@@ -35,7 +35,11 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
     <nav className="h-16 bg-slate-950 border-b border-amber-900/50 flex items-center justify-between px-4 md:px-8 z-40 relative shadow-lg">
       
       {/* 1. Logo / Brand */}
-      <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setView('map')}>
+      <button
+        className="flex items-center gap-3 cursor-pointer group bg-transparent border-none p-0 text-left"
+        onClick={() => setView('map')}
+        aria-label="Go to World Map"
+      >
         <div className="relative w-10 h-10 flex items-center justify-center">
             <Shield className="w-10 h-10 text-amber-900 fill-amber-950 absolute inset-0 drop-shadow-md group-hover:text-amber-800 transition-colors" />
             <Crown className="w-5 h-5 text-amber-500 relative z-10 drop-shadow-sm" />
@@ -44,7 +48,7 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
             <span className="font-serif font-bold text-lg text-amber-100 leading-none tracking-wide group-hover:text-amber-50 transition-colors">Realm of Allania</span>
             <span className="text-[10px] text-amber-500/80 uppercase tracking-[0.2em] leading-none">Chronicles</span>
         </div>
-      </div>
+      </button>
 
       {/* 2. Desktop Navigation */}
       <div className="hidden md:flex items-center gap-6">
@@ -54,6 +58,7 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search lore..." 
+                aria-label="Search lore"
                 className="bg-slate-900 border border-slate-700 rounded-full py-1.5 pl-9 pr-4 text-sm text-slate-200 focus:border-amber-500 focus:outline-none w-48 transition-all focus:w-64"
             />
         </form>
@@ -73,10 +78,10 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
 
         {user ? (
           <>
-            <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors">
+            <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors" aria-label="Toggle Chat" title="Chat">
                 <MessageCircle className="w-5 h-5" />
             </button>
-            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out">
+            <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out" aria-label="Sign Out">
                 <LogOut className="w-5 h-5" />
             </button>
           </>
@@ -86,15 +91,15 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
           </button>
         )}
 
-        <button onClick={() => setView('legal')} className="p-2 text-slate-500 hover:text-amber-500 transition-colors" title="Legal & Terms">
+        <button onClick={() => setView('legal')} className="p-2 text-slate-500 hover:text-amber-500 transition-colors" title="Legal & Terms" aria-label="Legal & Terms">
             <Shield className="w-5 h-5" />
         </button>
       </div>
 
       {/* 3. Mobile Menu Toggle */}
       <div className="flex md:hidden items-center gap-4">
-          {user && <button onClick={onToggleChat} className="text-slate-400 hover:text-white"><MessageCircle className="w-6 h-6" /></button>}
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-slate-200">
+          {user && <button onClick={onToggleChat} className="text-slate-400 hover:text-white" aria-label="Toggle Chat"><MessageCircle className="w-6 h-6" /></button>}
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-slate-200" aria-label={mobileMenuOpen ? "Close Menu" : "Open Menu"}>
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
       </div>
@@ -108,6 +113,7 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     placeholder="Search lore..." 
+                    aria-label="Search lore"
                     className="w-full bg-slate-950 border border-slate-700 rounded p-3 pl-10 text-slate-200 focus:border-amber-500 focus:outline-none"
                 />
             </form>
