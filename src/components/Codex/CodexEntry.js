@@ -47,6 +47,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
 
     const handleSave = async () => {
         setError('');
+        if (!user) return setError("You must be signed in to save.");
         if (!title.trim() || title.length < 3) return setError("Title must be at least 3 characters.");
         if (!content.trim() || content.length < 10) return setError("Content must be at least 10 characters.");
         if (gallery.length > 5) return setError("Gallery cannot exceed 5 images.");
@@ -61,7 +62,9 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
             if (localPage.isNew) {
                 // Create
                 const ref = await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
-                    ...pageData, relatedId: localPage.relatedId || ''
+                    ...pageData,
+                    relatedId: localPage.relatedId || '',
+                    creatorId: user.uid
                 });
                 setLocalPage({ ...pageData, id: ref.id, updatedAt: { toDate: () => new Date() } });
             } else {
