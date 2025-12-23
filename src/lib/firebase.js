@@ -14,27 +14,27 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Safety Check
+// Safety Check - Suppressed for dev/test without env vars
 if (!firebaseConfig.projectId && typeof window !== 'undefined') {
-    console.error("CRITICAL: Firebase Environment Variables are missing. Check Vercel Settings.");
+  console.warn("Firebase Environment Variables are missing. App will run in limited mode.");
 }
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = getApps().length === 0 && firebaseConfig.apiKey ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize App Check (CAPTCHA)
-if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+if (app && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
   if (location.hostname === "localhost") {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; 
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   }
 
   if (!window._firebaseAppCheck) {
-     window._firebaseAppCheck = initializeAppCheck(app, {
-       provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
-       isTokenAutoRefreshEnabled: true 
-     });
+    window._firebaseAppCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
   }
 }
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const storage = app ? getStorage(app) : null;

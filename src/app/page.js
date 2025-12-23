@@ -211,6 +211,7 @@ export default function Home() {
 
         {view === 'codex_entry' && (
           <CodexEntry
+            key={activeCodexPage?.id}
             page={activeCodexPage}
             goBack={() => navigateTo('codex')}
             onWikiLink={handleWikiLink}

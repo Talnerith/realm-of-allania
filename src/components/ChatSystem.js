@@ -30,16 +30,14 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
     useEffect(() => {
         if (!user) return;
 
-        // FIX: Removed 'orderBy' to prevent "Requires Index" error.
         const q = query(
             collection(db, 'artifacts', APP_ID, 'chats'),
-            where('participants', 'array-contains', user.uid)
+            where('participants', 'array-contains', user.uid),
+            orderBy('updatedAt', 'desc')
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
             const c = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            // FIX: Sort by date (newest first) in JavaScript
-            c.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
             setChats(c);
         });
 
@@ -226,7 +224,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                         {chats.length === 0 ? (
                             <div className="text-center py-8 text-slate-500 text-sm p-4">
                                 <p>No messages yet.</p>
-                                <p className="mt-2 text-xs">Visit a thread and click a user's avatar to send them a message.</p>
+                                <p className="mt-2 text-xs">Visit a thread and click a user&apos;s avatar to send them a message.</p>
                             </div>
                         ) : (
                             chats.map(chat => (

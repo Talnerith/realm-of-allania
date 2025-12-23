@@ -54,7 +54,7 @@ export default function LegalDocs({ goBack }) {
                     <p className="text-sm text-slate-500">Last Updated: 2025</p>
 
                     <Section title="1. Acceptance of Terms">
-                        By accessing or using the Realm of Allania (the "Service"), you agree to be bound by these Terms. If you disagree with any part of the terms, you may not access the Service.
+                        By accessing or using the Realm of Allania (the &quot;Service&quot;), you agree to be bound by these Terms. If you disagree with any part of the terms, you may not access the Service.
                     </Section>
 
                     <Section title="2. Acceptable Use Policy (AUP)">
@@ -73,12 +73,12 @@ export default function LegalDocs({ goBack }) {
                         <p className="mt-2"><strong>License:</strong> By posting content, you grant Realm of Allania a non-exclusive, worldwide, royalty-free license to use, display, and distribute your content in connection with the Service.</p>
                     </Section>
 
-                    <Section title="4. Copyright & DMCA">
+                    <Section title="4. Copyright &amp; DMCA">
                         We respect the intellectual property rights of others. If you believe your work has been copied in a way that constitutes copyright infringement, please contact the administration immediately for removal.
                     </Section>
 
                     <Section title="5. Disclaimers">
-                        The Service is provided on an "AS IS" and "AS AVAILABLE" basis. We do not warrant that the Service will be uninterrupted or error-free.
+                        The Service is provided on an &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; basis. We do not warrant that the Service will be uninterrupted or error-free.
                     </Section>
                 </div>
             )}
