@@ -19,22 +19,43 @@ if (!firebaseConfig.projectId && typeof window !== 'undefined') {
     console.error("CRITICAL: Firebase Environment Variables are missing. Check Vercel Settings.");
 }
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+let app;
+let auth;
+let db;
+let storage;
 
-// Initialize App Check (CAPTCHA)
-if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
-  if (location.hostname === "localhost") {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; 
+try {
+  if (getApps().length === 0) {
+    if (firebaseConfig.apiKey) {
+      app = initializeApp(firebaseConfig);
+    } else {
+      console.warn("Firebase API Key missing. Skipping initialization.");
+    }
+  } else {
+    app = getApps()[0];
   }
 
-  if (!window._firebaseAppCheck) {
-     window._firebaseAppCheck = initializeAppCheck(app, {
-       provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
-       isTokenAutoRefreshEnabled: true 
-     });
+  if (app) {
+    // Initialize App Check (CAPTCHA)
+    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+      if (location.hostname === "localhost") {
+        self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+      }
+
+      if (!window._firebaseAppCheck) {
+         window._firebaseAppCheck = initializeAppCheck(app, {
+           provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
+           isTokenAutoRefreshEnabled: true
+         });
+      }
+    }
+
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
   }
+} catch (e) {
+  console.error("Firebase Initialization Failed:", e);
 }
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export const storage = getStorage(app);
+export { auth, db, storage };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -51,6 +51,12 @@ export default function WorldMap({ setView, setActiveRegion }) {
     return () => { unsubNames(); unsubActivity(); };
   }, []); // Empty dependency array = runs for everyone
 
+  const handleRegionClick = useCallback((i) => {
+    const regionName = customNames[i.toString()] || getRegionName(i);
+    setActiveRegion({ id: i, name: regionName });
+    setView('region');
+  }, [customNames, setActiveRegion, setView]);
+
   // 2. Memoize Region Calculations
   const regionGrid = useMemo(() => {
     return Array.from({ length: TOTAL_REGIONS }).map((_, i) => {
@@ -94,13 +100,7 @@ export default function WorldMap({ setView, setActiveRegion }) {
           </div>
         );
       });
-  }, [customNames, regionThreads, readReceipts, user]);
-
-  const handleRegionClick = (i) => {
-      const regionName = customNames[i.toString()] || getRegionName(i);
-      setActiveRegion({ id: i, name: regionName });
-      setView('region');
-  };
+  }, [customNames, regionThreads, readReceipts, user, handleRegionClick]);
 
   return (
     <div className="relative w-full h-full overflow-auto bg-black custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
