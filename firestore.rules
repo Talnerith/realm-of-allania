@@ -53,14 +53,14 @@ match /artifacts/realm-of-allania-v2 {
 
     match /threads/{threadId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string;
+      allow create: if isSignedIn() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string && request.resource.data.creatorId == request.auth.uid;
       allow update: if isSignedIn() && (request.auth.uid == resource.data.creatorId || isMod()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title));
       allow delete: if isMod();
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string;
+      allow create: if isSignedIn() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string && request.resource.data.userId == request.auth.uid;
       allow update: if isSignedIn() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content);
       allow delete: if isMod();
     }
@@ -75,8 +75,12 @@ match /artifacts/realm-of-allania-v2 {
 
   // C. CHATS
   match /chats/{chatId} {
-    allow create: if isSignedIn();
-    allow read, write, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
+    allow create: if isSignedIn()
+                  && request.resource.data.participants is list
+                  && request.resource.data.participants.size() == 2
+                  && request.auth.uid in request.resource.data.participants;
+
+    allow read, update, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
     match /messages/{messageId} {
        allow read, write, delete: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
     }
