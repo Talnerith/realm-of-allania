@@ -31,6 +31,12 @@ export function GameProvider({ children }) {
     let receiptsUnsub = null;
     let charUnsub = null;
 
+    if (!auth) {
+        // Defer state update to avoid synchronous setState in effect
+        Promise.resolve().then(() => setLoading(false));
+        return;
+    }
+
     const authUnsub = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         // --- A. User Role (Private Path) ---
@@ -106,7 +112,7 @@ export function GameProvider({ children }) {
     });
 
     return () => {
-        authUnsub();
+        if (authUnsub) authUnsub();
         if (roleUnsub) roleUnsub();
         if (receiptsUnsub) receiptsUnsub();
         if (charUnsub) charUnsub();
@@ -115,6 +121,7 @@ export function GameProvider({ children }) {
 
   // --- Auth Actions ---
   const signup = async (email, password, username) => {
+    if (!auth) throw new Error("Authentication service unavailable.");
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
     await sendEmailVerification(cred.user);
@@ -132,10 +139,20 @@ export function GameProvider({ children }) {
     return cred.user;
   };
 
-  const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
-  const logout = () => { setActiveCharId(null); return signOut(auth); };
-  const resendVerification = () => { if (user) return sendEmailVerification(user); };
-  const resetPassword = (email) => sendPasswordResetEmail(auth, email);
+  const login = (email, password) => {
+      if (!auth) throw new Error("Authentication service unavailable.");
+      return signInWithEmailAndPassword(auth, email, password);
+  }
+  const logout = () => {
+      setActiveCharId(null);
+      if (!auth) return Promise.resolve();
+      return signOut(auth);
+  };
+  const resendVerification = () => { if (user && auth) return sendEmailVerification(user); };
+  const resetPassword = (email) => {
+      if (!auth) throw new Error("Authentication service unavailable.");
+      return sendPasswordResetEmail(auth, email);
+  }
 
   return (
     <GameContext.Provider value={{ 
