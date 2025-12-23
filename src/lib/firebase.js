@@ -19,7 +19,6 @@ if (!firebaseConfig.projectId && typeof window !== 'undefined') {
   console.warn("Firebase Environment Variables are missing. App will run in limited mode.");
 }
 
-<<<<<<< HEAD
 const app = getApps().length === 0 && firebaseConfig.apiKey ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize App Check (CAPTCHA)
@@ -33,43 +32,9 @@ if (app && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SI
       provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
       isTokenAutoRefreshEnabled: true
     });
-=======
-let app;
-let auth;
-let db;
-let storage;
-
-try {
-  if (getApps().length === 0) {
-    if (firebaseConfig.apiKey) {
-      app = initializeApp(firebaseConfig);
-    } else {
-      console.warn("Firebase API Key missing. Skipping initialization.");
-    }
-  } else {
-    app = getApps()[0];
   }
+}
 
-  if (app) {
-    // Initialize App Check (CAPTCHA)
-    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
-      if (location.hostname === "localhost") {
-        self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-      }
-
-      if (!window._firebaseAppCheck) {
-         window._firebaseAppCheck = initializeAppCheck(app, {
-           provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
-           isTokenAutoRefreshEnabled: true
-         });
-      }
-    }
-
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
->>>>>>> pr-5-branch
-
-    export const auth = app ? getAuth(app) : null;
-    export const db = app ? getFirestore(app) : null;
-    export const storage = app ? getStorage(app) : null;
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const storage = app ? getStorage(app) : null;
