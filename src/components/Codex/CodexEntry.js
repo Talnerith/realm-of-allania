@@ -55,7 +55,8 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
         const pageData = {
             title, category, content, gallery,
             updatedAt: serverTimestamp(),
-            updatedBy: characters.find(c => c.id === activeCharId)?.name || 'Anonymous'
+            updatedBy: characters.find(c => c.id === activeCharId)?.name || 'Anonymous',
+            lastEditorId: user.uid
         };
 
         try {

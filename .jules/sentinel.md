@@ -1,4 +1,4 @@
-## 2025-05-18 - [Fix: Enforcing Ownership on Codex Pages]
-**Vulnerability:** Publicly writable collections (Codex Pages) lacked ownership checks in `firestore.rules`, allowing any authenticated user to overwrite any page.
-**Learning:** Even if a feature feels like a "public wiki", explicit ownership or moderation controls are required to prevent defacement. "Good enough" UI logic (hiding edit buttons) is not security.
-**Prevention:** Always pair `create` rules that enforce `creatorId` with `update` rules that check `creatorId`. Never rely on the client to "behave".
+## 2025-05-18 - [Fix: Wiki Integrity & Audit Trail]
+**Vulnerability:** Publicly editable Wiki pages lacked verified authorship tracking. A user could spoof the `updatedBy` field or claim to be the creator of a new page.
+**Learning:** In a "Wiki" model (anyone can edit), security shifts from "Ownership" to "Integrity" and "Accountability". We must ensure we know *who* made the change (`lastEditorId`) and prevent them from altering the history (`creatorId`).
+**Prevention:** Enforce `lastEditorId == auth.uid` on all writes. Enforce `creatorId` immutability on updates using `!affectedKeys().hasAny(['creatorId'])`.
