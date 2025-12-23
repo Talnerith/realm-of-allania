@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
-import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader, LogOut, Shield } from 'lucide-react';
+import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader, LogOut, Shield, ArrowLeft } from 'lucide-react';
 import LegalDocs from '@/components/Legal/LegalDocs';
 
 // NOTE: added props for legal view navigation from page.js
 export default function AuthScreen({ onLegalClick, currentView, onBack }) {
-  const { login, signup, resendVerification, logout, user } = useGame();
+  const { login, signup, resendVerification, logout, user, resetPassword } = useGame();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgot, setIsForgot] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState(''); 
   const [honeypot, setHoneypot] = useState(''); // The Trap Field
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
 
@@ -46,7 +48,11 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
     setLoading(true);
 
     try {
-      if (isLogin) {
+      if (isForgot) {
+        await resetPassword(email);
+        setSuccess("Password reset email sent! Check your inbox.");
+        setIsForgot(false);
+      } else if (isLogin) {
         await login(email, password);
       } else {
         await signup(email, password, username);
@@ -56,6 +62,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
       if (err.code === 'auth/invalid-credential') setError("Incorrect email or password.");
       else if (err.code === 'auth/email-already-in-use') setError("Email already taken.");
       else if (err.code === 'auth/weak-password') setError("Password must be at least 6 characters.");
+      else if (err.code === 'auth/user-not-found') setError("No account found with this email.");
       else setError(err.message);
     } finally {
       setLoading(false);
@@ -70,6 +77,55 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
       setError("Wait a moment before sending another email.");
     }
   };
+
+  // --- View: Forgot Password ---
+  if (isForgot) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/map.jpg')] bg-cover opacity-10 blur-sm"></div>
+        <div className="max-w-md w-full bg-slate-900/90 border border-amber-900/50 rounded-xl p-8 shadow-2xl relative z-10 backdrop-blur-md">
+            <button
+              onClick={() => { setIsForgot(false); setError(''); setSuccess(''); }}
+              className="mb-6 flex items-center gap-2 text-slate-400 hover:text-amber-500 transition-colors"
+            >
+                <ArrowLeft className="w-4 h-4" /> Back to Login
+            </button>
+
+            <h2 className="text-2xl font-serif font-bold text-amber-100 mb-2">Recover Your Credentials</h2>
+            <p className="text-slate-500 text-sm mb-6">Enter your email to receive a password reset scroll.</p>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="relative">
+                    <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
+                    <input
+                        type="email"
+                        placeholder="Email Address"
+                        className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-amber-500 focus:outline-none"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                    />
+                </div>
+
+                {error && (
+                    <div className="bg-red-900/20 border border-red-900/50 text-red-400 text-sm p-3 rounded flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {error}
+                    </div>
+                )}
+
+                <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-amber-700 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-900/20"
+                >
+                    {loading ? <Loader className="w-5 h-5 animate-spin"/> : "Send Reset Link"}
+                </button>
+            </form>
+        </div>
+      </div>
+    );
+  }
 
   // --- View: Verification Required ---
   if (user && !user.emailVerified && !user.isAnonymous) {
@@ -169,12 +225,31 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
              />
            </div>
 
+           {isLogin && (
+               <div className="flex justify-end">
+                   <button
+                       type="button"
+                       onClick={() => { setIsForgot(true); setError(''); }}
+                       className="text-amber-500 hover:text-amber-400 text-xs font-semibold"
+                   >
+                       Forgot Password?
+                   </button>
+               </div>
+           )}
+
            {error && (
              <div className="bg-red-900/20 border border-red-900/50 text-red-400 text-sm p-3 rounded flex items-center gap-2">
                <AlertCircle className="w-4 h-4 shrink-0" />
                {error}
              </div>
            )}
+
+           {success && (
+                <div className="bg-emerald-900/20 border border-emerald-900/50 text-emerald-400 text-sm p-3 rounded flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 shrink-0" />
+                    {success}
+                </div>
+            )}
 
            <button 
              type="submit" 

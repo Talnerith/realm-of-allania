@@ -6,7 +6,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendEmailVerification,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -34,6 +35,7 @@ export function GameProvider({ children }) {
       if (currentUser) {
         // --- A. User Role (Private Path) ---
         // We use the user's private settings collection to ensure they have Write access for self-healing
+        if (!db) return; // Guard clause if db is null
         const roleRef = doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'settings', 'account');
         
         roleUnsub = onSnapshot(roleRef, async (snapshot) => {
@@ -71,21 +73,23 @@ export function GameProvider({ children }) {
         });
 
         // --- B. Read Receipts ---
-        const receiptsRef = collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'readReceipts');
-        receiptsUnsub = onSnapshot(receiptsRef, (snapshot) => {
-            const receipts = {};
-            snapshot.docs.forEach(doc => {
-                receipts[doc.id] = doc.data().lastRead?.toMillis() || 0;
-            });
-            setReadReceipts(receipts);
-        }, (error) => console.error("Receipts error:", error));
+        if (db) {
+            const receiptsRef = collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'readReceipts');
+            receiptsUnsub = onSnapshot(receiptsRef, (snapshot) => {
+                const receipts = {};
+                snapshot.docs.forEach(doc => {
+                    receipts[doc.id] = doc.data().lastRead?.toMillis() || 0;
+                });
+                setReadReceipts(receipts);
+            }, (error) => console.error("Receipts error:", error));
 
-        // --- C. Characters (Moved inside Auth to guarantee user exists) ---
-        const charQ = query(collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'characters'));
-        charUnsub = onSnapshot(charQ, (snapshot) => {
-            const chars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setCharacters(chars);
-        }, (error) => console.error("Characters error:", error));
+            // --- C. Characters (Moved inside Auth to guarantee user exists) ---
+            const charQ = query(collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'characters'));
+            charUnsub = onSnapshot(charQ, (snapshot) => {
+                const chars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setCharacters(chars);
+            }, (error) => console.error("Characters error:", error));
+        }
 
         setUser(currentUser);
       } else {
@@ -116,12 +120,14 @@ export function GameProvider({ children }) {
     await sendEmailVerification(cred.user);
     
     // Create Role Entry in the PRIVATE path
-    await setDoc(doc(db, 'artifacts', APP_ID, 'users', cred.user.uid, 'settings', 'account'), {
-        role: 'user',
-        username: username,
-        email: email,
-        createdAt: serverTimestamp()
-    });
+    if (db) {
+        await setDoc(doc(db, 'artifacts', APP_ID, 'users', cred.user.uid, 'settings', 'account'), {
+            role: 'user',
+            username: username,
+            email: email,
+            createdAt: serverTimestamp()
+        });
+    }
     
     return cred.user;
   };
@@ -129,12 +135,13 @@ export function GameProvider({ children }) {
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
   const logout = () => { setActiveCharId(null); return signOut(auth); };
   const resendVerification = () => { if (user) return sendEmailVerification(user); };
+  const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
   return (
     <GameContext.Provider value={{ 
       user, userRole, loading, characters, activeCharId, setActiveCharId,
       readReceipts,
-      signup, login, logout, resendVerification
+      signup, login, logout, resendVerification, resetPassword
     }}>
       {children}
     </GameContext.Provider>
