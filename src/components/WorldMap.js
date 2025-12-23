@@ -15,6 +15,8 @@ export default function WorldMap({ setView, setActiveRegion }) {
 
   // 1. Fetch Data (Guest Safe)
   useEffect(() => {
+    if (!db) return; // Guard against missing env vars
+
     // NOTE: Removed "if (!user) return" to allow Guest/SEO fetching
     
     // A. Custom Region Names

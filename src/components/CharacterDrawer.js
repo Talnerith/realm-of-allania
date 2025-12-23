@@ -149,7 +149,7 @@ export default function CharacterDrawer() {
                 if (!snapshot.empty) {
                     const chunks = [];
                     const docs = snapshot.docs;
-                    // eslint-disable-next-line no-undef
+
                     for (let i = 0; i < docs.length; i += 450) chunks.push(docs.slice(i, i + 450));
 
                     for (const chunk of chunks) {
