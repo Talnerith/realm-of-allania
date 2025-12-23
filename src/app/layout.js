@@ -11,9 +11,16 @@ const cormorant = Cormorant_Garamond({
   style: ['normal', 'italic']
 });
 
+// Determine Base URL for SEO
+const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000';
+
 // SEO METADATA
 export const metadata = {
-  metadataBase: new URL('https://realm-of-allania.com'), // Replace with your actual Vercel domain
+  metadataBase: new URL(baseUrl),
   title: {
     default: 'Realm of Allania | Immersive RPG Forum',
     template: '%s | Realm of Allania'
@@ -25,7 +32,6 @@ export const metadata = {
   openGraph: {
     title: 'Realm of Allania',
     description: 'Create your hero, explore the map, and write your legend in this immersive RPG forum.',
-    url: 'https://realm-of-allania.com',
     siteName: 'Realm of Allania',
     images: [
       {
