@@ -6,6 +6,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   sendEmailVerification,
+  sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
 import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -129,12 +130,13 @@ export function GameProvider({ children }) {
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
   const logout = () => { setActiveCharId(null); return signOut(auth); };
   const resendVerification = () => { if (user) return sendEmailVerification(user); };
+  const resetPassword = (email) => sendPasswordResetEmail(auth, email);
 
   return (
     <GameContext.Provider value={{ 
       user, userRole, loading, characters, activeCharId, setActiveCharId,
       readReceipts,
-      signup, login, logout, resendVerification
+      signup, login, logout, resendVerification, resetPassword
     }}>
       {children}
     </GameContext.Provider>

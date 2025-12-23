@@ -5,8 +5,9 @@ import LegalDocs from '@/components/Legal/LegalDocs';
 
 // NOTE: added props for legal view navigation from page.js
 export default function AuthScreen({ onLegalClick, currentView, onBack }) {
-  const { login, signup, resendVerification, logout, user } = useGame();
+  const { login, signup, resendVerification, logout, resetPassword, user } = useGame();
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgot, setIsForgot] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState(''); 
@@ -14,6 +15,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // Auto-fix: If an anonymous user is stuck, log them out automatically
   useEffect(() => {
@@ -46,7 +48,10 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
     setLoading(true);
 
     try {
-      if (isLogin) {
+      if (isForgot) {
+        await resetPassword(email);
+        setResetSent(true);
+      } else if (isLogin) {
         await login(email, password);
       } else {
         await signup(email, password, username);
@@ -56,6 +61,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
       if (err.code === 'auth/invalid-credential') setError("Incorrect email or password.");
       else if (err.code === 'auth/email-already-in-use') setError("Email already taken.");
       else if (err.code === 'auth/weak-password') setError("Password must be at least 6 characters.");
+      else if (err.code === 'auth/user-not-found') setError("No user found with this email.");
       else setError(err.message);
     } finally {
       setLoading(false);
@@ -122,7 +128,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-           {!isLogin && (
+           {!isLogin && !isForgot && (
              <div className="relative">
                <User className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
                <input 
@@ -157,17 +163,19 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
              />
            </div>
 
-           <div className="relative">
-             <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
-             <input 
-               type="password" 
-               placeholder="Password" 
-               className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-amber-500 focus:outline-none"
-               value={password}
-               onChange={(e) => setPassword(e.target.value)}
-               required
-             />
-           </div>
+           {!isForgot && (
+             <div className="relative">
+               <Lock className="absolute left-3 top-3 w-5 h-5 text-slate-500" />
+               <input
+                 type="password"
+                 placeholder="Password"
+                 className="w-full bg-slate-950 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-amber-500 focus:outline-none"
+                 value={password}
+                 onChange={(e) => setPassword(e.target.value)}
+                 required
+               />
+             </div>
+           )}
 
            {error && (
              <div className="bg-red-900/20 border border-red-900/50 text-red-400 text-sm p-3 rounded flex items-center gap-2">
@@ -176,21 +184,42 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
              </div>
            )}
 
-           <button 
-             type="submit" 
-             disabled={loading}
-             className="w-full bg-amber-700 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-900/20"
-           >
-             {loading ? <Loader className="w-5 h-5 animate-spin"/> : (isLogin ? "Enter Realm" : "Create Account")}
-           </button>
+           {resetSent && isForgot ? (
+              <div className="bg-emerald-900/20 border border-emerald-900/50 text-emerald-400 text-sm p-3 rounded flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                Reset link sent! Check your inbox.
+              </div>
+           ) : (
+             <button
+               type="submit"
+               disabled={loading}
+               className="w-full bg-amber-700 hover:bg-amber-600 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 shadow-lg shadow-amber-900/20"
+             >
+               {loading ? <Loader className="w-5 h-5 animate-spin"/> : (isForgot ? "Send Reset Link" : (isLogin ? "Enter Realm" : "Create Account"))}
+             </button>
+           )}
         </form>
 
         <div className="mt-6 text-center space-y-4">
+          {!isForgot && (
+            <button
+                onClick={() => { setIsForgot(true); setError(''); }}
+                className="text-slate-500 hover:text-white text-xs underline decoration-slate-700 hover:decoration-white"
+            >
+                Forgot Password?
+            </button>
+          )}
+
           <button 
-            onClick={() => { setIsLogin(!isLogin); setError(''); }}
+            onClick={() => {
+                if (isForgot) setIsForgot(false);
+                else setIsLogin(!isLogin);
+                setError('');
+                setResetSent(false);
+            }}
             className="text-slate-400 hover:text-amber-500 text-sm transition-colors block w-full"
           >
-            {isLogin ? "Need an account? Join the adventure" : "Already have a hero? Login"}
+            {isForgot ? "Back to Login" : (isLogin ? "Need an account? Join the adventure" : "Already have a hero? Login")}
           </button>
           
           {/* Legal Links Footer */}
