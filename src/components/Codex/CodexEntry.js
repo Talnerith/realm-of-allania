@@ -39,11 +39,6 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
     // Permission Check
     const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
 
-    useEffect(() => {
-        setLocalPage(page);
-        if (page.isNew) setIsEditing(true);
-        else setIsEditing(false);
-    }, [page]);
 
     const handleSave = async () => {
         setError('');
@@ -136,7 +131,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                 {lightboxOpen && (
                     <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxOpen(false)}>
                         <button className="absolute top-4 right-4 text-white hover:text-amber-500"><X className="w-8 h-8" /></button>
-                        <img src={gallery[lightboxIndex]} className="max-w-full max-h-full object-contain select-none" onClick={(e) => e.stopPropagation()} onError={(e) => { e.target.src = 'https://placehold.co/800x600/1e293b/FFF?text=Error'; }} />
+                        <img src={gallery[lightboxIndex]} alt="Gallery lightbox" className="max-w-full max-h-full object-contain select-none" onClick={(e) => e.stopPropagation()} onError={(e) => { e.target.src = 'https://placehold.co/800x600/1e293b/FFF?text=Error'; }} />
                         {gallery.length > 1 && (
                             <>
                                 <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 text-white"><ChevronLeft className="w-10 h-10" /></button>
@@ -252,7 +247,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                                     <div className="grid grid-cols-4 gap-2">
                                         {gallery.map((url, idx) => (
                                             <div key={idx} className="relative aspect-square rounded overflow-hidden border border-slate-700 group">
-                                                <img src={url} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
+                                                <img src={url} alt={`Gallery ${idx}`} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
                                                 <button onClick={() => removeImage(url)} className="absolute top-1 right-1 bg-red-900/80 text-white p-1 rounded-full"><Trash2 className="w-3 h-3" /></button>
                                             </div>
                                         ))}
@@ -273,7 +268,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                             {gallery.map((url, idx) => (
                                                 <div key={idx} onClick={() => openLightbox(idx)} className="aspect-square rounded border border-slate-700 overflow-hidden cursor-pointer hover:border-amber-500">
-                                                    <img src={url} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
+                                                    <img src={url} alt={`Gallery thumbnail ${idx}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
                                                 </div>
                                             ))}
                                         </div>

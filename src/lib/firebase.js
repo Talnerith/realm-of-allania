@@ -16,40 +16,25 @@ const firebaseConfig = {
 
 // Safety Check - Suppressed for dev/test without env vars
 if (!firebaseConfig.projectId && typeof window !== 'undefined') {
-    console.warn("Firebase Environment Variables are missing. App will run in limited mode.");
+  console.warn("Firebase Environment Variables are missing. App will run in limited mode.");
 }
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app = getApps().length === 0 && firebaseConfig.apiKey ? initializeApp(firebaseConfig) : getApps()[0];
 
 // Initialize App Check (CAPTCHA)
-if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
+if (app && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY) {
   if (location.hostname === "localhost") {
-    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true; 
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
   }
 
   if (!window._firebaseAppCheck) {
-     window._firebaseAppCheck = initializeAppCheck(app, {
-       provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
-       isTokenAutoRefreshEnabled: true 
-     });
+    window._firebaseAppCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
   }
 }
 
-// Initialize services conditionally to prevent build failures
-let auth = null;
-let db = null;
-let storage = null;
-
-try {
-  // Only initialize if we have an apiKey (environment variable present)
-  // or if we're in a browser environment where failures can be handled gracefully
-  if (firebaseConfig.apiKey) {
-    auth = getAuth(app);
-    db = getFirestore(app);
-    storage = getStorage(app);
-  }
-} catch (error) {
-  console.warn("Firebase initialization skipped: Missing credentials?");
-}
-
-export { auth, db, storage };
+export const auth = app ? getAuth(app) : null;
+export const db = app ? getFirestore(app) : null;
+export const storage = app ? getStorage(app) : null;

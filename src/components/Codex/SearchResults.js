@@ -103,7 +103,7 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
             Search Results
         </h2>
         <p className="text-slate-500 mb-8 border-b border-slate-800 pb-4">
-            Showing results for "<span className="text-white">{searchQuery}</span>"
+            Showing results for &quot;<span className="text-white">{searchQuery}</span>&quot;
         </p>
 
         {loading ? (
@@ -189,13 +189,13 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                                 >
                                     <div className="flex items-center gap-2 mb-2">
                                         <div className="w-5 h-5 rounded overflow-hidden bg-slate-800">
-                                            {item.characterImageUrl && <img src={item.characterImageUrl} className="w-full h-full object-cover"/>}
+                                            {item.characterImageUrl && <img src={item.characterImageUrl} alt={item.characterName} className="w-full h-full object-cover"/>}
                                         </div>
                                         <span className="text-xs font-bold text-amber-600">{item.characterName}</span>
                                         <span className="text-xs text-slate-600">• in a thread</span>
                                     </div>
                                     <p className="text-sm text-slate-300 italic">
-                                        "...{getSnippet(item.content, searchQuery)}..."
+                                        &quot;...{getSnippet(item.content, searchQuery)}...&quot;
                                     </p>
                                 </div>
                             ))}
