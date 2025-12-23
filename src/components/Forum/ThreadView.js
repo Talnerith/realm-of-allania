@@ -66,7 +66,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
         const q = query(
             collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'),
             where('threadId', '==', thread.id),
-            orderBy('createdAt', 'asc') // Ensure you have an index for threadId + createdAt
+            orderBy('createdAt', 'asc')
         );
 
         const unsubPosts = onSnapshot(q, (snapshot) => {
