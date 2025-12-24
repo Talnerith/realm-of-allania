@@ -38,6 +38,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
   const [newBanner, setNewBanner] = useState({ url: '', position: 'center' }); 
   const [createCodexEntry, setCreateCodexEntry] = useState(false);
   
+  const [sessionUploads, setSessionUploads] = useState([]);
   const [cooldown, setCooldown] = useState(false);
 
   useEffect(() => {
@@ -145,6 +146,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
           updatedBy: char.name
         });
       }
+      setSessionUploads([]); // Clear session tracking on success
       setNewTitle(''); setNewContent(''); setNewBanner({url:'', position:'center'}); setIsCreating(false);
     } catch (e) { 
         console.error("Error creating thread:", e); 
@@ -152,6 +154,21 @@ export default function RegionView({ region, setView, setActiveThread }) {
     } finally {
         setTimeout(() => setCooldown(false), 2000);
     }
+  };
+
+  const handleCancelCreate = async () => {
+    // Cleanup orphaned uploads
+    for (const url of sessionUploads) {
+        try {
+            const fileRef = ref(storage, url);
+            await deleteObject(fileRef);
+        } catch (e) {
+            console.log("Cleanup: File already gone or failed", url);
+        }
+    }
+    setSessionUploads([]);
+    setNewTitle(''); setNewContent(''); setNewBanner({url:'', position:'center'});
+    setIsCreating(false);
   };
 
   if (!region || region.id === undefined) return <div className="h-full flex items-center justify-center bg-slate-950 text-slate-500"><Loader className="w-8 h-8 animate-spin text-amber-500"/></div>;
@@ -237,7 +254,14 @@ export default function RegionView({ region, setView, setActiveThread }) {
              
              <div className="mb-4 bg-slate-950 p-4 rounded border border-slate-800">
                 <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Thread Banner (Optional)</h4>
-                <ImageUploader folder="thread_banners" shape="banner" onImageChanged={(url, pos) => setNewBanner({ url, position: pos })} />
+                <ImageUploader
+                  folder="thread_banners"
+                  shape="banner"
+                  onImageChanged={(url, pos) => {
+                    setNewBanner({ url, position: pos });
+                    setSessionUploads(prev => [...prev, url]);
+                  }}
+                />
              </div>
              
              {/* Markdown Editor */}
@@ -254,7 +278,7 @@ export default function RegionView({ region, setView, setActiveThread }) {
                <label className="text-sm text-slate-400">Add this lore to the Codex?</label>
              </div>
              <div className="flex justify-end gap-2">
-               <button onClick={() => setIsCreating(false)} className="text-slate-400 hover:text-white px-4 py-2">Cancel</button>
+               <button onClick={handleCancelCreate} className="text-slate-400 hover:text-white px-4 py-2">Cancel</button>
                <button onClick={handleCreateThread} disabled={cooldown} className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white px-4 py-2 rounded">{cooldown ? 'Wait...' : 'Post Thread'}</button>
              </div>
           </div>

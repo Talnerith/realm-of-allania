@@ -25,6 +25,7 @@ export default function CharacterDrawer() {
         name: '', race: RACES[0], class: CLASSES[0], description: '',
         imageUrl: '', imagePosition: 'center'
     });
+    const [sessionUploads, setSessionUploads] = useState([]);
     const [createCodex, setCreateCodex] = useState(true);
     const [editingId, setEditingId] = useState(null);
     const [deleteId, setDeleteId] = useState('');
@@ -36,10 +37,26 @@ export default function CharacterDrawer() {
 
     const resetForm = useCallback(() => {
         setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '', imagePosition: 'center' });
+        setSessionUploads([]);
         setCreateCodex(true);
         setFormError('');
         setIsSubmitting(false);
     }, []);
+
+    const handleCancel = async () => {
+        // Cleanup orphaned uploads
+        for (const url of sessionUploads) {
+            try {
+                const fileRef = ref(storage, url);
+                await deleteObject(fileRef);
+            } catch (e) {
+                // Ignore errors (file might be already deleted by ImageUploader or never existed)
+                console.log("Cleanup: File already gone or failed", url);
+            }
+        }
+        resetForm();
+        setMode('view');
+    };
 
     const openCreator = useCallback(() => {
         if (atLimit) return alert(`You have reached the maximum of ${CHARACTER_LIMIT} characters.`);
@@ -102,6 +119,7 @@ export default function CharacterDrawer() {
 
             await batch.commit();
 
+            setSessionUploads([]); // clear list so we don't delete valid images
             resetForm();
             setMode('view');
             setActiveCharId(charRef.id);
@@ -168,6 +186,7 @@ export default function CharacterDrawer() {
                 }
             }
 
+            setSessionUploads([]); // clear list so we don't delete valid images
             setMode('view');
             setEditingId(null);
         } catch (e) {
@@ -308,7 +327,10 @@ export default function CharacterDrawer() {
                                             initialPosition={formData.imagePosition}
                                             folder="character_portraits"
                                             shape="circle"
-                                            onImageChanged={(url, pos) => setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }))}
+                                            onImageChanged={(url, pos) => {
+                                                setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }));
+                                                setSessionUploads(prev => [...prev, url]);
+                                            }}
                                         />
                                     </div>
 
@@ -317,7 +339,7 @@ export default function CharacterDrawer() {
                                     <label className="text-xs text-slate-500 uppercase font-bold mb-1 block">Description</label>
                                     <textarea className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-slate-100 focus:border-amber-500 focus:outline-none text-sm resize-none mb-4" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                                     {mode === 'create' && (<div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={createCodex} onChange={e => setCreateCodex(e.target.checked)} className="w-4 h-4" /><label className="text-sm text-slate-400">Create Codex Entry?</label></div>)}
-                                    <div className="flex justify-end gap-3"><button onClick={() => setMode('view')} className="text-slate-400 hover:text-white px-3">Cancel</button><button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isSubmitting} className="bg-amber-700 hover:bg-amber-600 disabled:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} {mode === 'create' ? 'Summon' : 'Save Changes'}</button></div>
+                                    <div className="flex justify-end gap-3"><button onClick={handleCancel} className="text-slate-400 hover:text-white px-3">Cancel</button><button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isSubmitting} className="bg-amber-700 hover:bg-amber-600 disabled:bg-slate-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} {mode === 'create' ? 'Summon' : 'Save Changes'}</button></div>
                                 </div>
                             </div>
                             {formError && <p className="text-red-500 text-xs mt-2 absolute bottom-6 left-6 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {formError}</p>}
