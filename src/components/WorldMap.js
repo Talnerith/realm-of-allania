@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -6,7 +6,7 @@ import {
   MAP_IMAGE_URL, GRID_ROWS, GRID_COLS, TOTAL_REGIONS, getRegionName, isRegionPlayable, APP_ID
 } from '@/lib/constants';
 
-export default function WorldMap({ setView, setActiveRegion }) {
+function WorldMap({ setView, setActiveRegion }) {
   const { user, readReceipts } = useGame();
 
   const [regionLastActivity, setRegionLastActivity] = useState({});
@@ -123,3 +123,5 @@ export default function WorldMap({ setView, setActiveRegion }) {
     </div>
   );
 }
+
+export default memo(WorldMap);

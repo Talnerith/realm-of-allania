@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell, Shield, Crown, LogIn } from 'lucide-react';
 import { useGame } from '@/context/GameContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-export default function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) {
+function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) {
   const { user, logout } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -149,3 +149,5 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
     </nav>
   );
 }
+
+export default memo(Navbar);
