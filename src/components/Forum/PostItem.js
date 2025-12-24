@@ -51,14 +51,19 @@ const PostItem = memo(function PostItem({
 
             {/* MOBILE AVATAR HEADER */}
             <div className="md:hidden flex items-center gap-3 bg-slate-800/50 p-2 rounded-t-lg border-b border-slate-700">
-                <div className="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 relative shrink-0">
+                <button
+                    type="button"
+                    onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
+                    className="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 relative shrink-0 cursor-pointer p-0"
+                >
                     <img
                         src={post.characterImageUrl || ''}
                         className="w-full h-full object-cover"
                         style={{ objectPosition: post.characterImagePosition || 'center' }}
                         onError={(e) => e.target.style.display = 'none'}
+                        alt={post.characterName}
                     />
-                </div>
+                </button>
                 <div className="flex-1">
                     <div className="text-amber-500 font-bold text-sm">{post.characterName}</div>
                     <div className="text-[10px] text-slate-500 uppercase">{post.characterRace} {post.characterClass}</div>
@@ -68,27 +73,30 @@ const PostItem = memo(function PostItem({
 
             {/* DESKTOP AVATAR SIDEBAR */}
             <div className="hidden md:flex flex-col items-center gap-2 w-24 shrink-0">
-                <div
+                <button
+                    type="button"
                     onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                    className="w-20 h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors"
+                    className="w-20 h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors p-0"
                 >
                     <img
                         src={post.characterImageUrl || ''}
                         className="w-full h-full object-cover"
                         style={{ objectPosition: post.characterImagePosition || 'center' }}
                         onError={(e) => e.target.style.display = 'none'}
+                        alt={post.characterName}
                     />
                     <div className="absolute inset-0 flex items-center justify-center text-3xl bg-slate-700 text-slate-300 font-bold -z-10">
                         {post.characterName ? post.characterName.substring(0, 1) : '?'}
                     </div>
-                </div>
+                </button>
                 <div className="text-center w-full">
-                    <div
+                    <button
+                        type="button"
                         onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                        className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline"
+                        className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline bg-transparent border-none p-0"
                     >
                         {post.characterName}
-                    </div>
+                    </button>
                     <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
 
                     {/* Buttons */}
