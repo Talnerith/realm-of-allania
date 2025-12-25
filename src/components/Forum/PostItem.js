@@ -60,7 +60,7 @@ const PostItem = memo(function PostItem({
             </div>
 
             {/* MOBILE AVATAR HEADER */}
-            <div className="md:hidden flex items-center gap-3 bg-slate-800/50 p-2 rounded-t-lg border-b border-slate-700">
+            <div className="md:hidden flex items-start gap-3 bg-slate-800/50 p-2 rounded-t-lg border-b border-slate-700">
                 <button
                     type="button"
                     onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
@@ -76,10 +76,45 @@ const PostItem = memo(function PostItem({
                     />
                 </button>
                 <div className="flex-1">
-                    <div className="text-amber-500 font-bold text-sm">{post.characterName}</div>
-                    <div className="text-[10px] text-slate-500 uppercase">{post.characterRace} {post.characterClass}</div>
+                    <div className="flex justify-between items-start">
+                        <div>
+                            <div className="text-amber-500 font-bold text-sm">{post.characterName}</div>
+                            <div className="text-[10px] text-slate-500 uppercase">{post.characterRace} {post.characterClass}</div>
+                        </div>
+                        <span className="text-[10px] text-slate-600">{formatTimestamp(post.createdAt)}</span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mt-2">
+                        {user && user.uid !== post.userId && (
+                            <button
+                                onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
+                                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                                title="Send Message"
+                            >
+                                <MessageCircle className="w-3 h-3" /> DM
+                            </button>
+                        )}
+                        {isAdminOrMod && (
+                            <button
+                                onClick={() => onCopyUserId(post.userId)}
+                                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                                aria-label="Copy User ID"
+                                title="Copy User ID"
+                            >
+                                {copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500" /> : <User className="w-3 h-3" />} ID
+                            </button>
+                        )}
+                        {isAdmin && (
+                            <button
+                                onClick={() => onManageUser({ id: post.userId, name: post.characterName })}
+                                className="text-[10px] bg-slate-800 hover:bg-amber-900 text-slate-400 hover:text-amber-500 border border-slate-700 hover:border-amber-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                                title="Manage User Role"
+                            >
+                                <Shield className="w-3 h-3" /> Role
+                            </button>
+                        )}
+                    </div>
                 </div>
-                <span className="text-[10px] text-slate-600">{formatTimestamp(post.createdAt)}</span>
             </div>
 
             {/* DESKTOP AVATAR SIDEBAR */}
