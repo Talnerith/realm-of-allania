@@ -1,11 +1,12 @@
 import './globals.css';
 import { GameProvider } from '@/context/GameContext';
+import VersionUpdater from '@/components/VersionUpdater';
 import { Inter, Cormorant_Garamond } from 'next/font/google';
 
 // Font Setup
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
-const cormorant = Cormorant_Garamond({ 
-  subsets: ['latin'], 
+const cormorant = Cormorant_Garamond({
+  subsets: ['latin'],
   variable: '--font-cormorant',
   weight: ['400', '600', '700'],
   style: ['normal', 'italic']
@@ -67,6 +68,7 @@ export default function RootLayout({ children }) {
       <body className="bg-slate-950 text-slate-200 antialiased overflow-hidden">
         <GameProvider>
           {children}
+          <VersionUpdater />
         </GameProvider>
       </body>
     </html>
