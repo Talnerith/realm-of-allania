@@ -64,14 +64,14 @@ service cloud.firestore {
 
         match /threads/{threadId} {
           allow read: if true;
-          allow create: if isSignedIn() && !isBanned() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string;
+          allow create: if isSignedIn() && !isBanned() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string && request.resource.data.creatorId == request.auth.uid;
           allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.creatorId || isMod()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title));
           allow delete: if isMod();
         }
 
         match /posts/{postId} {
           allow read: if true;
-          allow create: if isSignedIn() && !isBanned() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string;
+          allow create: if isSignedIn() && !isBanned() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string && request.resource.data.userId == request.auth.uid;
           allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content);
           allow delete: if isMod();
         }
@@ -86,8 +86,12 @@ service cloud.firestore {
 
       // C. CHATS
       match /chats/{chatId} {
-        allow create: if isSignedIn() && !isBanned();
-        allow read, write, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
+        allow create: if isSignedIn() && !isBanned()
+                      && request.resource.data.participants is list
+                      && request.resource.data.participants.size() == 2
+                      && request.auth.uid in request.resource.data.participants;
+
+        allow read, update, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
         match /messages/{messageId} {
            allow read, write, delete: if isSignedIn() && !isBanned() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
         }
