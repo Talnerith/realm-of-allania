@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
@@ -139,7 +139,7 @@ export function GameProvider({ children }) {
   }, []);
 
   // --- Auth Actions ---
-  const signup = async (email, password, username) => {
+  const signup = useCallback(async (email, password, username) => {
     if (!auth) throw new Error("Authentication service unavailable.");
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
@@ -156,29 +156,42 @@ export function GameProvider({ children }) {
     }
 
     return cred.user;
-  };
+  }, []);
 
-  const login = (email, password) => {
+  const login = useCallback((email, password) => {
     if (!auth) throw new Error("Authentication service unavailable.");
     return signInWithEmailAndPassword(auth, email, password);
-  }
-  const logout = () => {
+  }, []);
+
+  const logout = useCallback(() => {
     setActiveCharId(null);
     if (!auth) return Promise.resolve();
     return signOut(auth);
-  };
-  const resendVerification = () => { if (user && auth) return sendEmailVerification(user); };
-  const resetPassword = (email) => {
+  }, []);
+
+  const resendVerification = useCallback(() => {
+    if (user && auth) return sendEmailVerification(user);
+  }, [user]);
+
+  const resetPassword = useCallback((email) => {
     if (!auth) throw new Error("Authentication service unavailable.");
     return sendPasswordResetEmail(auth, email);
-  }
+  }, []);
+
+  // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
+  // when GameProvider renders but data hasn't changed.
+  const value = useMemo(() => ({
+    user, userRole, loading, characters, activeCharId, setActiveCharId,
+    readReceipts,
+    signup, login, logout, resendVerification, resetPassword
+  }), [
+    user, userRole, loading, characters, activeCharId,
+    readReceipts,
+    signup, login, logout, resendVerification, resetPassword
+  ]);
 
   return (
-    <GameContext.Provider value={{
-      user, userRole, loading, characters, activeCharId, setActiveCharId,
-      readReceipts,
-      signup, login, logout, resendVerification, resetPassword
-    }}>
+    <GameContext.Provider value={value}>
       {children}
     </GameContext.Provider>
   );

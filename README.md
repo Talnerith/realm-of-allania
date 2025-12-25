@@ -4,9 +4,10 @@
 
 **A modern, immersive Play-by-Post (PbP) roleplaying platform built with Next.js and Firebase.**
 
-![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)
-![Firebase](https://img.shields.io/badge/Firebase-Firestore%20%7C%20Auth-orange?style=flat-square&logo=firebase)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=flat-square&logo=tailwind-css)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
+![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
+![Firebase](https://img.shields.io/badge/Firebase-12-orange?style=flat-square&logo=firebase)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?style=flat-square&logo=tailwind-css)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
 
 <p align="center">
@@ -36,8 +37,8 @@
 
 ## 🛠️ Tech Stack
 
--   **Frontend**: Next.js 14 (React), Tailwind CSS
--   **Backend**: Google Firebase (Firestore, Authentication, Storage)
+-   **Frontend**: Next.js 16 (React 19), Tailwind CSS 4
+-   **Backend**: Google Firebase 12 (Firestore, Authentication, Storage, App Check)
 -   **Icons**: Lucide React
 -   **Deployment**: Vercel
 
@@ -74,6 +75,7 @@ Follow these steps to set up the Realm locally on your machine.
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
     NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+    # Optional: For App Check
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY=optional_recaptcha_key
     ```
 
@@ -90,8 +92,13 @@ Follow these steps to set up the Realm locally on your machine.
 ```text
 src/
 ├── app/          # Main Next.js App Router pages and layouts
-├── components/   # UI components (Forum, Map, Character Drawer, etc.)
-├── context/      # React Context providers (Game State, Auth, User Roles)
+├── components/   # UI components
+│   ├── Chat/     # Chat system components
+│   ├── Codex/    # Wiki and Lore components
+│   ├── Forum/    # Thread and Post components
+│   ├── Legal/    # TOS and Privacy Policy
+│   └── ...       # Shared components (Map, Character Drawer, etc.)
+├── context/      # React Context providers (GameContext)
 └── lib/          # Utility functions and Firebase initialization
 public/           # Static assets (Map images, icons)
 ```
@@ -116,4 +123,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.

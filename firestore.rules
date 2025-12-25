@@ -1,91 +1,109 @@
-rules_version = '2';service cloud.firestore {match /databases/{database}/documents {
-// --- 1. CORE FUNCTIONS ---
-function isSignedIn() { return request.auth != null; }
-function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
 
-// Helper to get current character count (default to 0 if missing)
-function getCharCount(userId) {
-   let data = get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data;
-   return data.keys().hasAny(['characterCount']) ? data.characterCount : 0;
-}
+    // --- 1. CORE FUNCTIONS ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
 
-// SAFE ROLE CHECK:
-function getUserRole() {
-  return get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/settings/account).data.role;
-}
-function isAdmin() { return isSignedIn() && getUserRole() == 'admin'; }
-function isMod() { return isSignedIn() && (getUserRole() == 'admin' || getUserRole() == 'moderator'); }
+    // Helper to get current character count (default to 0 if missing)
+    function getCharCount(userId) {
+       let data = get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data;
+       return data.keys().hasAny(['characterCount']) ? data.characterCount : 0;
+    }
 
-// --- 2. VALIDATION (Anti-Spam & Limits) ---
-function isValidContent(text) { return text is string && text.size() >= 10 && text.size() <= 10000; }
-function isValidTitle(title) { return title is string && title.size() >= 3 && title.size() <= 140; }
-function isValidGallery(gallery) { return gallery is list && gallery.size() <= 5; }
-
-// --- 3. APP RULES ---
-match /artifacts/realm-of-allania-v2 {
-
-  // D. PRESENCE (Active Users)
-  match /presence/{userId} {
-    allow read: if isSignedIn();
-    allow write: if isOwner(userId);
-  }
-
-  // A. USER PROFILES
-  match /users/{userId} {
-    match /settings/account {
-      allow read: if isOwner(userId) || isMod();
-      allow write: if isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.role == 'user';
-      allow update: if isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+    // SAFE ROLE CHECK:
+    function getUserRole() {
+      return get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/settings/account).data.role;
     }
     
-    match /characters/{charId} {
-      allow read: if true;
-      allow create: if isOwner(userId) && getCharCount(userId) < 10;
-      allow update, delete: if isOwner(userId) || isAdmin();
-    }
-    
-    match /readReceipts/{threadId} {
-      allow read, write: if isOwner(userId);
-    }
-  }
+    function isAdmin() { return isSignedIn() && getUserRole() == 'admin'; }
+    function isMod() { return isSignedIn() && (getUserRole() == 'admin' || getUserRole() == 'moderator'); }
+    function isBanned() { return isSignedIn() && getUserRole() == 'banned'; }
 
-  // B. PUBLIC DATA
-  match /public/data {
-    match /region_metadata/{regionId} {
-      allow read: if true;
-      allow write: if isMod();
-    }
+    // --- 2. VALIDATION (Anti-Spam & Limits) ---
+    function isValidContent(text) { return text is string && text.size() >= 10 && text.size() <= 10000; }
+    function isValidTitle(title) { return title is string && title.size() >= 3 && title.size() <= 140; }
+    function isValidGallery(gallery) { return gallery is list && gallery.size() <= 5; }
 
-    match /threads/{threadId} {
-      allow read: if true;
-      allow create: if isSignedIn() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string;
-      allow update: if isSignedIn() && (request.auth.uid == resource.data.creatorId || isMod()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title));
-      allow delete: if isMod();
-    }
+    // --- 3. APP RULES ---
+    match /artifacts/realm-of-allania-v2 {
 
-    match /posts/{postId} {
-      allow read: if true;
-      allow create: if isSignedIn() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string;
-      allow update: if isSignedIn() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content);
-      allow delete: if isMod();
-    }
+      // D. PRESENCE (Active Users)
+      match /presence/{userId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
 
-    match /codex_pages/{pageId} {
-      allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.creatorId == request.auth.uid && request.resource.data.lastEditorId == request.auth.uid && isValidTitle(request.resource.data.title) && isValidContent(request.resource.data.content) && isValidGallery(request.resource.data.gallery);
-      allow update: if isSignedIn() && request.resource.data.lastEditorId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId']) && isValidTitle(request.resource.data.title) && isValidContent(request.resource.data.content) && isValidGallery(request.resource.data.gallery);
-      allow delete: if isMod();
-    }
-  }
+      // A. USER PROFILES
 
-  // C. CHATS
-  match /chats/{chatId} {
-    allow create: if isSignedIn();
-    allow read, write, delete: if isSignedIn() && request.auth.uid in resource.data.participants;
-    match /messages/{messageId} {
-       allow read, write, delete: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
+      // A. USER PROFILES
+      match /users/{userId} {
+        match /settings/account {
+          allow read: if isOwner(userId) || isMod();
+
+          // Admin Permissions (Strict Role Enforcement)
+          allow create: if isAdmin() && request.resource.data.role in ['user', 'moderator', 'admin', 'banned'];
+          allow update: if isAdmin() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role in ['user', 'moderator', 'admin', 'banned']);
+          allow delete: if isAdmin();
+
+          // User Permissions
+          allow create: if isOwner(userId) && request.resource.data.role == 'user';
+          allow update: if isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+        }
+
+        match /characters/{charId} {
+          allow read: if true;
+          allow create: if isOwner(userId) && !isBanned() && getCharCount(userId) < 10;
+          allow update, delete: if isOwner(userId) || isAdmin();
+        }
+
+        match /readReceipts/{threadId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      // B. PUBLIC DATA
+      match /public/data {
+        match /region_metadata/{regionId} {
+          allow read: if true;
+          allow write: if isMod();
+        }
+
+        match /threads/{threadId} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string && request.resource.data.creatorId == request.auth.uid;
+          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.creatorId || isMod()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title));
+          allow delete: if isMod();
+        }
+
+        match /posts/{postId} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string && request.resource.data.userId == request.auth.uid;
+          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content);
+          allow delete: if isMod();
+        }
+
+        match /codex_pages/{pageId} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned() && request.resource.data.creatorId == request.auth.uid && request.resource.data.lastEditorId == request.auth.uid && isValidTitle(request.resource.data.title) && isValidContent(request.resource.data.content) && isValidGallery(request.resource.data.gallery);
+          allow update: if isSignedIn() && !isBanned() && request.resource.data.lastEditorId == request.auth.uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId']) && isValidTitle(request.resource.data.title) && isValidContent(request.resource.data.content) && isValidGallery(request.resource.data.gallery);
+          allow delete: if isMod();
+        }
+      }
+
+      // C. CHATS
+      match /chats/{chatId} {
+        allow create: if isSignedIn() && !isBanned()
+                      && request.resource.data.participants is list
+                      && request.resource.data.participants.size() == 2
+                      && request.auth.uid in request.resource.data.participants;
+
+        allow read, update, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
+        match /messages/{messageId} {
+           allow read, write, delete: if isSignedIn() && !isBanned() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
+        }
+      }
     }
   }
 }
-}}
