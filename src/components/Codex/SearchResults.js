@@ -3,6 +3,7 @@ import { collection, query, getDocs, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { Loader, FileText, MessageSquare, AlertCircle, Search, WifiOff, MessageCircle } from 'lucide-react';
+import { filterCodexResults, filterThreadResults, filterPostResults, getSnippet } from '@/lib/searchUtils';
 
 export default function SearchResults({ query: searchQuery, onNavigate, onOpenThread, onOpenCodex }) {
   const [results, setResults] = useState({ threads: [], codex: [], posts: [] });
@@ -19,7 +20,7 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
     const performSearch = async () => {
       setLoading(true);
       setSearchError(null);
-      const lowerQuery = searchQuery.toLowerCase();
+      // NOTE: query lowercasing is now handled inside filter functions in searchUtils
       
       try {
         // 1. Search Codex (Fetch metadata and filter client-side)
@@ -39,27 +40,13 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
         ]);
 
         // Filter Codex
-        const codexResults = codexSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(item => 
-                (item.title && item.title.toLowerCase().includes(lowerQuery)) || 
-                (item.category && item.category.toLowerCase().includes(lowerQuery))
-            );
+        const codexResults = filterCodexResults(codexSnap.docs, searchQuery);
 
         // Filter Thread Titles
-        const threadResults = threadsSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(item => 
-                (item.title && item.title.toLowerCase().includes(lowerQuery))
-            );
+        const threadResults = filterThreadResults(threadsSnap.docs, searchQuery);
 
         // Filter Post Content
-        const postResults = postsSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .filter(item => 
-                (item.content && item.content.toLowerCase().includes(lowerQuery)) ||
-                (item.characterName && item.characterName.toLowerCase().includes(lowerQuery))
-            );
+        const postResults = filterPostResults(postsSnap.docs, searchQuery);
 
         setResults({ threads: threadResults, codex: codexResults, posts: postResults });
 
@@ -82,18 +69,6 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
 
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  // Helper to highlight text match
-  const getSnippet = (text, query) => {
-      if (!text) return '';
-      const lowerText = text.toLowerCase();
-      const index = lowerText.indexOf(query.toLowerCase());
-      if (index === -1) return text.substring(0, 100) + '...';
-      
-      const start = Math.max(0, index - 40);
-      const end = Math.min(text.length, index + query.length + 60);
-      return (start > 0 ? '...' : '') + text.substring(start, end) + (end < text.length ? '...' : '');
-  };
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 p-6 md:p-12 animate-in slide-in-from-bottom-2">
