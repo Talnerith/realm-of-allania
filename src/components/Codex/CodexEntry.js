@@ -29,6 +29,9 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
     // Staging state for the Image Uploader
     const [stagedUrl, setStagedUrl] = useState('');
 
+    // Track session uploads for cleanup on cancel
+    const [sessionUploads, setSessionUploads] = useState([]);
+
     // Local copy to prevent flicker when saving
     const [localPage, setLocalPage] = useState(page);
 
@@ -68,11 +71,27 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                 await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id), pageData);
                 setLocalPage(prev => ({ ...prev, ...pageData, updatedAt: { toDate: () => new Date() } }));
             }
+            setSessionUploads([]); // Clear session tracking on success
             setIsEditing(false);
         } catch (e) {
             console.error(e);
             setError("Save failed: " + e.message);
         }
+    };
+
+    const handleCancel = async () => {
+        // Cleanup orphaned session uploads
+        for (const url of sessionUploads) {
+            try {
+                const fileRef = ref(storage, url);
+                await deleteObject(fileRef);
+            } catch (e) {
+                console.log("Cleanup: File already gone or failed", url);
+            }
+        }
+        setSessionUploads([]);
+        setStagedUrl('');
+        if (localPage.isNew) goBack(); else setIsEditing(false);
     };
 
     const handleDelete = async () => {
@@ -100,6 +119,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
     // Gallery Handlers
     const handleStagedImage = (url) => {
         setStagedUrl(url);
+        setSessionUploads(prev => [...prev, url]);
     };
 
     const addStagedToGallery = () => {
@@ -169,7 +189,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                         </button>
                     ) : (
                         <div className="flex gap-2">
-                            <button onClick={() => { if (localPage.isNew) goBack(); else setIsEditing(false); }} className="text-slate-400 hover:text-white">Cancel</button>
+                            <button onClick={handleCancel} className="text-slate-400 hover:text-white">Cancel</button>
                             <button onClick={handleSave} className="flex items-center gap-2 bg-amber-700 text-white px-3 py-1 rounded hover:bg-amber-600">
                                 <Save className="w-4 h-4" /> Save Changes
                             </button>
