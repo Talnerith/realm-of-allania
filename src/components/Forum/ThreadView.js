@@ -191,11 +191,13 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     }, [liveThread, thread]);
 
     const handleDeletePost = useCallback(async (postId) => {
+        if (!isAdminOrMod) { alert("Insufficient permissions."); return; }
         if (!window.confirm("Delete this post? This action is reserved for Moderators.")) return;
         try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', postId)); } catch (e) { console.error(e); }
-    }, []);
+    }, [isAdminOrMod]);
 
     const handleDeleteThread = async () => {
+        if (!isAdminOrMod) { alert("Insufficient permissions."); return; }
         if (!window.confirm("Delete this ENTIRE thread?")) return;
         try {
             // 1. Delete Thread Doc
@@ -229,6 +231,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
     const handleUpdateRole = async (newRole) => {
         if (!managingUser) return;
+        if (!isAdmin) { alert("Insufficient permissions."); return; }
         if (!window.confirm(`Are you sure you want to set ${managingUser.name || 'this user'} to ${newRole.toUpperCase()}?`)) return;
         try {
             await setDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), { role: newRole }, { merge: true });
