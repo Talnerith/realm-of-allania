@@ -7,3 +7,8 @@
 **Vulnerability:** Firestore rules allowed any authenticated user to create threads, posts, and chats with arbitrary `creatorId` or `userId` fields (Identity Spoofing). Chats could be created without the creator as a participant.
 **Learning:** Validation rules must explicitly check that `request.resource.data.userId` matches `request.auth.uid` during creation. Without this, client-side code provides the ID, but malicious users can bypass it to spoof posts.
 **Prevention:** Added `request.resource.data.creatorId == request.auth.uid` conditions to `create` rules for threads and posts. Added `request.auth.uid in request.resource.data.participants` for chats.
+
+## 2025-10-27 - [Fix: Update Identity Spoofing]
+**Vulnerability:** Firestore rules permitted users to modify the `userId` or `creatorId` fields of their own posts and threads during an update. A user could write a post, then update it to change the author to an admin's ID, effectively spoofing them.
+**Learning:** Checking ownership `request.auth.uid == resource.data.userId` permits the update, but does not inherently protect the *fields* being updated. Immutable fields (identity, timestamps) must be explicitly protected.
+**Prevention:** Added `!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'creatorId', 'createdAt'])` checks to update rules.
