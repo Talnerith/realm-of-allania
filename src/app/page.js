@@ -239,7 +239,7 @@ export default function Home() {
             setView={navigateTo}
             onOpenCodex={handleCodexOpen}
             onMessageUser={handleMessageUser}
-            onRequireAuth={() => setShowLoginModal(true)}
+            onRequireAuth={handleLoginClick}
             onWikiLink={handleWikiLink}
           />
         )}

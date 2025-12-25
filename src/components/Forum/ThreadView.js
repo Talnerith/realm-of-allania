@@ -14,8 +14,9 @@ import {
 import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import PostItem from '@/components/Forum/PostItem';
+import { memo } from 'react';
 
-export default function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser, onRequireAuth, onWikiLink }) {
+function ThreadView({ thread, setView, region, onOpenCodex, onMessageUser, onRequireAuth, onWikiLink }) {
     const { user, userRole, characters, activeCharId } = useGame();
     const [posts, setPosts] = useState([]);
     const [liveThread, setLiveThread] = useState(thread);
@@ -388,3 +389,5 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
         </div>
     );
 }
+
+export default memo(ThreadView);
