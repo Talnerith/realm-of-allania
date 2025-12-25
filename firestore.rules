@@ -29,6 +29,14 @@ service cloud.firestore {
     // --- 3. APP RULES ---
     match /artifacts/realm-of-allania-v2 {
 
+      // D. PRESENCE (Active Users)
+      match /presence/{userId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+
+      // A. USER PROFILES
+
       // A. USER PROFILES
       match /users/{userId} {
         match /settings/account {
