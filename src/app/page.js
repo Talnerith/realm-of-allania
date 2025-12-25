@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
@@ -16,12 +16,16 @@ import CharacterDrawer from '@/components/CharacterDrawer';
 import ChatSystem from '@/components/ChatSystem';
 import LegalDocs from '@/components/Legal/LegalDocs';
 import CookieBanner from '@/components/Legal/CookieBanner';
+import LandingPage from '@/components/LandingPage';
 
 export default function Home() {
   const gameContext = useGame();
 
   // Navigation State
-  const [view, setView] = useState('map');
+  // Default to 'landing' for SEO and first-time users.
+  // We check localStorage in useEffect to potentially skip to 'map'.
+  const [view, setView] = useState('landing');
+
   const [activeRegion, setActiveRegion] = useState(null);
   const [activeThread, setActiveThread] = useState(null);
   const [activeCodexPage, setActiveCodexPage] = useState(null);
@@ -37,10 +41,30 @@ export default function Home() {
   // SEO: Guest Mode
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // --- HISTORY MANAGEMENT ---
+  // --- HISTORY & INIT MANAGEMENT ---
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.history.replaceState({ view: 'map' }, '');
+    // Check for "never show again" preference
+    // Only apply this logic if we are still on the initial 'landing' view.
+    // This prevents overwriting navigation if the user has already clicked something (though rare in this microtask timeframe).
+
+    // Use a small timeout or just invoke to decouple from effect if strictly needed,
+    // but React 18+ handles state updates in effects fine (it just runs it after paint).
+    // The linter warning "Calling setState synchronously within an effect" is specific to updates that might cause immediate re-render before paint?
+    // Actually, setting state in useEffect DOES cause a re-render.
+
+    const shouldSkipLanding = typeof window !== 'undefined' && localStorage.getItem('skipLanding') === 'true';
+
+    if (shouldSkipLanding) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView('map');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ view: 'map' }, '');
+      }
+    } else {
+      // Ensure history state is set for landing
+      if (typeof window !== 'undefined' && (!window.history.state || !window.history.state.view)) {
+         window.history.replaceState({ view: 'landing' }, '');
+      }
     }
 
     const onPopState = (event) => {
@@ -60,34 +84,60 @@ export default function Home() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const navigateTo = (newView, extraState = {}) => {
+  // 1. Navigation
+  const navigateTo = useCallback((newView, extraState = {}) => {
+    // dependency on view is fine, we want stability when view is constant (e.g. Chat toggle)
     if (view === newView && newView !== 'search' && newView !== 'codex_entry') return;
     setView(newView);
     window.history.pushState({ view: newView, ...extraState }, '');
-  };
+  }, [view]);
 
-  if (!gameContext) return null;
-  const { user, loading } = gameContext;
+  const { user, loading } = gameContext || {};
 
-  // Handlers
-  const handleRegionSelect = (region) => {
-    setActiveRegion(region);
-    navigateTo('region', { regionId: region.id });
-  };
+  // 2. Search (used by WikiLink)
+  const handleSearch = useCallback((query) => {
+    if (!query || !query.trim()) return;
+    const cleanQuery = query.trim();
+    setSearchQuery(cleanQuery);
+    setSearchKey(prev => prev + 1);
+    navigateTo('search', { query: cleanQuery });
+  }, [navigateTo]);
 
-  const handleThreadSelect = (thread) => {
-    setActiveThread(thread);
-    navigateTo('thread', { threadId: thread.id });
-  };
-
-  // Used by Search & Codex Index (Passes full Page Object)
-  const handleOpenCodexEntry = (page) => {
+  // 3. Codex Entry (used by WikiLink and CodexOpen)
+  const handleOpenCodexEntry = useCallback((page) => {
     setActiveCodexPage(page);
     navigateTo('codex_entry', { pageId: page.id });
-  };
+  }, [navigateTo]);
 
-  // Used by ThreadView (Passes Character ID string)
-  const handleCodexOpen = async (characterId = null) => {
+  // 4. Wiki Link Handler
+  const handleWikiLink = useCallback(async (targetTitle) => {
+    if (!targetTitle) return;
+    console.log("Navigating via Wiki Link:", targetTitle);
+
+    try {
+      // 1. Try Exact Title Match
+      const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+        where('title', '==', targetTitle),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const page = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        handleOpenCodexEntry(page);
+      } else {
+        // 2. Fallback to Search
+        handleSearch(targetTitle);
+      }
+    } catch (e) {
+      console.error("Wiki Link Error:", e);
+      handleSearch(targetTitle);
+    }
+  }, [handleOpenCodexEntry, handleSearch]);
+
+  // 5. Codex Open (used by ThreadView)
+  const handleCodexOpen = useCallback(async (characterId = null) => {
     if (!characterId) {
       navigateTo('codex');
       return;
@@ -113,51 +163,38 @@ export default function Home() {
       console.error("Codex Lookup Error:", e);
       navigateTo('codex');
     }
-  };
+  }, [navigateTo, handleOpenCodexEntry]);
 
-  // NEW: Wiki Link Handler
-  // Tries to find a page by title. If not found, runs a search.
-  const handleWikiLink = async (targetTitle) => {
-    if (!targetTitle) return;
-    console.log("Navigating via Wiki Link:", targetTitle);
+  // 6. Region/Thread Select
+  const handleRegionSelect = useCallback((region) => {
+    setActiveRegion(region);
+    navigateTo('region', { regionId: region.id });
+  }, [navigateTo]);
 
-    try {
-      // 1. Try Exact Title Match
-      const q = query(
-        collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
-        where('title', '==', targetTitle),
-        limit(1)
-      );
-      const snap = await getDocs(q);
+  const handleThreadSelect = useCallback((thread) => {
+    setActiveThread(thread);
+    navigateTo('thread', { threadId: thread.id });
+  }, [navigateTo]);
 
-      if (!snap.empty) {
-        const page = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        handleOpenCodexEntry(page);
-      } else {
-        // 2. Fallback to Search
-        handleSearch(targetTitle);
-      }
-    } catch (e) {
-      console.error("Wiki Link Error:", e);
-      handleSearch(targetTitle);
-    }
-  };
-
-  const handleMessageUser = (targetUser) => {
+  // 7. Message User
+  const handleMessageUser = useCallback((targetUser) => {
     if (!user) { setShowLoginModal(true); return; }
     setChatTarget(targetUser);
     setIsChatOpen(true);
-  };
+  }, [user]);
 
-  const handleSearch = (query) => {
-    if (!query || !query.trim()) return;
-    const cleanQuery = query.trim();
-    setSearchQuery(cleanQuery);
-    setSearchKey(prev => prev + 1);
-    setView('search');
-    window.history.pushState({ view: 'search', query: cleanQuery }, '');
-  };
+  // 8. Navbar Toggles (Memoized to prevent Navbar re-renders)
+  const handleToggleChat = useCallback(() => {
+    if (user) {
+      setIsChatOpen(prev => !prev);
+    } else {
+      setShowLoginModal(true);
+    }
+  }, [user]);
 
+  const handleLoginClick = useCallback(() => setShowLoginModal(true), []);
+
+  if (!gameContext) return null;
   if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
 
   return (
@@ -168,12 +205,16 @@ export default function Home() {
         currentView={view}
         setView={navigateTo}
         onSearch={handleSearch}
-        onToggleChat={() => user ? setIsChatOpen(!isChatOpen) : setShowLoginModal(true)}
-        onLoginClick={() => setShowLoginModal(true)}
+        onToggleChat={handleToggleChat}
+        onLoginClick={handleLoginClick}
       />
 
       {/* 2. MAIN CONTENT AREA */}
       <div className="flex-1 relative overflow-hidden">
+
+        {view === 'landing' && (
+          <LandingPage onEnter={() => navigateTo('map')} />
+        )}
 
         {view === 'map' && (
           <WorldMap

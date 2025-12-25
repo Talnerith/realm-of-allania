@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
@@ -30,6 +30,7 @@ export function GameProvider({ children }) {
     let roleUnsub = null;
     let receiptsUnsub = null;
     let charUnsub = null;
+    let presenceInterval = null;
 
     if (!auth) {
       // Defer state update to avoid synchronous setState in effect
@@ -95,6 +96,22 @@ export function GameProvider({ children }) {
             const chars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCharacters(chars);
           }, (error) => console.error("Characters error:", error));
+
+          // --- D. Presence Heartbeat ---
+          const updatePresence = async () => {
+            try {
+              const presenceRef = doc(db, 'artifacts', APP_ID, 'presence', currentUser.uid);
+              await setDoc(presenceRef, {
+                username: currentUser.displayName || 'Anonymous',
+                lastSeen: serverTimestamp()
+              });
+            } catch (e) {
+              console.error("Presence update failed:", e);
+            }
+          };
+
+          updatePresence(); // Initial update
+          presenceInterval = setInterval(updatePresence, 60000); // Update every minute
         }
 
         setUser(currentUser);
@@ -107,6 +124,7 @@ export function GameProvider({ children }) {
         if (roleUnsub) roleUnsub();
         if (receiptsUnsub) receiptsUnsub();
         if (charUnsub) charUnsub();
+        if (presenceInterval) clearInterval(presenceInterval);
       }
       setLoading(false);
     });
@@ -116,11 +134,12 @@ export function GameProvider({ children }) {
       if (roleUnsub) roleUnsub();
       if (receiptsUnsub) receiptsUnsub();
       if (charUnsub) charUnsub();
+      if (presenceInterval) clearInterval(presenceInterval);
     };
   }, []);
 
   // --- Auth Actions ---
-  const signup = async (email, password, username) => {
+  const signup = useCallback(async (email, password, username) => {
     if (!auth) throw new Error("Authentication service unavailable.");
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
@@ -137,29 +156,42 @@ export function GameProvider({ children }) {
     }
 
     return cred.user;
-  };
+  }, []);
 
-  const login = (email, password) => {
+  const login = useCallback((email, password) => {
     if (!auth) throw new Error("Authentication service unavailable.");
     return signInWithEmailAndPassword(auth, email, password);
-  }
-  const logout = () => {
+  }, []);
+
+  const logout = useCallback(() => {
     setActiveCharId(null);
     if (!auth) return Promise.resolve();
     return signOut(auth);
-  };
-  const resendVerification = () => { if (user && auth) return sendEmailVerification(user); };
-  const resetPassword = (email) => {
+  }, []);
+
+  const resendVerification = useCallback(() => {
+    if (user && auth) return sendEmailVerification(user);
+  }, [user]);
+
+  const resetPassword = useCallback((email) => {
     if (!auth) throw new Error("Authentication service unavailable.");
     return sendPasswordResetEmail(auth, email);
-  }
+  }, []);
+
+  // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
+  // when GameProvider renders but data hasn't changed.
+  const value = useMemo(() => ({
+    user, userRole, loading, characters, activeCharId, setActiveCharId,
+    readReceipts,
+    signup, login, logout, resendVerification, resetPassword
+  }), [
+    user, userRole, loading, characters, activeCharId,
+    readReceipts,
+    signup, login, logout, resendVerification, resetPassword
+  ]);
 
   return (
-    <GameContext.Provider value={{
-      user, userRole, loading, characters, activeCharId, setActiveCharId,
-      readReceipts,
-      signup, login, logout, resendVerification, resetPassword
-    }}>
+    <GameContext.Provider value={value}>
       {children}
     </GameContext.Provider>
   );
