@@ -16,12 +16,16 @@ import CharacterDrawer from '@/components/CharacterDrawer';
 import ChatSystem from '@/components/ChatSystem';
 import LegalDocs from '@/components/Legal/LegalDocs';
 import CookieBanner from '@/components/Legal/CookieBanner';
+import LandingPage from '@/components/LandingPage';
 
 export default function Home() {
   const gameContext = useGame();
 
   // Navigation State
-  const [view, setView] = useState('map');
+  // Default to 'landing' for SEO and first-time users.
+  // We check localStorage in useEffect to potentially skip to 'map'.
+  const [view, setView] = useState('landing');
+
   const [activeRegion, setActiveRegion] = useState(null);
   const [activeThread, setActiveThread] = useState(null);
   const [activeCodexPage, setActiveCodexPage] = useState(null);
@@ -37,10 +41,30 @@ export default function Home() {
   // SEO: Guest Mode
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // --- HISTORY MANAGEMENT ---
+  // --- HISTORY & INIT MANAGEMENT ---
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.history.replaceState({ view: 'map' }, '');
+    // Check for "never show again" preference
+    // Only apply this logic if we are still on the initial 'landing' view.
+    // This prevents overwriting navigation if the user has already clicked something (though rare in this microtask timeframe).
+
+    // Use a small timeout or just invoke to decouple from effect if strictly needed,
+    // but React 18+ handles state updates in effects fine (it just runs it after paint).
+    // The linter warning "Calling setState synchronously within an effect" is specific to updates that might cause immediate re-render before paint?
+    // Actually, setting state in useEffect DOES cause a re-render.
+
+    const shouldSkipLanding = typeof window !== 'undefined' && localStorage.getItem('skipLanding') === 'true';
+
+    if (shouldSkipLanding) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView('map');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ view: 'map' }, '');
+      }
+    } else {
+      // Ensure history state is set for landing
+      if (typeof window !== 'undefined' && (!window.history.state || !window.history.state.view)) {
+         window.history.replaceState({ view: 'landing' }, '');
+      }
     }
 
     const onPopState = (event) => {
@@ -187,6 +211,10 @@ export default function Home() {
 
       {/* 2. MAIN CONTENT AREA */}
       <div className="flex-1 relative overflow-hidden">
+
+        {view === 'landing' && (
+          <LandingPage onEnter={() => navigateTo('map')} />
+        )}
 
         {view === 'map' && (
           <WorldMap

@@ -36,7 +36,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     const [managingUserRole, setManagingUserRole] = useState(null);
 
     // Scroll Ref
-    const postsEndRef = useRef(null);
+    const scrollContainerRef = useRef(null);
 
     const isAdmin = userRole === 'admin';
     const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
@@ -84,8 +84,12 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
     // 3. Auto-Scroll on New Posts
     useEffect(() => {
-        if (postsEndRef.current) {
-            postsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        if (scrollContainerRef.current) {
+            const { scrollHeight } = scrollContainerRef.current;
+            scrollContainerRef.current.scrollTo({
+                top: scrollHeight,
+                behavior: 'smooth'
+            });
         }
     }, [posts.length]);
 
@@ -187,11 +191,13 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     }, [liveThread, thread]);
 
     const handleDeletePost = useCallback(async (postId) => {
+        if (!isAdminOrMod) { alert("Insufficient permissions."); return; }
         if (!window.confirm("Delete this post? This action is reserved for Moderators.")) return;
         try { await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', postId)); } catch (e) { console.error(e); }
-    }, []);
+    }, [isAdminOrMod]);
 
     const handleDeleteThread = async () => {
+        if (!isAdminOrMod) { alert("Insufficient permissions."); return; }
         if (!window.confirm("Delete this ENTIRE thread?")) return;
         try {
             // 1. Delete Thread Doc
@@ -225,6 +231,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
 
     const handleUpdateRole = async (newRole) => {
         if (!managingUser) return;
+        if (!isAdmin) { alert("Insufficient permissions."); return; }
         if (!window.confirm(`Are you sure you want to set ${managingUser.name || 'this user'} to ${newRole.toUpperCase()}?`)) return;
         try {
             await setDoc(doc(db, 'artifacts', APP_ID, 'users', managingUser.id, 'settings', 'account'), { role: newRole }, { merge: true });
@@ -238,7 +245,7 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
     const bannerPos = liveThread.bannerPosition || 'center';
 
     return (
-        <div className="h-full overflow-y-auto custom-scrollbar bg-slate-900 pb-80">
+        <div ref={scrollContainerRef} className="h-full overflow-y-auto custom-scrollbar bg-slate-900 pb-80">
             {/* Thread Banner */}
             {threadBanner && (
                 <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
@@ -309,8 +316,6 @@ export default function ThreadView({ thread, setView, region, onOpenCodex, onMes
                         copiedUserId={copiedUserId}
                     />
                 ))}
-                {/* INVISIBLE SCROLL ANCHOR */}
-                <div ref={postsEndRef} />
             </div>
 
             {/* ADMIN ROLE MANAGER */}
