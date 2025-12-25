@@ -30,6 +30,7 @@ export function GameProvider({ children }) {
     let roleUnsub = null;
     let receiptsUnsub = null;
     let charUnsub = null;
+    let presenceInterval = null;
 
     if (!auth) {
       // Defer state update to avoid synchronous setState in effect
@@ -95,6 +96,22 @@ export function GameProvider({ children }) {
             const chars = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setCharacters(chars);
           }, (error) => console.error("Characters error:", error));
+
+          // --- D. Presence Heartbeat ---
+          const updatePresence = async () => {
+            try {
+              const presenceRef = doc(db, 'artifacts', APP_ID, 'presence', currentUser.uid);
+              await setDoc(presenceRef, {
+                username: currentUser.displayName || 'Anonymous',
+                lastSeen: serverTimestamp()
+              });
+            } catch (e) {
+              console.error("Presence update failed:", e);
+            }
+          };
+
+          updatePresence(); // Initial update
+          presenceInterval = setInterval(updatePresence, 60000); // Update every minute
         }
 
         setUser(currentUser);
@@ -107,6 +124,7 @@ export function GameProvider({ children }) {
         if (roleUnsub) roleUnsub();
         if (receiptsUnsub) receiptsUnsub();
         if (charUnsub) charUnsub();
+        if (presenceInterval) clearInterval(presenceInterval);
       }
       setLoading(false);
     });
@@ -116,6 +134,7 @@ export function GameProvider({ children }) {
       if (roleUnsub) roleUnsub();
       if (receiptsUnsub) receiptsUnsub();
       if (charUnsub) charUnsub();
+      if (presenceInterval) clearInterval(presenceInterval);
     };
   }, []);
 

@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell, Shield, Crown, LogIn } from 'lucide-react';
+import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Bell, Shield, Crown, LogIn, Users } from 'lucide-react';
 import { useGame } from '@/context/GameContext';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import ActiveUsers from '@/components/ActiveUsers';
 
 export default function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) {
   const { user, logout } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
+  const [showActiveUsers, setShowActiveUsers] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -32,6 +34,7 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
   ];
 
   return (
+    <>
     <nav className="h-16 bg-slate-950 border-b border-amber-900/50 flex items-center justify-between px-4 md:px-8 z-40 relative shadow-lg">
       
       {/* 1. Logo / Brand */}
@@ -78,6 +81,9 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
 
         {user ? (
           <>
+            <button onClick={() => setShowActiveUsers(true)} className="p-2 text-slate-400 hover:text-white transition-colors" aria-label="Active Users" title="Active Users">
+                <Users className="w-5 h-5" />
+            </button>
             <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors" aria-label="Toggle Chat" title="Chat">
                 <MessageCircle className="w-5 h-5" />
             </button>
@@ -129,10 +135,16 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
             ))}
             
             {user ? (
-                <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-400 hover:bg-red-900/20 rounded">
-                    <LogOut className="w-5 h-5" />
-                    <span>Sign Out</span>
-                </button>
+                <>
+                  <button onClick={() => { setShowActiveUsers(true); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-slate-300 hover:bg-slate-800 rounded">
+                      <Users className="w-5 h-5" />
+                      <span>Active Users</span>
+                  </button>
+                  <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-400 hover:bg-red-900/20 rounded">
+                      <LogOut className="w-5 h-5" />
+                      <span>Sign Out</span>
+                  </button>
+                </>
             ) : (
                 <button onClick={() => { onLoginClick(); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-amber-500 hover:bg-slate-800 rounded">
                     <LogIn className="w-5 h-5" />
@@ -147,5 +159,8 @@ export default function Navbar({ currentView, setView, onSearch, onToggleChat, o
         </div>
       )}
     </nav>
+
+      <ActiveUsers isOpen={showActiveUsers} onClose={() => setShowActiveUsers(false)} />
+    </>
   );
 }
