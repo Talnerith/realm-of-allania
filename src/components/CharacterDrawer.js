@@ -255,9 +255,25 @@ export default function CharacterDrawer() {
         }
     };
 
+    const handleToggleKey = (e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsOpen(!isOpen);
+        }
+    };
+
     return (
         <div className={`fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-amber-700 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
-            <div onClick={() => setIsOpen(!isOpen)} className="flex items-center justify-between px-6 h-14 md:h-16 shrink-0 cursor-pointer bg-slate-900 hover:bg-slate-800 transition-colors">
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                onKeyDown={handleToggleKey}
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
+                aria-label={isOpen ? "Close Character Roster" : "Open Character Roster"}
+                className="flex items-center justify-between px-6 h-14 md:h-16 shrink-0 cursor-pointer bg-slate-900 hover:bg-slate-800 transition-colors focus:outline-none focus:bg-slate-800"
+            >
                 <div className="flex items-center gap-3">
                     <Shield className="w-5 h-5 text-amber-500" />
                     <span className="font-serif font-bold text-amber-100">Character Roster</span>
@@ -272,8 +288,8 @@ export default function CharacterDrawer() {
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
-                    <button onClick={(e) => openDelete(e)} className="text-slate-500 hover:text-red-500 transition-colors" title="Delete Character"><Trash2 className="w-5 h-5" /></button>
-                    <div className="text-slate-500 hover:text-amber-500">{isOpen ? <ChevronDown className="w-6 h-6" /> : <ChevronUp className="w-6 h-6" />}</div>
+                    <button onClick={(e) => openDelete(e)} className="text-slate-500 hover:text-red-500 transition-colors" title="Delete Character" aria-label="Delete Character"><Trash2 className="w-5 h-5" /></button>
+                    <div className="text-slate-500 hover:text-amber-500" aria-hidden="true">{isOpen ? <ChevronDown className="w-6 h-6" /> : <ChevronUp className="w-6 h-6" />}</div>
                 </div>
             </div>
 
