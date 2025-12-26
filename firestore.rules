@@ -101,7 +101,19 @@ service cloud.firestore {
 
         allow read, update, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
         match /messages/{messageId} {
-           allow read, write, delete: if isSignedIn() && !isBanned() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
+           // Allow read/delete if participant
+           allow read, delete: if isSignedIn() && !isBanned() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
+
+           // Strict creation: Must be participant + senderId matches + valid content
+           allow create: if isSignedIn() && !isBanned()
+                         && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants
+                         && request.resource.data.senderId == request.auth.uid
+                         && request.resource.data.text is string
+                         && request.resource.data.text.size() > 0
+                         && request.resource.data.text.size() <= 2000;
+
+           // No updates allowed (immutability)
+           allow update: if false;
         }
       }
     }
