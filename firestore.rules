@@ -73,14 +73,14 @@ service cloud.firestore {
         match /threads/{threadId} {
           allow read: if true;
           allow create: if isSignedIn() && !isBanned() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string && request.resource.data.creatorId == request.auth.uid;
-          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.creatorId || isMod()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title));
+          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.creatorId || isMod()) && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title)) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'createdAt']);
           allow delete: if isMod();
         }
 
         match /posts/{postId} {
           allow read: if true;
           allow create: if isSignedIn() && !isBanned() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string && request.resource.data.userId == request.auth.uid;
-          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content);
+          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt', 'threadId']);
           allow delete: if isMod();
         }
 
