@@ -112,6 +112,8 @@ export default function CharacterDrawer() {
                     imageUrl: formData.imageUrl,
                     gallery: formData.imageUrl ? [formData.imageUrl] : [],
                     relatedId: charRef.id,
+                    creatorId: user.uid,
+                    lastEditorId: user.uid,
                     updatedAt: serverTimestamp(),
                     updatedBy: 'System'
                 });
