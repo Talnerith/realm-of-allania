@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
+import { useGame } from '@/context/GameContext';
 import { Users, X } from 'lucide-react';
 
 export default function ActiveUsers({ isOpen, onClose }) {
+  const { user } = useGame();
   const [activeUsers, setActiveUsers] = useState([]);
 
   useEffect(() => {
@@ -59,12 +61,17 @@ export default function ActiveUsers({ isOpen, onClose }) {
 
         <div className="space-y-2 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
           {activeUsers.length > 0 ? (
-            activeUsers.map((user) => (
-              <div key={user.id} className="flex items-center gap-3 p-2 bg-slate-950/50 rounded border border-slate-800">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <span className="text-slate-200 font-medium">{user.username}</span>
-              </div>
-            ))
+            activeUsers.map((activeUser) => { // Rename to activeUser to avoid conflict
+              const isCurrentUser = user && activeUser.id === user.uid;
+              return (
+                <div key={activeUser.id} className={`flex items-center gap-3 p-2 rounded border transition-colors ${isCurrentUser ? 'bg-amber-900/20 border-amber-800/50' : 'bg-slate-950/50 border-slate-800'}`}>
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${isCurrentUser ? 'bg-amber-500' : 'bg-green-500'}`}></div>
+                  <span className={`font-medium ${isCurrentUser ? 'text-amber-200' : 'text-slate-200'}`}>
+                    {activeUser.username} {isCurrentUser && <span className="text-amber-500 text-xs ml-1">(You)</span>}
+                  </span>
+                </div>
+              );
+            })
           ) : (
             <div className="text-slate-500 text-center py-4 italic">
               The realm is quiet...
