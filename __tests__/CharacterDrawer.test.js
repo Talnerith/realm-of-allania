@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import CharacterDrawer from './CharacterDrawer';
+import CharacterDrawer from '@/components/CharacterDrawer';
 import { useGame } from '@/context/GameContext';
 import * as firestore from 'firebase/firestore';
 import * as storage from 'firebase/storage';
@@ -28,17 +28,17 @@ jest.mock('@/components/ImageUploader', () => {
   };
 });
 jest.mock('lucide-react', () => ({
-    Shield: () => <div data-testid="icon-shield" />,
-    ChevronDown: () => <div data-testid="icon-chevron-down" />,
-    ChevronUp: () => <div data-testid="icon-chevron-up" />,
-    Edit3: () => <div data-testid="icon-edit" />,
-    Plus: () => <div data-testid="icon-plus" />,
-    X: () => <div data-testid="icon-x" />,
-    Trash2: () => <div data-testid="icon-trash" />,
-    AlertCircle: () => <div data-testid="icon-alert-circle" />,
-    AlertTriangle: () => <div data-testid="icon-alert-triangle" />,
-    Loader: () => <div data-testid="icon-loader" />,
-    Move: () => <div data-testid="icon-move" />,
+  Shield: () => <div data-testid="icon-shield" />,
+  ChevronDown: () => <div data-testid="icon-chevron-down" />,
+  ChevronUp: () => <div data-testid="icon-chevron-up" />,
+  Edit3: () => <div data-testid="icon-edit" />,
+  Plus: () => <div data-testid="icon-plus" />,
+  X: () => <div data-testid="icon-x" />,
+  Trash2: () => <div data-testid="icon-trash" />,
+  AlertCircle: () => <div data-testid="icon-alert-circle" />,
+  AlertTriangle: () => <div data-testid="icon-alert-triangle" />,
+  Loader: () => <div data-testid="icon-loader" />,
+  Move: () => <div data-testid="icon-move" />,
 }));
 
 describe('CharacterDrawer', () => {
@@ -167,7 +167,7 @@ describe('CharacterDrawer', () => {
 
     // Submit
     await act(async () => {
-        fireEvent.click(screen.getByText('Summon'));
+      fireEvent.click(screen.getByText('Summon'));
     });
 
     const mockBatch = firestore.writeBatch();
@@ -199,7 +199,7 @@ describe('CharacterDrawer', () => {
 
     // Submit
     await act(async () => {
-        fireEvent.click(screen.getByText('Save Changes'));
+      fireEvent.click(screen.getByText('Save Changes'));
     });
 
     expect(firestore.updateDoc).toHaveBeenCalled();
@@ -229,7 +229,7 @@ describe('CharacterDrawer', () => {
     });
 
     await act(async () => {
-        fireEvent.click(screen.getByText('Save Changes'));
+      fireEvent.click(screen.getByText('Save Changes'));
     });
 
     // Should query posts
@@ -264,18 +264,18 @@ describe('CharacterDrawer', () => {
     // Mock cleanup query responses
     // 1. Posts (code uses snapshot.docs)
     firestore.getDocs.mockResolvedValueOnce({
-        empty: false,
-        docs: [{ id: 'p1', ref: 'pRef1' }],
+      empty: false,
+      docs: [{ id: 'p1', ref: 'pRef1' }],
     });
     // 2. Codex (code uses snapshot.forEach)
     firestore.getDocs.mockResolvedValueOnce({
-        empty: false,
-        docs: [{ id: 'c1', ref: 'cRef1' }],
-        forEach: (callback) => [{ id: 'c1', ref: 'cRef1' }].forEach(callback)
+      empty: false,
+      docs: [{ id: 'c1', ref: 'cRef1' }],
+      forEach: (callback) => [{ id: 'c1', ref: 'cRef1' }].forEach(callback)
     });
 
     await act(async () => {
-        fireEvent.click(screen.getByText('Yes, Delete'));
+      fireEvent.click(screen.getByText('Yes, Delete'));
     });
 
     const mockBatch = firestore.writeBatch();

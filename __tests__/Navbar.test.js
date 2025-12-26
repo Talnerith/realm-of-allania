@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import Navbar from '../Navbar';
+import Navbar from '@/components/Navbar';
 import { useGame } from '@/context/GameContext';
 
 // Mock the dependencies

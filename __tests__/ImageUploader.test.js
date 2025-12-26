@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import ImageUploader from '../ImageUploader';
+import ImageUploader from '@/components/ImageUploader';
 import { useGame } from '@/context/GameContext';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
@@ -36,7 +36,7 @@ describe('ImageUploader', () => {
 
     // Mock Canvas methods on prototype
     HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
-        drawImage: jest.fn(),
+      drawImage: jest.fn(),
     }));
     HTMLCanvasElement.prototype.toBlob = jest.fn((cb) => cb(new Blob(['test'], { type: 'image/jpeg' })));
   });
@@ -55,11 +55,11 @@ describe('ImageUploader', () => {
   const setupFileMocks = () => {
     // Mock FileReader with async behavior
     const mockFileReaderInstance = {
-      readAsDataURL: jest.fn(function() {
+      readAsDataURL: jest.fn(function () {
         setTimeout(() => {
-             if (this.onload) {
-                 this.onload({ target: { result: 'data:image/test' } });
-             }
+          if (this.onload) {
+            this.onload({ target: { result: 'data:image/test' } });
+          }
         }, 10);
       }),
     };
@@ -73,9 +73,9 @@ describe('ImageUploader', () => {
       }
       set src(val) {
         setTimeout(() => {
-             if (this.onload) {
-                 this.onload();
-             }
+          if (this.onload) {
+            this.onload();
+          }
         }, 10);
       }
     };
@@ -127,7 +127,7 @@ describe('ImageUploader', () => {
     // We must click 'Upload File' to get the input back.
     const uploadTab = screen.getByText('Upload File');
     await act(async () => {
-        fireEvent.click(uploadTab);
+      fireEvent.click(uploadTab);
     });
 
     // Query the NEW input element

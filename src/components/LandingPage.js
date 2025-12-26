@@ -74,17 +74,12 @@ export default function LandingPage({ onEnter }) {
           </div>
           <div className="bg-slate-900 p-6 rounded-lg border border-slate-800 shadow-xl relative group">
             <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg"></div>
-            {/* Placeholder for Post Example */}
-            <div className="space-y-4 font-serif text-slate-400 italic">
-              <div className="flex items-start space-x-3">
-                <div className="w-10 h-10 rounded-full bg-slate-800 flex-shrink-0"></div>
-                <div className="space-y-2 flex-1">
-                  <div className="h-4 bg-slate-800 w-1/4 rounded"></div>
-                  <div className="h-3 bg-slate-800 w-full rounded"></div>
-                  <div className="h-3 bg-slate-800 w-5/6 rounded"></div>
-                  <div className="h-3 bg-slate-800 w-4/6 rounded"></div>
-                </div>
-              </div>
+            <div className="rounded-lg overflow-hidden border border-slate-800 shadow-xl">
+              <img
+                src="/images/tutorial-demo.gif"
+                alt="Play-by-Post Tutorial"
+                className="w-full h-auto object-cover"
+              />
             </div>
             <div className="mt-4 text-center text-xs text-slate-500 font-sans uppercase tracking-widest">
               Storytelling at your pace
