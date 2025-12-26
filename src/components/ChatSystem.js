@@ -195,7 +195,11 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
             <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                     {activeChatId && (
-                        <button onClick={() => setActiveChatId(null)} className="text-slate-400 hover:text-white mr-1">
+                        <button
+                            onClick={() => setActiveChatId(null)}
+                            className="text-slate-400 hover:text-white mr-1"
+                            aria-label="Back to chat list"
+                        >
                             <ChevronLeft className="w-5 h-5" />
                         </button>
                     )}
@@ -210,11 +214,22 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                 <div className="flex items-center gap-2">
                     {/* DELETE BUTTON */}
                     {activeChatId && (
-                        <button onClick={deleteChat} className="text-slate-600 hover:text-red-500 mr-2" title="Delete Chat Forever">
+                        <button
+                            onClick={deleteChat}
+                            className="text-slate-600 hover:text-red-500 mr-2"
+                            title="Delete Chat Forever"
+                            aria-label="Delete chat forever"
+                        >
                             <Trash2 className="w-4 h-4" />
                         </button>
                     )}
-                    <button onClick={onClose} className="text-slate-500 hover:text-white"><X className="w-5 h-5" /></button>
+                    <button
+                        onClick={onClose}
+                        className="text-slate-500 hover:text-white"
+                        aria-label="Close chat window"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
                 </div>
             </div>
 
@@ -260,8 +275,14 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         disabled={cooldown}
+                        aria-label="Message text"
                     />
-                    <button disabled={isSending || cooldown} className="p-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50 transition-opacity">
+                    <button
+                        type="submit"
+                        disabled={isSending || cooldown}
+                        className="p-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50 transition-opacity"
+                        aria-label={isSending ? "Sending message" : "Send message"}
+                    >
                         {isSending ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
                 </form>
