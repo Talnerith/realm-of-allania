@@ -12,3 +12,8 @@
 **Vulnerability:** Firestore rules permitted users to modify the `userId` or `creatorId` fields of their own posts and threads during an update. A user could write a post, then update it to change the author to an admin's ID, effectively spoofing them.
 **Learning:** Checking ownership `request.auth.uid == resource.data.userId` permits the update, but does not inherently protect the *fields* being updated. Immutable fields (identity, timestamps) must be explicitly protected.
 **Prevention:** Added `!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'creatorId', 'createdAt'])` checks to update rules.
+
+## 2025-10-28 - [Fix: Chat Message Spoofing & Immutability]
+**Vulnerability:** Chat messages in Firestore lacked `senderId` validation and immutability. A participant could spoof messages from other users by setting `senderId` to another UID, and update or modify any message in the chat history.
+**Learning:** Nested subcollections (like `messages`) inherit the context of the parent (like `participants`) but must still explicitly validate the data being written. "Write" permission is too broad; explicit `create` checks and `update` denials are needed for append-only logs like chats.
+**Prevention:** Split `allow read, write, delete` into granular permissions. Enforced `request.resource.data.senderId == request.auth.uid` on creation. Denied `update` entirely to ensure message history integrity.
