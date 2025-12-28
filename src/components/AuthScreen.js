@@ -272,15 +272,6 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
         </form>
 
         <div className="mt-6 text-center space-y-4">
-          {!isForgot && (
-            <button
-              onClick={() => { setIsForgot(true); setError(''); }}
-              className="text-slate-500 hover:text-white text-xs underline decoration-slate-700 hover:decoration-white"
-            >
-              Forgot Password?
-            </button>
-          )}
-
           <button
             onClick={() => {
               if (isForgot) setIsForgot(false);
