@@ -10,10 +10,11 @@ import { MessageCircle, X, Send, ChevronLeft, Loader, Trash2 } from 'lucide-reac
 import ChatMessage from '@/components/Chat/ChatMessage';
 import ChatListItem from '@/components/Chat/ChatListItem';
 
-export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
+export default function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
     const { user } = useGame();
     const [activeChatId, setActiveChatId] = useState(null);
     const [chats, setChats] = useState([]);
+    const [readReceipts, setReadReceipts] = useState({}); // chat_id -> timestamp
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -44,6 +45,49 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
         return () => unsub();
     }, [user]);
 
+    // 1.5 Listen for Read Receipts & Calculate Unread
+    useEffect(() => {
+        if (!user) return;
+        const q = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts');
+        const unsub = onSnapshot(q, (snapshot) => {
+            const receipts = {};
+            snapshot.docs.forEach(d => {
+                receipts[d.id] = d.data().lastRead;
+            });
+            setReadReceipts(receipts);
+        });
+        return () => unsub();
+    }, [user]);
+
+    // Calculate Unread Count
+    useEffect(() => {
+        if (!onUnreadCountChange) return;
+
+        const count = chats.reduce((acc, chat) => {
+            const lastRead = readReceipts[chat.id];
+            // If chat has no updatedAt (e.g. just created), ignore
+            if (!chat.updatedAt) return acc;
+
+            // Unread if: No receipt OR chat.updatedAt > lastRead
+            // Note: Timestamps need comparison. toMillis() is safest.
+            const chatTime = chat.updatedAt.toMillis ? chat.updatedAt.toMillis() : 0;
+            const readTime = lastRead?.toMillis ? lastRead.toMillis() : 0;
+
+            return (chatTime > readTime) ? acc + 1 : acc;
+        }, 0);
+
+        onUnreadCountChange(count);
+    }, [chats, readReceipts, onUnreadCountChange]);
+
+    const isChatUnread = (chatId) => {
+        const chat = chats.find(c => c.id === chatId);
+        if (!chat || !chat.updatedAt) return false;
+        const lastRead = readReceipts[chatId];
+        const chatTime = chat.updatedAt.toMillis ? chat.updatedAt.toMillis() : 0;
+        const readTime = lastRead?.toMillis ? lastRead.toMillis() : 0;
+        return chatTime > readTime;
+    };
+
     const scrollToBottom = useCallback(() => {
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }, []);
@@ -63,14 +107,14 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
             const m = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setMessages(m);
             scrollToBottom();
-        });
 
-        // B. Mark as Read (Update Read Receipt)
-        if (user) {
-            setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId), {
-                lastRead: serverTimestamp()
-            }, { merge: true });
-        }
+            // Mark as read whenever we see messages in active chat
+            if (user) {
+                setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId), {
+                    lastRead: serverTimestamp()
+                }, { merge: true });
+            }
+        });
 
         return () => unsub();
     }, [activeChatId, user, scrollToBottom]);
@@ -81,6 +125,13 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
             scrollToBottom();
         }
     }, [isOpen, activeChatId, scrollToBottom]);
+
+    // Reset active chat when closed to ensure we stop "reading" messages
+    useEffect(() => {
+        if (!isOpen) {
+            setActiveChatId(null);
+        }
+    }, [isOpen]);
 
     const messagesEndRef = useRef(null);
 
@@ -187,11 +238,13 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
         }
     };
 
-    if (!isOpen) return null;
+    // if (!isOpen) return null;
+
+    if (!isOpen && !onUnreadCountChange) return null; // Safety fallback if not used for notifications
 
     return (
         // FIX: Adjusted layout for mobile (inset-0) vs desktop (bottom-20 right-4 w-96)
-        <div className="fixed z-50 flex flex-col bg-slate-900 border border-amber-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto">
+        <div className={`fixed z-50 flex flex-col bg-slate-900 border border-amber-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto ${isOpen ? '' : 'hidden'}`}>
             <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                     {activeChatId && (
@@ -248,6 +301,7 @@ export default function ChatSystem({ isOpen, onClose, initialChatUser }) {
                                     chat={chat}
                                     userId={user.uid}
                                     isActive={activeChatId === chat.id}
+                                    isUnread={isChatUnread(chat.id)}
                                     onSelect={setActiveChatId}
                                 />
                             ))

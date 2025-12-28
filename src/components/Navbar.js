@@ -5,7 +5,7 @@ import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import ActiveUsers from '@/components/ActiveUsers';
 
-function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) {
+function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, unreadCount }) {
   const { user, logout } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -85,6 +85,11 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) 
             </button>
             <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors" aria-label="Toggle Chat" title="Chat">
               <MessageCircle className="w-5 h-5" />
+              {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 w-4 h-4 bg-red-600 text-[10px] font-bold text-white flex items-center justify-center rounded-full shadow-lg border border-slate-950 animate-in zoom-in-50">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+              )}
             </button>
             <button onClick={handleLogout} className="p-2 text-slate-500 hover:text-red-400 transition-colors" title="Sign Out" aria-label="Sign Out">
               <LogOut className="w-5 h-5" />
@@ -103,7 +108,16 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick }) 
 
       {/* 3. Mobile Menu Toggle */}
       <div className="flex md:hidden items-center gap-4">
-        {user && <button onClick={onToggleChat} className="text-slate-400 hover:text-white" aria-label="Toggle Chat"><MessageCircle className="w-6 h-6" /></button>}
+        {user && (
+          <button onClick={onToggleChat} className="relative text-slate-400 hover:text-white" aria-label="Toggle Chat">
+            <MessageCircle className="w-6 h-6" />
+            {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-[10px] font-bold text-white flex items-center justify-center rounded-full shadow-lg border border-slate-950">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+            )}
+          </button>
+        )}
         <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-slate-200" aria-label={mobileMenuOpen ? "Close Menu" : "Open Menu"}>
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>

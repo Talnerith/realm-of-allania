@@ -37,6 +37,7 @@ export default function Home() {
   // Chat State
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatTarget, setChatTarget] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // SEO: Guest Mode
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -207,6 +208,7 @@ export default function Home() {
         onSearch={handleSearch}
         onToggleChat={handleToggleChat}
         onLoginClick={handleLoginClick}
+        unreadCount={unreadCount}
       />
 
       {/* 2. MAIN CONTENT AREA */}
@@ -284,6 +286,7 @@ export default function Home() {
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
           initialChatUser={chatTarget}
+          onUnreadCountChange={setUnreadCount}
         />
       )}
 
