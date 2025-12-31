@@ -20,9 +20,11 @@ service cloud.firestore {
     function isAdmin() { return isSignedIn() && getUserRole() == 'admin'; }
     function isMod() { return isSignedIn() && (getUserRole() == 'admin' || getUserRole() == 'moderator'); }
     function isBanned() { return isSignedIn() && getUserRole() == 'banned'; }
+    function isTrusted() { return isSignedIn() && getUserRole() == 'trusted'; }
 
     // --- 2. VALIDATION (Anti-Spam & Limits) ---
     function isValidContent(text) { return text is string && text.size() >= 10 && text.size() <= 10000; }
+    function isValidPostContent(text) { return text is string && text.size() >= 10 && text.size() <= 5000; }
     function isValidTitle(title) { return title is string && title.size() >= 3 && title.size() <= 140; }
     function isValidGallery(gallery) { return gallery is list && gallery.size() <= 5; }
 
@@ -79,8 +81,19 @@ service cloud.firestore {
 
         match /posts/{postId} {
           allow read: if true;
-          allow create: if isSignedIn() && !isBanned() && isValidContent(request.resource.data.content) && request.resource.data.threadId is string && request.resource.data.userId == request.auth.uid;
-          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod()) && isValidContent(request.resource.data.content) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt', 'threadId']);
+          allow create: if isSignedIn() && !isBanned()
+                        && isValidPostContent(request.resource.data.content)
+                        && request.resource.data.threadId is string
+                        && request.resource.data.userId == request.auth.uid
+                        && (
+                             request.resource.data.status == 'pending' ||
+                             (request.resource.data.status == 'approved' && isTrusted())
+                           );
+          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod())
+                        && isValidPostContent(request.resource.data.content)
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt', 'threadId'])
+                        // Prevent users from editing status, but allow mods
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']));
           allow delete: if isMod();
         }
 
