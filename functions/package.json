@@ -10,13 +10,12 @@
         "test": "jest --detectOpenHandles"
     },
     "engines": {
-        "node": "20"
+        "node": "22"
     },
     "main": "index.js",
     "dependencies": {
-        "firebase-admin": "^12.0.0",
-        "firebase-functions": "^5.0.0",
-        "node-fetch": "^3.3.2"
+        "firebase-admin": "^13.0.0",
+        "firebase-functions": "^7.0.0"
     },
     "private": true,
     "devDependencies": {
