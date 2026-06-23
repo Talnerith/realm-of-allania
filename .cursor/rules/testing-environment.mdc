@@ -1,0 +1,153 @@
+---
+description: Testing environment setup, Firebase emulators, and Jest configuration patterns
+globs: **/*.test.js, jest.config.mjs, jest.setup.js, firebase.json
+---
+# TESTING ENVIRONMENT PATTERNS
+
+## Firebase Emulator Setup
+
+### Required Emulators for Full Test Coverage
+```bash
+# Start both Firestore AND Functions emulators
+npx firebase emulators:start --only firestore,functions --project realm-of-aethelraed
+```
+
+| Emulator  | Port | Required For |
+|-----------|------|--------------|
+| Firestore | 8080 | Security rules tests, integration tests |
+| Functions | 5001 | Moderation tests, Cloud Function triggers |
+
+### firebase.json Emulator Configuration
+```json
+{
+    "emulators": {
+        "firestore": {
+            "port": 8080
+        },
+        "functions": {
+            "port": 5001
+        },
+        "ui": {
+            "enabled": false
+        }
+    }
+}
+```
+
+### Project ID Consistency
+**CRITICAL**: Test files must use the same `PROJECT_ID` as the emulator.
+- Emulator runs with: `--project realm-of-aethelraed`
+- Tests must use: `const PROJECT_ID = 'realm-of-aethelraed';`
+- Mismatch causes Cloud Functions to NOT trigger on document writes
+
+## Network/Proxy Issues
+
+### Symptom
+```
+Error: Failed to make request to https://storage.googleapis.com/...
+curl: (7) Failed to connect via 127.0.0.1
+```
+
+### Cause
+Proxy environment variables set to non-existent localhost proxy:
+```
+https_proxy=http://127.0.0.1:9
+http_proxy=http://127.0.0.1:9
+```
+
+### Solution
+Clear proxy variables before running npm/Firebase commands:
+```powershell
+$env:https_proxy = ""
+$env:HTTPS_PROXY = ""
+$env:http_proxy = ""
+$env:HTTP_PROXY = ""
+```
+
+## Jest Configuration
+
+### setImmediate Polyfill for gRPC
+Add to `jest.setup.js` for Firebase/gRPC compatibility:
+```javascript
+// Polyfill setImmediate for gRPC (needed for Firebase emulator tests)
+global.setImmediate = global.setImmediate || ((fn, ...args) => global.setTimeout(fn, 0, ...args));
+```
+
+### Module Path Aliases
+Always use `@/` alias in test imports (configured in `jest.config.mjs`):
+```javascript
+// ✅ Correct
+import Component from '@/components/Component';
+jest.mock('@/lib/firebase', () => ({}));
+
+// ❌ Wrong - causes module resolution errors
+import Component from '../src/components/Component';
+jest.mock('../src/lib/firebase', () => ({}));
+```
+
+## Test File Patterns
+
+### Mocking Components with Dependencies
+When testing components that import other components, mock the dependencies:
+```javascript
+// Mock child components
+jest.mock('@/components/ActiveUsers', () => {
+  return function MockActiveUsers({ isOpen, onClose }) {
+    return isOpen ? <div data-testid="active-users-modal">Mock</div> : null;
+  };
+});
+
+jest.mock('@/components/NotificationBell', () => {
+  return function MockNotificationBell() {
+    return <div data-testid="notification-bell">Notifications</div>;
+  };
+});
+```
+
+### Context Mocks Must Include All Used Properties
+```javascript
+// ✅ Complete mock - includes userRole
+jest.mock('@/context/GameContext', () => ({
+  useGame: jest.fn(),
+}));
+
+beforeEach(() => {
+  useGame.mockReturnValue({
+    user: { uid: '123' },
+    userRole: 'user',  // Don't forget this!
+    logout: jest.fn(),
+  });
+});
+```
+
+### Multiple Elements with Same Label
+When testing responsive designs with duplicate elements (desktop/mobile):
+```javascript
+// ✅ Use getAllByLabelText for multiple matching elements
+const buttons = screen.getAllByLabelText('Copy User ID');
+expect(buttons.length).toBeGreaterThan(0);
+
+// ❌ Will fail with "found multiple elements"
+const button = screen.getByLabelText('Copy User ID');
+```
+
+## Common Pitfalls
+
+1. **Project ID mismatch** - Functions won't trigger if test uses different project than emulator
+2. **Missing mocks** - Components that import other components need those mocked
+3. **Incomplete context mocks** - Include ALL properties the component destructures
+4. **Wrong import paths** - Use `@/` alias, not relative `../src/` paths
+5. **Proxy blocking network** - Clear proxy env vars before running Firebase commands
+
+## Quick Diagnostic Commands
+
+```powershell
+# Check if proxy is blocking requests
+curl -v --head https://storage.googleapis.com 2>&1 | Select-String "proxy"
+
+# Check Java for Firebase emulator
+java -version
+
+# Verify emulator is running
+curl http://127.0.0.1:8080
+```

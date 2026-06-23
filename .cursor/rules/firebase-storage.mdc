@@ -1,0 +1,105 @@
+---
+description: Patterns for Firebase Storage operations including uploads, deletions, and error handling
+globs: **/components/**/*.js, **/lib/**/*.js
+---
+
+# FIREBASE STORAGE PATTERNS
+
+## Non-Critical Cleanup Error Handling
+
+When performing storage cleanup operations (e.g., deleting orphaned uploads on form cancel), use this pattern:
+
+```javascript
+const handleCancelWithCleanup = async () => {
+  const cleanupErrors = [];
+  
+  for (const url of uploadedFiles) {
+    try {
+      const fileRef = ref(storage, url);
+      await deleteObject(fileRef);
+    } catch (e) {
+      console.warn("Cleanup failed:", url, e);
+      // Track permission errors for user feedback
+      if (e.code === 'storage/unauthorized') {
+        cleanupErrors.push(url);
+      }
+    }
+  }
+  
+  // Show non-blocking warning if cleanup failed
+  if (cleanupErrors.length > 0) {
+    setCleanupError(`Failed to cleanup ${cleanupErrors.length} temporary file(s).`);
+    setTimeout(() => setCleanupError(null), 5000); // Auto-dismiss
+  }
+  
+  // Continue with cancel operation regardless of cleanup result
+  resetForm();
+};
+```
+
+### Key Principles:
+1. **Non-blocking**: Cleanup failures should NOT prevent the main operation from completing
+2. **User feedback**: Show a dismissible warning, not an error modal
+3. **Auto-dismiss**: Use `setTimeout` to auto-hide after 5 seconds
+4. **Log for debugging**: Always `console.warn` with the URL and error for debugging
+
+### UI Warning Component Pattern:
+```jsx
+{cleanupError && (
+  <div className="mb-4 p-3 bg-amber-900/30 border border-amber-700/50 rounded-lg flex items-center gap-2 text-amber-300 text-sm animate-in fade-in">
+    <span className="text-amber-500">⚠️</span>
+    <span>{cleanupError}</span>
+    <button onClick={() => setCleanupError(null)} className="ml-auto text-amber-500 hover:text-amber-300">
+      <X className="w-4 h-4" />
+    </button>
+  </div>
+)}
+```
+
+## Critical vs Non-Critical Storage Operations
+
+| Operation | Criticality | Error Handling |
+|-----------|-------------|----------------|
+| Upload new file | **Critical** | Block operation, show error alert |
+| Delete orphaned uploads (cancel) | Non-critical | Log + warning banner, continue |
+| Replace intermediate upload | Non-critical | Log only, continue with new upload |
+| Delete user's own content | **Critical** | Block operation, show error alert |
+
+## Common Firebase Storage Error Codes
+
+- `storage/unauthorized` - User doesn't have permission (check security rules)
+- `storage/object-not-found` - File already deleted or never existed
+- `storage/canceled` - User canceled the operation
+- `storage/quota-exceeded` - Storage quota exceeded
+
+### Debugging Storage Errors
+**IMPORTANT**: Storage errors in Chrome console may be **symptoms** of unrelated backend issues, not the root cause.
+
+If you see `storage/unauthorized` during an operation that doesn't involve storage:
+1. Check **Google Cloud Logs** for Cloud Function errors first
+2. A crashed Cloud Function can leave operations in bad states
+3. The storage error might be a cascading failure, not the actual bug
+
+## Testing Storage Operations
+
+```javascript
+// Mock deleteObject to test error handling
+jest.mock('firebase/storage', () => ({
+  ref: jest.fn(),
+  deleteObject: jest.fn(),
+  uploadBytes: jest.fn(),
+  getDownloadURL: jest.fn(),
+}));
+
+// Test unauthorized error
+it('handles storage/unauthorized during cleanup', async () => {
+  const storageError = new Error('Permission denied');
+  storageError.code = 'storage/unauthorized';
+  deleteObject.mockRejectedValue(storageError);
+  
+  // ... trigger cleanup action
+  
+  expect(deleteObject).toHaveBeenCalled();
+  expect(screen.getByText(/failed to cleanup/i)).toBeInTheDocument();
+});
+```

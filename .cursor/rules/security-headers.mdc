@@ -1,0 +1,127 @@
+---
+description: Security headers and Content Security Policy (CSP) patterns for Next.js
+globs: src/middleware.js, next.config.mjs
+---
+
+# SECURITY HEADERS PATTERNS
+
+## Content Security Policy (CSP) Configuration
+
+### ✅ Complete CSP for Firebase + reCAPTCHA
+
+When using Firebase Authentication with Google reCAPTCHA, your CSP **MUST** include:
+
+```javascript
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://www.google.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: https: blob:",
+  "font-src 'self' https://fonts.gstatic.com",
+  // CRITICAL: Must include google.com and gstatic.com for reCAPTCHA
+  "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.google.com https://www.gstatic.com",
+  "frame-src 'self' https://www.google.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
+```
+
+### ⚠️ Common CSP Pitfalls
+
+1. **Missing reCAPTCHA Domains**
+   - **Error**: `Content Security Policy directive: "connect-src"` blocking `www.google.com/recaptcha/api2/clr`
+   - **Fix**: Add `https://www.google.com https://www.gstatic.com` to `connect-src`
+
+2. **Firebase Real-time Database**
+   - Requires: `wss://*.firebaseio.com` for WebSocket connections
+   - Requires: `https://*.firebaseio.com` for REST API
+
+3. **Firestore**
+   - Requires: `https://firestore.googleapis.com`
+   - Requires: `https://*.googleapis.com` (for auth tokens)
+
+### 🔍 Debugging CSP Issues
+
+**Symptoms:**
+- Login fails silently
+- reCAPTCHA doesn't load
+- Firebase connections timeout
+
+**Check browser console for:**
+```
+[ERROR] Fetch API cannot load https://www.google.com/recaptcha/api2/clr?k=...
+Refused to connect because it violates the document's Content Security Policy.
+```
+
+**Solution:** Add the blocked domain to the appropriate CSP directive.
+
+---
+
+## Next.js Middleware Security Headers
+
+### Pattern: Apply CSP in Middleware
+
+```javascript
+// src/middleware.js
+import { NextResponse } from 'next/server';
+
+export function middleware(request) {
+  const response = NextResponse.next();
+  
+  // Add CSP header
+  const csp = [/* ... policy array ... */].join('; ');
+  response.headers.set('Content-Security-Policy', csp);
+  
+  // Other security headers
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'origin-when-cross-origin');
+  
+  return response;
+}
+
+export const config = {
+  matcher: [
+    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sitemap.xml|robots.txt).*)',
+  ],
+};
+```
+
+### Why Middleware vs next.config.mjs?
+- **Middleware**: Applied at runtime, can be dynamic
+- **next.config.mjs**: Applied at build time, static
+- **Recommendation**: Use middleware for security headers (more flexible)
+
+---
+
+## Testing CSP Changes
+
+1. **Open DevTools Console** (F12)
+2. **Filter for "Content Security Policy"**
+3. **Look for blocked resources**
+4. **Add allowed domains to CSP**
+5. **Test in production** (CSP violations may only appear in prod)
+
+---
+
+## Third-Party Service CSP Requirements
+
+| Service | Required CSP Directives |
+|---------|------------------------|
+| **Google reCAPTCHA** | `script-src: https://www.gstatic.com https://www.google.com`<br>`connect-src: https://www.google.com https://www.gstatic.com`<br>`frame-src: https://www.google.com` |
+| **Firebase Auth** | `connect-src: https://*.googleapis.com` |
+| **Firestore** | `connect-src: https://firestore.googleapis.com https://*.googleapis.com` |
+| **Firebase Storage** | `img-src: https://firebasestorage.googleapis.com`<br>`connect-src: https://firebasestorage.googleapis.com` |
+| **Google Fonts** | `style-src: https://fonts.googleapis.com`<br>`font-src: https://fonts.gstatic.com` |
+
+---
+
+## Security Checklist
+
+- [ ] CSP includes all Firebase domains
+- [ ] reCAPTCHA domains added if using Firebase Auth with email/password
+- [ ] Test login in production (not just localhost)
+- [ ] Check browser console for CSP violations
+- [ ] Verify WebSocket connections work (real-time listeners)

@@ -1,0 +1,198 @@
+---
+description: Firebase Cloud Functions patterns and OpenRouter API integration
+globs: functions/**/*.js, functions/**/*.test.js
+---
+# CLOUD FUNCTIONS PATTERNS
+
+## OpenRouter API Integration
+
+### Model Configuration
+- **ALWAYS** use a centralized model constant:
+  ```javascript
+  const OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
+  ```
+- **NEVER** use `:free` suffix with paid API keys (causes routing issues, 429 errors with zero activity in logs)
+- Use standard model names for reliable routing
+
+### Required Headers
+OpenRouter requires these headers for proper routing and analytics:
+```javascript
+headers: {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://your-site.vercel.app",
+    "X-Title": "Your App Name"
+}
+```
+
+### Error Handling
+- If API key is missing, mark for manual review instead of leaving pending
+- On API errors, mark as `needs_review` with error message in `flaggedReason`
+- Log errors with context: `console.error("[Layer 3] Error:", error.message)`
+
+## Image Moderation
+
+### Rejected Image Cleanup
+When a post is approved, check for and delete any rejected images:
+```javascript
+if (data.imageUrl) {
+    await deleteRejectedImageForPost(postRef, data.imageUrl);
+}
+```
+
+### Parse Firebase Storage URLs
+```javascript
+if (imageUrl.includes('firebasestorage.googleapis.com')) {
+    const match = imageUrl.match(/\/o\/(.+?)\?/);
+    if (match) {
+        filePath = decodeURIComponent(match[1]);
+    }
+}
+```
+
+## Testing Cloud Functions
+
+### Mock `fetch` for API Tests
+```javascript
+beforeEach(() => {
+    capturedFetchArgs = [];
+    mockFetch = jest.fn((url, options) => {
+        capturedFetchArgs.push({ url, options });
+        return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({
+                choices: [{ message: { content: 'SAFE' } }]
+            })
+        });
+    });
+    global.fetch = mockFetch;
+});
+```
+
+### Validate Request Structure
+```javascript
+it('should include required headers', async () => {
+    await callApi('Test');
+    const headers = capturedFetchArgs[0].options.headers;
+    expect(headers['Authorization']).toMatch(/^Bearer /);
+    expect(headers['HTTP-Referer']).toBeDefined();
+    expect(headers['X-Title']).toBeDefined();
+});
+```
+
+### Test Error Scenarios
+```javascript
+it('should handle API errors', async () => {
+    mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: () => Promise.resolve('Rate limit exceeded')
+    });
+    await expect(callApi('Test')).rejects.toThrow('429');
+});
+```
+
+## Testing Configuration Values (Regression Guards)
+**Pattern**: Test the actual configuration values sent to third-party APIs, not just response handling.
+
+This catches misconfigurations before deployment (e.g., using `:free` model suffix with paid API keys).
+
+### Export Config Constants for Testing
+```javascript
+// In index.js - export configuration for testability
+const OPENROUTER_MODEL = "google/gemini-2.0-flash-001";
+module.exports.OPENROUTER_MODEL = OPENROUTER_MODEL;
+```
+
+### Write Regression Tests for Config Values
+```javascript
+describe('OpenRouter Configuration Values', () => {
+    it('uses the paid model tier and excludes free variant', () => {
+        // Import the ACTUAL constant, not a mock
+        const { OPENROUTER_MODEL } = require('./index');
+        
+        expect(OPENROUTER_MODEL).toBeDefined();
+        expect(OPENROUTER_MODEL).not.toMatch(/:free$/);
+        expect(OPENROUTER_MODEL).not.toContain(':free');
+    });
+});
+```
+
+### Why This Matters
+- Tests using **inline mock functions** that hardcode values don't catch config regressions
+- The `:free` suffix causes 429 errors even with paid API keys (routes through free-tier infrastructure)
+- Config value tests run fast and catch issues before deployment
+
+## Common Pitfalls
+- Don't forget to restore `global.fetch` in `afterEach`
+- Always mock `firebase-admin` and `firebase-functions` before requiring the module
+- Use `jest.resetModules()` when testing module-level code with different mocks
+- **Don't use inline mock functions** for testing API integrations - test the actual exported values
+
+## Variable Scoping for Firestore (TDZ Prevention)
+
+**CRITICAL**: In Cloud Function handlers, declare `const db = admin.firestore();` **ONCE at the very top** of the async function.
+
+### The Temporal Dead Zone (TDZ) Bug
+JavaScript `const` variables are hoisted but NOT initialized until their declaration line. If you have multiple `const db = ...` declarations scattered in a function, code between them can fail:
+
+```javascript
+// ❌ WRONG - Multiple declarations cause TDZ errors
+exports.myFunction = onDocumentWritten({...}, async (event) => {
+    // ... some code ...
+    
+    if (condition1) {
+        const db = admin.firestore();  // First declaration
+        await db.collection('logs').add({...});
+    }
+    
+    // This code runs BEFORE the const below, but 'db' is hoisted
+    // causing: ReferenceError: Cannot access 'db' before initialization
+    if (condition2) {
+        const threadRef = db.doc('threads/123');  // TDZ ERROR!
+    }
+    
+    const db = admin.firestore();  // Second declaration - hoists to function scope
+    await db.collection('logs').add({...});
+});
+```
+
+```javascript
+// ✅ CORRECT - Single declaration at the top
+exports.myFunction = onDocumentWritten({...}, async (event) => {
+    const change = event.data;
+    if (!change) return;
+    
+    // Initialize ONCE at the top - available throughout the function
+    const db = admin.firestore();
+    
+    if (condition1) {
+        await db.collection('logs').add({...});
+    }
+    
+    if (condition2) {
+        const threadRef = db.doc('threads/123');  // Works!
+    }
+    
+    await db.collection('logs').add({...});  // Works!
+});
+```
+
+### Debugging TDZ Errors
+- Error message: `ReferenceError: Cannot access 'X' before initialization`
+- Check Google Cloud Logs / Error Reporting for stack traces
+- Look for multiple `const X = ...` declarations of the same variable in the function
+- Chrome console errors may be **symptoms** of Cloud Function crashes, not the root cause
+
+## Parent Document Status Propagation
+When approving child documents (e.g., Posts), always update the parent document (e.g., Thread) status:
+```javascript
+// When approving a post, also approve the parent thread
+if (action === 'approved' && item.threadId) {
+    const db = admin.firestore();
+    const threadRef = db.doc(`path/to/threads/${item.threadId}`);
+    await threadRef.update({ status: 'approved' });
+}
+```
+
+**Pattern**: Child approval → Parent visibility. Posts belong to Threads; if a post is approved but the thread is still `pending`, users won't see the thread.

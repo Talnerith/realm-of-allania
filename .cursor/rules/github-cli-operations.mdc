@@ -1,0 +1,173 @@
+---
+description: Git operations, GitHub CLI, and troubleshooting patterns for PowerShell
+globs: **/*.md, **/*.yml
+---
+
+# GIT & GITHUB OPERATIONS
+
+## Proxy Bypass for GitHub CLI
+When `gh` commands fail with proxy errors (`dial tcp 127.0.0.1:9`):
+
+```powershell
+$env:NO_PROXY = "*"
+$env:no_proxy = "*"
+gh [command]
+```
+
+## Workflow Run Cleanup
+Delete failed workflow runs in bulk:
+
+```powershell
+# Set proxy bypass
+$env:NO_PROXY = "*"
+
+# Get all failed runs and delete them
+$runs = gh run list --status failure --json databaseId -q '.[].databaseId' | ConvertFrom-Json
+$runs | ForEach-Object { 
+    Write-Host "Deleting run $_..."
+    echo "y" | gh run delete $_ 
+}
+```
+
+**Note**: Old `gh` versions don't support `--confirm`, use `echo "y" |` to auto-confirm.
+
+## Issue Management
+```powershell
+# List open issues
+gh issue list --limit 50
+
+# Close issue with comment
+gh issue close <number> --comment "Resolution message"
+
+# View issue details
+gh issue view <number>
+```
+
+## Common Patterns
+- Always use `$env:NO_PROXY = "*"` before GitHub API operations if proxy is configured
+- Use `--json` output with `-q` (jq query) for programmatic processing
+- PowerShell requires `ConvertFrom-Json` to process JSON arrays
+- Git operations in sandboxed environments require `required_permissions: ["all"]`
+
+## Troubleshooting
+- **Connection refused**: Set NO_PROXY environment variable
+- **Command failed to spawn**: Use `required_permissions: ["all"]` for git write operations
+- **--confirm flag unknown**: Pipe `echo "y"` for auto-confirmation
+
+---
+
+## GIT OPERATIONS (PowerShell)
+
+### Pre-Commit Verification Checklist
+
+**ALWAYS verify before committing:**
+
+```powershell
+# 1. Check what files actually changed
+git status
+
+# 2. Verify the specific changes in target files
+git diff <filename>
+
+# 3. Check against last commit
+git diff HEAD <filename>
+```
+
+**Rule**: Never attempt to commit without confirming changes exist in `git diff` output.
+
+### PowerShell-Compatible Commit Patterns
+
+#### ✅ Simple Commits (Preferred)
+```powershell
+git add <file>
+git commit -m "type: brief description"
+git push origin main
+```
+
+#### ✅ Multiline Commits (PowerShell Native)
+```powershell
+git commit -m @"
+type: brief description
+
+Longer explanation if needed.
+Additional context here.
+"@
+```
+
+#### ❌ AVOID: Bash Heredoc Syntax
+```powershell
+# This FAILS in PowerShell
+git commit -m "$(cat <<'EOF'
+message
+EOF
+)"
+# Error: Missing file specification after redirection operator
+```
+
+### Permission Requirements
+
+| Operation | Command | Permissions |
+|-----------|---------|-------------|
+| Check status | `git status` | None |
+| View changes | `git diff <file>` | None |
+| Stage files | `git add <file>` | `git_write` |
+| Commit | `git commit -m "msg"` | `git_write` |
+| Push | `git push origin main` | `all` (network) |
+| Full workflow | `git add . && git commit -m "msg" && git push origin main` | `all` |
+
+### Common Commit Message Format
+Based on repository history:
+```
+type: brief description
+
+Optional longer explanation.
+```
+
+**Types used in this repo:**
+- `docs:` - Documentation changes
+- `fix:` - Bug fixes  
+- `feat:` - New features
+- `refactor:` - Code refactoring
+- `test:` - Test updates
+- `chore:` - Maintenance tasks
+
+### Git Lock File Issues
+
+**Error**: `Unable to create '.git/index.lock': Permission denied`
+
+**Cause**: Insufficient permissions in sandboxed environment
+
+**Solution**: Use `required_permissions: ["all"]` for git operations
+
+### Sequential Git Operations
+
+```powershell
+# Use && for dependent operations (stop on error)
+git add . && git commit -m "message" && git push origin main
+
+# Use ; for independent operations (continue on error)  
+git add file1.js; git add file2.js; git status
+```
+
+### Optimal Tool Call Pattern
+When committing changes, make parallel calls for inspection:
+```javascript
+// Call these in parallel first
+Shell("git status")
+Shell("git diff <file>")
+Shell("git log -3 --format='%h %s'")
+
+// Then execute sequential commit operations
+Shell("git add . && git commit -m 'message' && git push", {
+  required_permissions: ["all"]
+})
+```
+
+### Best Practices
+
+1. **Always check first**: `git status` and `git diff` before committing
+2. **Use simple syntax**: Avoid complex shell constructs in PowerShell
+3. **Request permissions upfront**: Use `["all"]` for commit+push workflows
+4. **Verify before push**: Ensure branch is actually ahead of remote
+5. **Keep messages clear**: Follow conventional commit format
+6. **Handle network issues**: Set NO_PROXY for GitHub operations if needed

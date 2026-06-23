@@ -1,0 +1,302 @@
+# Realm of Aethelraed - Cursor Rules
+
+## 🧠 MEMORY MANAGEMENT & POST-MORTEM (Librarian Protocol)
+When I type **"Wrap Up"** or **"Post-Mortem"**, you must perform the following:
+
+1.  **ANALYZE**: Scan our current session for:
+    * Mistakes I corrected you on multiple times.
+    * New architectural decisions we made.
+    * Specific syntax patterns we debugged and finalized.
+    * Firebase/Firestore query patterns that work for this project.
+    * Next.js App Router conventions we established.
+
+2.  **ROUTE**: Decide where this knowledge belongs:
+    * **Global Rules** (e.g., "Always use `const`", "Firebase mocking patterns") → Update `.cursorrules`.
+    * **Topic-Specific Patterns** (e.g., "How we structure Firestore queries", "React Component Standards", "Next.js API Routes") → Create or Update a file in `.cursor/rules/[topic].mdc`.
+
+3.  **EXECUTE**:
+    * First, summarize what you learned in bullet points.
+    * Second, output the **exact code block** to update `.cursorrules`.
+    * Third, output the **exact code block** to create/update the specific `.mdc` files (ensure you include the MDC frontmatter with `description:` and `globs:`).
+
+If a new lesson contradicts an existing rule, explicitly ask me which one to keep before generating the file updates.
+
+---
+
+## 🎯 PROJECT CONTEXT
+- **Stack**: Next.js 16 (App Router), React 19, Firebase (Auth, Firestore, Functions)
+- **Language**: JavaScript (ES6+)
+- **Testing**: Jest + React Testing Library
+- **Styling**: Tailwind CSS
+- **Path Alias**: `@/` maps to `src/`
+
+---
+
+## 📝 CODE STYLE & CONVENTIONS
+
+### General JavaScript
+- **ALWAYS** use `const` for variables that won't be reassigned; use `let` only when necessary
+- **NEVER** use `var`
+- Use arrow functions for callbacks and functional components
+- Use template literals for string interpolation: `` `Hello ${name}` ``
+- Destructure props and imports for cleaner code
+
+### Next.js Specific
+- Use App Router conventions (`app/` directory)
+- Server Components by default; add `"use client"` only when needed (state, effects, browser APIs)
+- File-based routing: `page.js`, `layout.js`, `route.js`, `error.js`
+- Use `next/image` for images, `next/link` for navigation
+- Keep Server Actions in separate files or clearly marked
+
+### React Components
+- Functional components only (no class components)
+- Use React hooks: `useState`, `useEffect`, `useContext`, `useMemo`, `useCallback`
+- Custom hooks should start with `use` (e.g., `useVersionCheck`)
+- Keep components small and focused (single responsibility)
+- Prop drilling > Context for simple cases; Context for deeply nested state
+
+### Firebase Integration
+- Import from Firebase modular SDK: `import { getAuth } from 'firebase/auth'`
+- Initialize Firebase in `src/lib/firebase.js`
+- ALWAYS handle Firebase errors with try-catch blocks
+- Use Firestore security rules as the primary security layer
+- Real-time listeners must be cleaned up in `useEffect` return functions
+- **Status Propagation**: When approving child documents (Posts), ALWAYS update parent documents (Threads) to ensure visibility
+- **Cloud Functions Debugging**: When Chrome shows cryptic errors (e.g., `storage/unauthorized`), check Google Cloud Logs first - frontend errors may be symptoms of backend crashes
+
+### File Organization
+- Components: `src/components/[ComponentName].js`
+- Tests: `src/components/[ComponentName].test.js` (co-located with component)
+- Utils: `src/lib/[utility].js`
+- Context: `src/context/[ContextName]Context.js`
+- Hooks: `src/hooks/use[HookName].js`
+
+---
+
+## 🧪 TESTING STANDARDS (Test-Driven Generation)
+
+### Framework & Setup
+- **Framework**: Jest with React Testing Library
+- **Test Environment**: jsdom (configured in `jest.config.mjs`)
+- **File Convention**: `*.test.js` (co-located with the file being tested)
+
+### Mocking Requirements
+- **ALWAYS** mock Firebase modules:
+  ```javascript
+  jest.mock('@/lib/firebase', () => ({
+    auth: {},
+    db: {},
+    storage: {},
+  }));
+  
+  jest.mock('firebase/auth', () => ({
+    signOut: jest.fn(),
+    onAuthStateChanged: jest.fn(),
+  }));
+  
+  jest.mock('firebase/firestore', () => ({
+    collection: jest.fn(),
+    query: jest.fn(),
+    onSnapshot: jest.fn(),
+  }));
+  
+  jest.mock('firebase/storage', () => ({
+    ref: jest.fn(),
+    uploadBytes: jest.fn(),
+    getDownloadURL: jest.fn(),
+    deleteObject: jest.fn(),
+  }));
+  ```
+  
+- **Testing Firebase error codes**: Create errors with `.code` property:
+  ```javascript
+  const storageError = new Error('Permission denied');
+  storageError.code = 'storage/unauthorized';
+  deleteObject.mockRejectedValue(storageError);
+  ```
+- **ALWAYS** mock React Context providers:
+  ```javascript
+  jest.mock('@/context/GameContext', () => ({
+    useGame: jest.fn(),
+  }));
+  ```
+- **NEVER** hit real Firebase endpoints in tests
+- Mock external dependencies (APIs, modules) to keep tests fast and isolated
+
+### Test Structure
+- Use `describe()` blocks for the component/function being tested
+- Use nested `describe()` blocks for related test groups (e.g., different states)
+- Use `it()` for specific test cases (clear, descriptive names)
+- Use `beforeEach()` to reset mocks: `jest.clearAllMocks()`
+
+### Test Coverage Requirements
+- **Every utility function** must have:
+  - At least one success case
+  - At least one failure/edge case
+- **React components** must test:
+  - Rendering with different props/states
+  - User interactions (clicks, input changes)
+  - Conditional rendering logic
+  - Integration with context/hooks
+- **Firestore Rules** must have dedicated test files using `@firebase/rules-unit-testing`
+
+### Testing Best Practices
+- Use `screen.getByRole()`, `screen.getByLabelText()`, or `screen.getByText()` (avoid `getByTestId` unless necessary)
+- Use `screen.queryBy*()` to assert elements are NOT in the document
+- Use `fireEvent` or `@testing-library/user-event` for interactions
+- Use `waitFor()` for async assertions
+- Keep tests independent (no shared state between tests)
+- **Constraint**: DO NOT write implementation code until the test file exists
+
+### Example Test Pattern
+```javascript
+import { render, screen, fireEvent } from '@testing-library/react';
+import MyComponent from '@/components/MyComponent';
+
+jest.mock('@/lib/firebase', () => ({
+  auth: {},
+}));
+
+describe('MyComponent', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders successfully with default props', () => {
+    render(<MyComponent />);
+    expect(screen.getByText('Expected Text')).toBeInTheDocument();
+  });
+
+  it('handles user click events', () => {
+    const mockHandler = jest.fn();
+    render(<MyComponent onClick={mockHandler} />);
+    
+    fireEvent.click(screen.getByRole('button'));
+    expect(mockHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles edge case when prop is null', () => {
+    render(<MyComponent data={null} />);
+    expect(screen.getByText('No Data')).toBeInTheDocument();
+  });
+});
+```
+
+### Cloud Functions Testing (API Mocking)
+```javascript
+let mockFetch;
+let capturedFetchArgs = [];
+
+beforeEach(() => {
+    capturedFetchArgs = [];
+    mockFetch = jest.fn((url, options) => {
+        capturedFetchArgs.push({ url, options });
+        return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ choices: [{ message: { content: 'SAFE' } }] })
+        });
+    });
+    global.fetch = mockFetch;
+});
+
+afterEach(() => {
+    global.fetch = originalFetch;
+});
+```
+
+### Testing Configuration Values (Third-Party API Integration)
+**Pattern**: Test actual configuration values sent to third-party APIs, not just response handling.
+```javascript
+// Export config constants from implementation
+module.exports.API_MODEL = API_MODEL;
+
+// Test the ACTUAL value, not a mock
+describe('API Configuration', () => {
+    it('uses correct model/endpoint/config', () => {
+        const { API_MODEL } = require('./module');
+        expect(API_MODEL).not.toMatch(/:free$/);  // Example: no free-tier suffix
+    });
+});
+```
+- **Why**: Inline mock functions don't catch config regressions
+- **Pattern**: Export → Import in test → Assert on actual value
+
+---
+
+## 🐛 PRODUCTION DEBUGGING PATTERNS
+
+### Browser Console Analysis
+1. **Open DevTools Console** (F12) - First line of defense
+2. **Filter by error level**: Errors, Warnings, Verbose
+3. **Common Error Categories**:
+   - **CSP Violations**: `Content Security Policy directive` - Check middleware CSP config
+   - **TDZ Errors**: `Cannot access '_' before initialization` - Check hook ordering
+   - **Firebase Errors**: `auth/`, `firestore/`, `storage/` - Check security rules and Cloud Functions logs
+
+### Debugging Minified Production Code
+- Variable names become `_`, `a`, `b` in production builds
+- Stack traces show chunk names: `_next/static/chunks/[hash].js`
+- **Strategy**: 
+  1. Note the component name in error boundary
+  2. Check recently modified files
+  3. Look for hook ordering issues (useCallback/useEffect)
+  4. Test fix in local production build: `npm run build && npm start`
+
+### Remote Debugging with MCP Browser Tools
+- Use MCP browser extension to inspect production sites
+- Capture console messages, network requests, page snapshots
+- Useful when issues only occur in deployed environment
+
+### Vercel Deployment Debugging
+- Check build logs in Vercel dashboard
+- Monitor deployment status via Vercel API
+- Verify environment variables are set correctly
+- Test staging deployments before promoting to production
+
+---
+
+## 🚫 NEVER DO THIS
+- Don't use `var` (use `const` or `let`)
+- Don't mutate state directly (use setState/reducer)
+- Don't use class components (use functional components)
+- Don't use `index.js` for components (use explicit names: `ComponentName.js`)
+- Don't commit sensitive data (API keys, credentials)
+- Don't skip error handling for async operations
+- Don't write implementation before tests (follow TDG)
+- Don't use real Firebase in tests (always mock)
+- Don't ignore ESLint warnings (fix them)
+
+---
+
+## ✅ ALWAYS DO THIS
+- Use `const` by default
+- Use arrow functions for callbacks
+- Use destructuring for props and imports
+- Use `"use client"` directive when using React hooks in App Router
+- Clean up Firebase listeners in `useEffect` returns
+- Mock all external dependencies in tests
+- Write tests before implementation (TDG)
+- Use path alias `@/` for imports
+- Handle loading and error states in components
+- Use Firestore security rules for authorization
+
+---
+
+## 📚 SPLIT-ROUTING FOR KNOWLEDGE CAPTURE
+When creating `.mdc` files in `.cursor/rules/`, always include:
+- **Frontmatter**: `description:` and `globs:` fields
+- **Topic-Specific Patterns**: Concrete examples from this project
+- **Common Pitfalls**: Things to avoid based on our experience
+
+Example `.mdc` structure:
+```markdown
+---
+description: Standards for Firebase Firestore Integration
+globs: **/firebase.js, **/lib/**.js
+---
+# FIRESTORE PATTERNS
+- Always use `onSnapshot` for real-time updates
+- Clean up listeners in `useEffect` return
+- Use `serverTimestamp()` for timestamp fields
+...
+```

@@ -1,0 +1,32 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Match the App ID path
+    match /artifacts/realm-of-allania-v2 {
+      
+      // PUBLIC DATA (Banners, Portraits, Maps)
+      
+      // 1. LEGACY/ROOT FILES (Read Only to prevent malicious wiping)
+      // Matches files directly inside a category folder (e.g. public/character_portraits/image.jpg)
+      match /public/{folder}/{filename} {
+          allow read: if true;
+          // No write allowed here anymore. All new uploads go to userId subfolders.
+      }
+
+      // 2. USER-OWNED FILES (The new secure standard)
+      // Matches files inside a user-specific subfolder (e.g. public/character_portraits/USER_ID/image.jpg)
+      match /public/{folder}/{userId}/{filename} {
+        
+        // Everyone can view
+        allow read: if true;
+
+        // Only the owner of the folder can upload, update, or delete
+        // We also enforce file type and size limits
+        allow write: if request.auth != null
+                      && request.auth.uid == userId
+                      && (request.resource == null || // Allow delete (resource is null on delete)
+                         (request.resource.contentType.matches('image/.*') && request.resource.size < 5 * 1024 * 1024));
+      }
+    }
+  }
+}

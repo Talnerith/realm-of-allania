@@ -1,0 +1,300 @@
+---
+description: React Hooks patterns and Temporal Dead Zone (TDZ) prevention
+globs: **/components/**/*.js, **/hooks/**/*.js
+---
+
+# REACT HOOKS PATTERNS
+
+## Temporal Dead Zone (TDZ) Errors
+
+### ⚠️ Critical Bug Pattern: useCallback Referenced Before Declaration
+
+**ERROR:**
+```
+ReferenceError: Cannot access '_' before initialization
+```
+
+**Root Cause:**
+A `useCallback` function is referenced in a `useEffect` dependency array BEFORE it's declared in the component.
+
+### ❌ WRONG: Function Used Before Declaration
+
+```javascript
+function MyComponent() {
+  const [data, setData] = useState([]);
+  
+  // ❌ BAD: initiateAction used here...
+  useEffect(() => {
+    if (someCondition) {
+      initiateAction(someData);
+    }
+  }, [someCondition, initiateAction]); // ...but declared below!
+  
+  // Other hooks and logic...
+  
+  // ❌ Declared too late!
+  const initiateAction = useCallback(async (data) => {
+    // ... implementation
+  }, [data]);
+  
+  return <div>...</div>;
+}
+```
+
+### ✅ CORRECT: Function Declared Before Use
+
+```javascript
+function MyComponent() {
+  const [data, setData] = useState([]);
+  
+  // ✅ GOOD: Declare initiateAction FIRST
+  const initiateAction = useCallback(async (data) => {
+    // ... implementation
+  }, [data]);
+  
+  // ✅ Now safe to use in useEffect
+  useEffect(() => {
+    if (someCondition) {
+      initiateAction(someData);
+    }
+  }, [someCondition, initiateAction]);
+  
+  return <div>...</div>;
+}
+```
+
+---
+
+## Hook Ordering Rules
+
+### 1. State Declarations First
+
+```javascript
+function MyComponent() {
+  // ✅ All useState at the top
+  const [count, setCount] = useState(0);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  // Then other hooks...
+}
+```
+
+### 2. useCallback/useMemo Before useEffect
+
+```javascript
+function MyComponent() {
+  const [data, setData] = useState([]);
+  
+  // ✅ Define callbacks BEFORE effects that use them
+  const handleClick = useCallback(() => {
+    console.log(data);
+  }, [data]);
+  
+  const processedData = useMemo(() => {
+    return data.map(item => item * 2);
+  }, [data]);
+  
+  // ✅ Now use them in effects
+  useEffect(() => {
+    handleClick();
+  }, [handleClick]);
+  
+  return <div>{processedData}</div>;
+}
+```
+
+### 3. Refs After Callbacks
+
+```javascript
+function MyComponent() {
+  const [data, setData] = useState([]);
+  
+  const handleScroll = useCallback(() => {
+    scrollRef.current?.scrollIntoView();
+  }, []);
+  
+  // ✅ Refs used in callbacks should be declared after
+  const scrollRef = useRef(null);
+  
+  return <div ref={scrollRef}>...</div>;
+}
+```
+
+---
+
+## Production TDZ Debugging
+
+### Why TDZ Errors Are Hard to Debug in Production
+
+**In Development:**
+```
+ReferenceError: Cannot access 'initiateChat' before initialization
+```
+
+**In Production (Minified):**
+```
+ReferenceError: Cannot access '_' before initialization
+```
+
+The variable name is minified to `_`, making it unclear which variable caused the issue.
+
+### How to Find the Source
+
+1. **Look at the stack trace** - Find the component name in the minified chunk
+2. **Check recently added useEffect/useCallback pairs**
+3. **Search for dependency arrays** that reference callbacks
+4. **Verify declaration order** in the component
+
+### Example from Real Bug:
+
+**File:** `ChatSystem.js`
+
+**Problem Line:**
+```javascript
+useEffect(() => {
+  if (initialChatUser && user) {
+    initiateChat(initialChatUser); // ❌ Used here (line 26)
+  }
+}, [initialChatUser, user, initiateChat]);
+```
+
+**Declaration (too late):**
+```javascript
+const initiateChat = useCallback(async (targetUser) => {
+  // ... implementation
+}, [chats, user]); // ❌ Declared here (line 138)
+```
+
+**Fix:** Move `initiateChat` declaration before the `useEffect`.
+
+---
+
+## Dependency Array Best Practices
+
+### 1. Include All Dependencies
+
+```javascript
+// ✅ GOOD: All used variables in deps
+const fetchData = useCallback(async () => {
+  const result = await api.get(userId);
+  setData(result);
+}, [userId]); // userId is used inside
+```
+
+### 2. Avoid Circular Dependencies
+
+```javascript
+// ❌ BAD: Circular dependency
+const funcA = useCallback(() => {
+  funcB();
+}, [funcB]);
+
+const funcB = useCallback(() => {
+  funcA();
+}, [funcA]);
+
+// ✅ GOOD: Use refs or restructure logic
+const funcA = useCallback(() => {
+  // Direct implementation
+}, []);
+
+const funcB = useCallback(() => {
+  // Direct implementation
+}, []);
+```
+
+### 3. Stable References with useMemo
+
+```javascript
+// ❌ Creates new object every render
+const config = { apiKey: key, timeout: 5000 };
+
+useEffect(() => {
+  fetchData(config);
+}, [config]); // ❌ Runs every render!
+
+// ✅ Memoize object
+const config = useMemo(() => ({
+  apiKey: key,
+  timeout: 5000
+}), [key]);
+
+useEffect(() => {
+  fetchData(config);
+}, [config]); // ✅ Only runs when key changes
+```
+
+---
+
+## Common TDZ Scenarios
+
+### Scenario 1: Callbacks Used in Multiple Effects
+
+```javascript
+function MyComponent() {
+  const [data, setData] = useState([]);
+  
+  // ✅ Declare shared callback ONCE at the top
+  const processData = useCallback((items) => {
+    return items.filter(item => item.active);
+  }, []);
+  
+  // ✅ Use in multiple effects
+  useEffect(() => {
+    const processed = processData(data);
+    console.log(processed);
+  }, [data, processData]);
+  
+  useEffect(() => {
+    const processed = processData(initialData);
+    setData(processed);
+  }, [processData]);
+}
+```
+
+### Scenario 2: Nested Callbacks
+
+```javascript
+function MyComponent() {
+  // ✅ Order matters: inner callbacks first
+  const innerAction = useCallback(() => {
+    // ... implementation
+  }, []);
+  
+  const outerAction = useCallback(() => {
+    innerAction(); // ✅ Safe: innerAction declared above
+  }, [innerAction]);
+  
+  useEffect(() => {
+    outerAction(); // ✅ Safe: outerAction declared above
+  }, [outerAction]);
+}
+```
+
+---
+
+## Checklist for Avoiding TDZ Errors
+
+- [ ] All `useCallback`/`useMemo` declared before `useEffect` that use them
+- [ ] Dependency arrays include all referenced variables
+- [ ] No forward references in hook dependencies
+- [ ] Callbacks used in multiple effects declared once at component top
+- [ ] Test in production build (TDZ may only appear after minification)
+
+---
+
+## ESLint Rule
+
+Enable the React Hooks ESLint plugin:
+
+```json
+{
+  "extends": ["plugin:react-hooks/recommended"],
+  "rules": {
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}
+```
+
+This warns about missing dependencies but won't catch TDZ errors. Manual code review is essential.

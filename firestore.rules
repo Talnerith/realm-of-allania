@@ -1,0 +1,180 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- 1. CORE FUNCTIONS ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+
+    // Helper to get current character count (default to 0 if missing)
+    function getCharCount(userId) {
+       let data = get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data;
+       return data.keys().hasAny(['characterCount']) ? data.characterCount : 0;
+    }
+
+    // SAFE ROLE CHECK:
+    function getUserRole() {
+      // Check if document exists first to avoid crash
+      return exists(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/settings/account)
+             ? get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/settings/account).data.role
+             : 'user';
+    }
+    
+    function isAdmin() { return isSignedIn() && getUserRole() == 'admin'; }
+    function isMod() { return isSignedIn() && (getUserRole() == 'admin' || getUserRole() == 'moderator'); }
+    function isBanned() { return isSignedIn() && getUserRole() == 'banned'; }
+    // Trusted users can bypass moderation - includes trusted role, mods, and admins
+    function isTrusted() { return isSignedIn() && (getUserRole() == 'trusted' || getUserRole() == 'moderator' || getUserRole() == 'admin'); }
+
+    // --- 2. VALIDATION (Anti-Spam & Limits) ---
+    function isValidContent(text) { return text is string && text.size() >= 10 && text.size() <= 10000; }
+    function isValidPostContent(text) { return text is string && text.size() >= 10 && text.size() <= 5000; }
+    function isValidTitle(title) { return title is string && title.size() >= 3 && title.size() <= 140; }
+    function isValidGallery(gallery) { return gallery is list && gallery.size() <= 5; }
+
+    // --- 3. APP RULES ---
+    match /artifacts/realm-of-allania-v2 {
+
+      // D. PRESENCE (Active Users)
+      match /presence/{userId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(userId);
+      }
+
+      // A. USER PROFILES
+
+      // A. USER PROFILES
+      match /users/{userId} {
+        match /settings/account {
+          allow read: if isOwner(userId) || isMod();
+
+          // Admin Permissions (Strict Role Enforcement)
+          allow create: if isAdmin() && request.resource.data.role in ['user', 'moderator', 'admin', 'banned'];
+          allow update: if isAdmin() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role in ['user', 'moderator', 'admin', 'banned']);
+          allow delete: if isAdmin();
+
+          // User Permissions
+          allow create: if isOwner(userId) && request.resource.data.role == 'user';
+          allow update: if isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+        }
+
+        match /characters/{charId} {
+          allow read: if true;
+          allow create: if isOwner(userId) && !isBanned() && getCharCount(userId) < 10;
+          allow update, delete: if isOwner(userId) || isAdmin();
+        }
+
+        match /readReceipts/{threadId} {
+          allow read, write: if isOwner(userId);
+        }
+
+        match /notifications/{notificationId} {
+          allow read: if isOwner(userId);
+          allow update: if isOwner(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+          allow delete: if isOwner(userId);
+          // Only Cloud Functions can create notifications
+        }
+      }
+
+      // B. PUBLIC DATA
+      match /public/data {
+        match /region_metadata/{regionId} {
+          allow read: if true;
+          allow write: if isMod();
+        }
+
+        match /threads/{threadId} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string && request.resource.data.creatorId == request.auth.uid;
+          allow update: if isSignedIn() && !isBanned() 
+                        && (request.auth.uid == resource.data.creatorId || isMod()) 
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title)) 
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'createdAt'])
+                        // Sacred Texts: Only mods can toggle isLocked, and locked threads can only be edited by mods
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isLocked']))
+                        && (isMod() || resource.data.isLocked != true);
+          allow delete: if isMod();
+        }
+
+        match /posts/{postId} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned()
+                        && isValidPostContent(request.resource.data.content)
+                        && request.resource.data.threadId is string
+                        && request.resource.data.userId == request.auth.uid
+                        && (
+                             request.resource.data.status == 'pending' ||
+                             (request.resource.data.status == 'approved' && isTrusted())
+                           );
+          allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod())
+                        && isValidPostContent(request.resource.data.content)
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt', 'threadId'])
+                        // Prevent users from editing status, but allow mods
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']))
+                        // Sacred Texts: Only mods can toggle isLocked, and locked posts can only be edited by mods
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isLocked']))
+                        && (isMod() || resource.data.isLocked != true);
+          allow delete: if isMod();
+        }
+
+        match /codex_pages/{pageId} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned() 
+                        && request.resource.data.creatorId == request.auth.uid 
+                        && request.resource.data.lastEditorId == request.auth.uid 
+                        && isValidTitle(request.resource.data.title) 
+                        && isValidContent(request.resource.data.content) 
+                        && isValidGallery(request.resource.data.gallery)
+                        && (request.resource.data.status == 'pending' || (request.resource.data.status == 'approved' && isTrusted()));
+          allow update: if isSignedIn() && !isBanned() 
+                        && (request.resource.data.lastEditorId == request.auth.uid || isMod())
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId']) 
+                        && isValidTitle(request.resource.data.title) 
+                        && isValidContent(request.resource.data.content) 
+                        && isValidGallery(request.resource.data.gallery)
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']))
+                        // Sacred Texts: Only mods can toggle isLocked, and locked pages can only be edited by mods
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isLocked']))
+                        && (isMod() || resource.data.isLocked != true);
+          allow delete: if isMod();
+        }
+        
+        // Moderation Logs (Admin/Mod read + update, Cloud Functions write)
+        match /moderation_logs/{logId} {
+          allow read: if isMod();
+          // Allow mods to update status (approve/reject) but not create new logs
+          allow update: if isMod() 
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'moderatedBy', 'moderatedAt', 'moderationMethod']);
+          allow delete: if isMod();
+          // Create only allowed from Cloud Functions (not client)
+          allow create: if false;
+        }
+      }
+
+      // C. CHATS
+      match /chats/{chatId} {
+        allow create: if isSignedIn() && !isBanned()
+                      && request.resource.data.participants is list
+                      && request.resource.data.participants.size() == 2
+                      && request.auth.uid in request.resource.data.participants;
+
+        allow read, update, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
+        match /messages/{messageId} {
+           // Allow read/delete if participant
+           allow read, delete: if isSignedIn() && !isBanned() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
+
+           // Strict creation: Must be participant + senderId matches + valid content
+           allow create: if isSignedIn() && !isBanned()
+                         && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants
+                         && request.resource.data.senderId == request.auth.uid
+                         && request.resource.data.text is string
+                         && request.resource.data.text.size() > 0
+                         && request.resource.data.text.size() <= 2000;
+
+           // No updates allowed (immutability)
+           allow update: if false;
+        }
+      }
+    }
+  }
+}

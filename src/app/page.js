@@ -1,0 +1,355 @@
+"use client";
+import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { APP_ID } from '@/lib/constants';
+import { useGame } from '@/context/GameContext';
+import { Loader } from 'lucide-react';
+
+// Core components - loaded immediately
+import Navbar from '@/components/Navbar';
+import WorldMap from '@/components/WorldMap';
+import LandingPage from '@/components/LandingPage';
+
+// Heavy components - lazy loaded for better performance
+const AuthScreen = dynamic(() => import('@/components/AuthScreen'), {
+  loading: () => <div className="flex items-center justify-center h-64"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>,
+  ssr: false
+});
+
+const RegionView = dynamic(() => import('@/components/Forum/RegionView'), {
+  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+});
+
+const ThreadView = dynamic(() => import('@/components/Forum/ThreadView'), {
+  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+});
+
+const CodexIndex = dynamic(() => import('@/components/Codex/CodexIndex'), {
+  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+});
+
+const CodexEntry = dynamic(() => import('@/components/Codex/CodexEntry'), {
+  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+});
+
+const SearchResults = dynamic(() => import('@/components/Codex/SearchResults'), {
+  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+});
+
+const CharacterDrawer = dynamic(() => import('@/components/CharacterDrawer'), {
+  ssr: false
+});
+
+const ChatSystem = dynamic(() => import('@/components/ChatSystem'), {
+  ssr: false
+});
+
+const LegalDocs = dynamic(() => import('@/components/Legal/LegalDocs'), {
+  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+});
+
+const CookieBanner = dynamic(() => import('@/components/Legal/CookieBanner'), {
+  ssr: false
+});
+
+export default function Home() {
+  const gameContext = useGame();
+
+  // Navigation State
+  // Default to 'landing' for SEO and first-time users.
+  // We check localStorage in useEffect to potentially skip to 'map'.
+  const [view, setView] = useState('landing');
+
+  const [activeRegion, setActiveRegion] = useState(null);
+  const [activeThread, setActiveThread] = useState(null);
+  const [activeCodexPage, setActiveCodexPage] = useState(null);
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchKey, setSearchKey] = useState(0);
+
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatTarget, setChatTarget] = useState(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // SEO: Guest Mode
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // --- HISTORY & INIT MANAGEMENT ---
+  useEffect(() => {
+    // Check for "never show again" preference
+    // Only apply this logic if we are still on the initial 'landing' view.
+    // This prevents overwriting navigation if the user has already clicked something (though rare in this microtask timeframe).
+
+    // Use a small timeout or just invoke to decouple from effect if strictly needed,
+    // but React 18+ handles state updates in effects fine (it just runs it after paint).
+    // The linter warning "Calling setState synchronously within an effect" is specific to updates that might cause immediate re-render before paint?
+    // Actually, setting state in useEffect DOES cause a re-render.
+
+    const shouldSkipLanding = typeof window !== 'undefined' && localStorage.getItem('skipLanding') === 'true';
+
+    if (shouldSkipLanding) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView('map');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ view: 'map' }, '');
+      }
+    } else {
+      // Ensure history state is set for landing
+      if (typeof window !== 'undefined' && (!window.history.state || !window.history.state.view)) {
+        window.history.replaceState({ view: 'landing' }, '');
+      }
+    }
+
+    const onPopState = (event) => {
+      const state = event.state;
+      if (state && state.view) {
+        setView(state.view);
+        if (state.view === 'search' && state.query) {
+          setSearchQuery(state.query);
+          setSearchKey(prev => prev + 1);
+        }
+      } else {
+        setView('map');
+      }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // 1. Navigation
+  const navigateTo = useCallback((newView, extraState = {}) => {
+    // dependency on view is fine, we want stability when view is constant (e.g. Chat toggle)
+    if (view === newView && newView !== 'search' && newView !== 'codex_entry') return;
+    setView(newView);
+    window.history.pushState({ view: newView, ...extraState }, '');
+  }, [view]);
+
+  const { user, loading } = gameContext || {};
+
+  // 2. Search (used by WikiLink)
+  const handleSearch = useCallback((query) => {
+    if (!query || !query.trim()) return;
+    const cleanQuery = query.trim();
+    setSearchQuery(cleanQuery);
+    setSearchKey(prev => prev + 1);
+    navigateTo('search', { query: cleanQuery });
+  }, [navigateTo]);
+
+  // 3. Codex Entry (used by WikiLink and CodexOpen)
+  const handleOpenCodexEntry = useCallback((page) => {
+    setActiveCodexPage(page);
+    navigateTo('codex_entry', { pageId: page.id });
+  }, [navigateTo]);
+
+  // 4. Wiki Link Handler
+  const handleWikiLink = useCallback(async (targetTitle) => {
+    if (!targetTitle) return;
+    console.log("Navigating via Wiki Link:", targetTitle);
+
+    try {
+      // 1. Try Exact Title Match
+      const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+        where('title', '==', targetTitle),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const page = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        handleOpenCodexEntry(page);
+      } else {
+        // 2. Fallback to Search
+        handleSearch(targetTitle);
+      }
+    } catch (e) {
+      console.error("Wiki Link Error:", e);
+      handleSearch(targetTitle);
+    }
+  }, [handleOpenCodexEntry, handleSearch]);
+
+  // 5. Codex Open (used by ThreadView)
+  const handleCodexOpen = useCallback(async (characterId = null) => {
+    if (!characterId) {
+      navigateTo('codex');
+      return;
+    }
+
+    try {
+      // Find the page where 'relatedId' matches the characterId
+      const q = query(
+        collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
+        where('relatedId', '==', characterId),
+        limit(1)
+      );
+      const snap = await getDocs(q);
+
+      if (!snap.empty) {
+        const pageData = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        handleOpenCodexEntry(pageData);
+      } else {
+        alert("This character has not yet been chronicled in the Codex.");
+        navigateTo('codex');
+      }
+    } catch (e) {
+      console.error("Codex Lookup Error:", e);
+      navigateTo('codex');
+    }
+  }, [navigateTo, handleOpenCodexEntry]);
+
+  // 6. Region/Thread Select
+  const handleRegionSelect = useCallback((region) => {
+    setActiveRegion(region);
+    navigateTo('region', { regionId: region.id });
+  }, [navigateTo]);
+
+  const handleThreadSelect = useCallback((thread) => {
+    setActiveThread(thread);
+    navigateTo('thread', { threadId: thread.id });
+  }, [navigateTo]);
+
+  // 7. Message User
+  const handleMessageUser = useCallback((targetUser) => {
+    if (!user) { setShowLoginModal(true); return; }
+    setChatTarget(targetUser);
+    setIsChatOpen(true);
+  }, [user]);
+
+  // 8. Navbar Toggles (Memoized to prevent Navbar re-renders)
+  const handleToggleChat = useCallback(() => {
+    if (user) {
+      setIsChatOpen(prev => !prev);
+    } else {
+      setShowLoginModal(true);
+    }
+  }, [user]);
+
+  const handleLoginClick = useCallback(() => setShowLoginModal(true), []);
+
+  if (!gameContext) return null;
+  if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
+
+  return (
+    <main className="h-screen w-full bg-black overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
+
+      {/* 1. TOP NAVIGATION */}
+      <Navbar
+        currentView={view}
+        setView={navigateTo}
+        onSearch={handleSearch}
+        onToggleChat={handleToggleChat}
+        onLoginClick={handleLoginClick}
+        unreadCount={unreadCount}
+      />
+
+      {/* 2. MAIN CONTENT AREA */}
+      <div className="flex-1 relative overflow-hidden">
+
+        {view === 'landing' && (
+          <LandingPage onEnter={() => navigateTo('map')} />
+        )}
+
+        {view === 'map' && (
+          <WorldMap
+            setView={navigateTo}
+            setActiveRegion={handleRegionSelect}
+          />
+        )}
+
+        {view === 'region' && (
+          <RegionView
+            region={activeRegion}
+            setView={navigateTo}
+            setActiveThread={handleThreadSelect}
+            onWikiLink={handleWikiLink}
+          />
+        )}
+
+        {view === 'thread' && (
+          <ThreadView
+            thread={activeThread}
+            region={activeRegion}
+            setView={navigateTo}
+            onOpenCodex={handleCodexOpen}
+            onNavigateToRegion={handleRegionSelect}
+            onMessageUser={handleMessageUser}
+            onRequireAuth={handleLoginClick}
+            onWikiLink={handleWikiLink}
+          />
+        )}
+
+        {view === 'codex' && (
+          <CodexIndex
+            onOpenEntry={handleOpenCodexEntry}
+          />
+        )}
+
+        {view === 'codex_entry' && (
+          <CodexEntry
+            key={activeCodexPage?.id}
+            page={activeCodexPage}
+            goBack={() => navigateTo('codex')}
+            onWikiLink={handleWikiLink}
+          />
+        )}
+
+        {view === 'search' && (
+          <SearchResults
+            key={searchKey}
+            query={searchQuery}
+            onNavigate={navigateTo}
+            onOpenThread={handleThreadSelect}
+            onOpenCodex={handleOpenCodexEntry}
+          />
+        )}
+
+        {view === 'legal' && (
+          <LegalDocs goBack={() => navigateTo('map')} />
+        )}
+
+      </div>
+
+      {/* 3. OVERLAYS */}
+
+      {user && <CharacterDrawer />}
+
+      {user && (
+        <ChatSystem
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          initialChatUser={chatTarget}
+          onUnreadCountChange={setUnreadCount}
+        />
+      )}
+
+      <CookieBanner />
+
+      {/* 4. AUTH MODAL */}
+      {((!user && showLoginModal) || (user && !user.emailVerified && !user.isAnonymous)) && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center animate-in fade-in">
+          <div className="relative w-full max-w-md">
+            {(!user) && (
+              <button
+                onClick={() => setShowLoginModal(false)}
+                className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white"
+              >
+                Close
+              </button>
+            )}
+            <AuthScreen
+              onLegalClick={() => { setShowLoginModal(false); navigateTo('legal'); }}
+              currentView={view}
+              onBack={() => { setShowLoginModal(false); navigateTo('map'); }}
+            />
+          </div>
+        </div>
+      )}
+
+    </main>
+  );
+}
