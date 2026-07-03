@@ -3,9 +3,13 @@
  * field, to determine whether scripts/backfill-status.js needs to run before
  * deploying the read-restriction security rules. Writes nothing.
  *
- * Usage: cd functions && node ../scripts/count-legacy-status.js
+ * Usage: node scripts/count-legacy-status.js
  */
-const admin = require('firebase-admin');
+// firebase-admin lives in functions/node_modules, not at the repo root
+const path = require('path');
+const { createRequire } = require('module');
+const fnRequire = createRequire(path.join(__dirname, '..', 'functions', 'index.js'));
+const admin = fnRequire('firebase-admin');
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT || 'realm-of-aethelraed';
 const APP_ID = 'realm-of-allania-v2';
