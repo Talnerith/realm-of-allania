@@ -16,6 +16,16 @@ const config = {
     },
 
     testEnvironment: 'jest-environment-jsdom',
+
+    // Emulator-dependent suites (security rules + functions) run separately:
+    //   npx firebase emulators:exec --only firestore "npx jest --config jest.rules.config.js"
+    //   cd functions && npm test
+    testPathIgnorePatterns: [
+        '<rootDir>/node_modules/',
+        '<rootDir>/functions/',
+        '<rootDir>/firestore\\.rules\\..*\\.test\\.js',
+        '<rootDir>/src/lib/moderation/moderation\\.test\\.js',
+    ],
 }
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

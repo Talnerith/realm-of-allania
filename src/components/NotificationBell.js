@@ -1,36 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Bell, X, Check, AlertCircle, Award } from 'lucide-react';
-import { collection, query, where, onSnapshot, updateDoc, doc, deleteDoc, orderBy, limit } from 'firebase/firestore';
+import { updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
 
-export default function NotificationBell() {
+// Notifications are passed in by Navbar, which owns a single Firestore
+// listener shared by the desktop and mobile bell instances.
+export default function NotificationBell({ notifications = [] }) {
     const { user } = useGame();
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
 
-    // Listen for notifications
-    useEffect(() => {
-        if (!user) return;
+    const unreadCount = notifications.filter(n => !n.read).length;
 
-        const q = query(
-            collection(db, 'artifacts', APP_ID, 'users', user.uid, 'notifications'),
-            orderBy('createdAt', 'desc'),
-            limit(20)
-        );
-
-        const unsub = onSnapshot(q, (snapshot) => {
-            const notifs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            setNotifications(notifs);
-            setUnreadCount(notifs.filter(n => !n.read).length);
-        });
-
-        return () => unsub();
-    }, [user]);
-
-    if (!user) return null;
+    if (!user || !db) return null;
 
     const handleMarkAsRead = async (notificationId) => {
         try {

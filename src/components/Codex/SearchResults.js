@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { collection, query, getDocs, limit, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, limit, orderBy, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
+import { useGame } from '@/context/GameContext';
 import { Loader, FileText, MessageSquare, AlertCircle, Search, WifiOff, MessageCircle } from 'lucide-react';
 import { filterCodexResults, filterThreadResults, filterPostResults, getSnippet } from '@/lib/searchUtils';
 
 export default function SearchResults({ query: searchQuery, onNavigate, onOpenThread, onOpenCodex }) {
+  const { user, userRole } = useGame();
   const [results, setResults] = useState({ threads: [], codex: [], posts: [] });
   const [loading, setLoading] = useState(true);
   const [searchError, setSearchError] = useState(null);
@@ -23,14 +25,27 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
       // NOTE: query lowercasing is now handled inside filter functions in searchUtils
       
       try {
+        // Security rules deny reading unapproved docs, so non-mods search
+        // approved content only; mods search everything
+        const isMod = userRole === 'admin' || userRole === 'moderator';
+        const codexRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages');
+        const threadsRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads');
+        const postsRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts');
+
         // 1. Search Codex (Fetch metadata and filter client-side)
-        const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), limit(100));
-        
+        const codexQ = isMod
+          ? query(codexRef, limit(100))
+          : query(codexRef, where('status', '==', 'approved'), limit(100));
+
         // 2. Search Threads (Fetch recent threads)
-        const threadsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'), orderBy('updatedAt', 'desc'), limit(50));
-        
+        const threadsQ = isMod
+          ? query(threadsRef, orderBy('updatedAt', 'desc'), limit(50))
+          : query(threadsRef, where('status', '==', 'approved'), orderBy('updatedAt', 'desc'), limit(50));
+
         // 3. Search Individual Posts (Fetch recent posts - Deep Search)
-        const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), orderBy('createdAt', 'desc'), limit(100));
+        const postsQ = isMod
+          ? query(postsRef, orderBy('createdAt', 'desc'), limit(100))
+          : query(postsRef, where('status', '==', 'approved'), orderBy('createdAt', 'desc'), limit(100));
 
         // Execute all fetches in parallel
         const [codexSnap, threadsSnap, postsSnap] = await Promise.all([
@@ -39,14 +54,20 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
             getDocs(postsQ)
         ]);
 
+        // Visibility context: hide pending/rejected content from non-owners/non-mods
+        const viewer = {
+          userId: user?.uid || null,
+          isMod: userRole === 'admin' || userRole === 'moderator'
+        };
+
         // Filter Codex
-        const codexResults = filterCodexResults(codexSnap.docs, searchQuery);
+        const codexResults = filterCodexResults(codexSnap.docs, searchQuery, viewer);
 
         // Filter Thread Titles
-        const threadResults = filterThreadResults(threadsSnap.docs, searchQuery);
+        const threadResults = filterThreadResults(threadsSnap.docs, searchQuery, viewer);
 
         // Filter Post Content
-        const postResults = filterPostResults(postsSnap.docs, searchQuery);
+        const postResults = filterPostResults(postsSnap.docs, searchQuery, viewer);
 
         setResults({ threads: threadResults, codex: codexResults, posts: postResults });
 
@@ -68,7 +89,7 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
     }, 100); 
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, user?.uid, userRole]);
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950 p-6 md:p-12 animate-in slide-in-from-bottom-2">
@@ -170,7 +191,7 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
                                         <span className="text-xs text-slate-600">• in a thread</span>
                                     </div>
                                     <p className="text-sm text-slate-300 italic">
-                                        &quot;...{getSnippet(item.content, searchQuery)}...&quot;
+                                        &quot;{getSnippet(item.content, searchQuery)}&quot;
                                     </p>
                                 </div>
                             ))}

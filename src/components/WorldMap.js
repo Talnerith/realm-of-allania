@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import {
@@ -26,9 +26,10 @@ function WorldMap({ setView, setActiveRegion }) {
       setCustomNames(names);
     });
 
-    // B. Thread Activity
+    // B. Thread Activity (approved only — rules deny reading unapproved threads)
     const q = query(
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'),
+      where('status', '==', 'approved'),
       orderBy('updatedAt', 'desc'),
       limit(50)
     );
@@ -39,6 +40,8 @@ function WorldMap({ setView, setActiveRegion }) {
 
       snap.docs.forEach(doc => {
         const d = doc.data();
+        // Only approved (or legacy) threads count toward public map activity
+        if (d.status && d.status !== 'approved') return;
         const t = d.updatedAt?.toMillis() || 0;
         const rid = d.regionId;
         if (!activity[rid] || t > activity[rid]) activity[rid] = t;

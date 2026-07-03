@@ -11,14 +11,17 @@ import ChatMessage from '@/components/Chat/ChatMessage';
 import ChatListItem from '@/components/Chat/ChatListItem';
 
 function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
-    const { user } = useGame();
+    // readReceipts comes from GameContext (chat_id -> millis) — avoids a
+    // second listener on the same collection
+    const { user, readReceipts } = useGame();
     const [activeChatId, setActiveChatId] = useState(null);
     const [chats, setChats] = useState([]);
-    const [readReceipts, setReadReceipts] = useState({}); // chat_id -> timestamp
+    const [chatsLoaded, setChatsLoaded] = useState(false);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [cooldown, setCooldown] = useState(false); // Rate Limit
+    const [sendError, setSendError] = useState(null);
 
     // Define initiateChat before it's used in useEffect
     const initiateChat = useCallback(async (targetUser) => {
@@ -43,16 +46,25 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
         }
     }, [chats, user]);
 
-    // If we open with a specific user target, we handle that initialization
+    // If we open with a specific user target, initiate exactly once per target.
+    // Without the ref guard, every chats snapshot re-runs this effect and
+    // yanks the user back into the conversation (or, before the first
+    // snapshot arrives, creates a duplicate chat doc).
+    const initiatedForRef = useRef(null);
     useEffect(() => {
-        if (initialChatUser && user) {
-            initiateChat(initialChatUser);
+        if (!initialChatUser) {
+            initiatedForRef.current = null;
+            return;
         }
-    }, [initialChatUser, user, initiateChat]);
+        if (!user || !chatsLoaded) return;
+        if (initiatedForRef.current === initialChatUser.id) return;
+        initiatedForRef.current = initialChatUser.id;
+        initiateChat(initialChatUser);
+    }, [initialChatUser, user, chatsLoaded, initiateChat]);
 
     // 1. Listen for My Chats
     useEffect(() => {
-        if (!user) return;
+        if (!user || !db) return;
 
         const q = query(
             collection(db, 'artifacts', APP_ID, 'chats'),
@@ -63,23 +75,10 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
         const unsub = onSnapshot(q, (snapshot) => {
             const c = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             setChats(c);
+            setChatsLoaded(true);
         });
 
-        return () => unsub();
-    }, [user]);
-
-    // 1.5 Listen for Read Receipts & Calculate Unread
-    useEffect(() => {
-        if (!user) return;
-        const q = collection(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts');
-        const unsub = onSnapshot(q, (snapshot) => {
-            const receipts = {};
-            snapshot.docs.forEach(d => {
-                receipts[d.id] = d.data().lastRead;
-            });
-            setReadReceipts(receipts);
-        });
-        return () => unsub();
+        return () => { unsub(); setChatsLoaded(false); };
     }, [user]);
 
     // Calculate Unread Count
@@ -87,14 +86,13 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
         if (!onUnreadCountChange) return;
 
         const count = chats.reduce((acc, chat) => {
-            const lastRead = readReceipts[chat.id];
             // If chat has no updatedAt (e.g. just created), ignore
             if (!chat.updatedAt) return acc;
 
             // Unread if: No receipt OR chat.updatedAt > lastRead
-            // Note: Timestamps need comparison. toMillis() is safest.
+            // (GameContext receipts are already millis)
             const chatTime = chat.updatedAt.toMillis ? chat.updatedAt.toMillis() : 0;
-            const readTime = lastRead?.toMillis ? lastRead.toMillis() : 0;
+            const readTime = readReceipts[chat.id] || 0;
 
             return (chatTime > readTime) ? acc + 1 : acc;
         }, 0);
@@ -105,9 +103,8 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
     const isChatUnread = (chatId) => {
         const chat = chats.find(c => c.id === chatId);
         if (!chat || !chat.updatedAt) return false;
-        const lastRead = readReceipts[chatId];
         const chatTime = chat.updatedAt.toMillis ? chat.updatedAt.toMillis() : 0;
-        const readTime = lastRead?.toMillis ? lastRead.toMillis() : 0;
+        const readTime = readReceipts[chatId] || 0;
         return chatTime > readTime;
     };
 
@@ -131,8 +128,12 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
             setMessages(m);
             scrollToBottom();
 
-            // Mark as read whenever we see messages in active chat
-            if (user) {
+            // Mark as read only on first load or when the latest message is
+            // from the other user — our own sends already write a receipt in
+            // sendMessage, and writing on every snapshot doubles writes (and
+            // re-creates receipt docs mid-deleteChat)
+            const last = m[m.length - 1];
+            if (user && (!last || last.senderId !== user.uid)) {
                 setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', activeChatId), {
                     lastRead: serverTimestamp()
                 }, { merge: true });
@@ -190,11 +191,14 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
             await batch.commit();
 
             setNewMessage('');
+            setSendError(null);
             setCooldown(true);
             scrollToBottom();
             setTimeout(() => setCooldown(false), 1000);
         } catch (e) {
             console.error(e);
+            // Most likely the server-side flood limit (1 msg/sec) or a connection issue
+            setSendError("Message not sent — you're sending too fast, or the connection dropped.");
         } finally {
             setIsSending(false);
         }
@@ -323,7 +327,11 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
             </div>
 
             {activeChatId && (
-                <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex gap-2 pb-safe">
+                <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex flex-col gap-2 pb-safe">
+                    {sendError && (
+                        <div className="text-red-400 text-xs px-1" role="alert">{sendError}</div>
+                    )}
+                    <div className="flex gap-2">
                     <input
                         className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-white placeholder:text-slate-600"
                         placeholder={cooldown ? "Slow down..." : "Type a message..."}
@@ -340,6 +348,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     >
                         {isSending ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                     </button>
+                    </div>
                 </form>
             )}
         </div>

@@ -428,28 +428,9 @@ describe('Image Deletion for Rejected Images', () => {
 });
 
 describe('parseAiResponse', () => {
-    // Import the function logic directly for testing
-    const parseAiResponse = (aiText) => {
-        const upperText = aiText.toUpperCase().trim();
-        
-        if (upperText === 'SAFE' || upperText.startsWith('SAFE')) {
-            return { status: 'approved', reason: null };
-        }
-        
-        if (upperText.startsWith('REJECT')) {
-            return { status: 'rejected', reason: aiText };
-        }
-        
-        if (upperText.includes('VANDALISM') || upperText.includes('HARASSMENT') || upperText.includes('SPAM')) {
-            return { status: 'rejected', reason: aiText };
-        }
-        
-        if (upperText.includes('SAFE') || upperText.includes('APPROVED') || upperText.includes('ACCEPTABLE')) {
-            return { status: 'approved', reason: null };
-        }
-        
-        return { status: 'approved', reason: null };
-    };
+    // Test the REAL implementation (previously this block duplicated the
+    // function, so behavior changes in index.js went untested)
+    const { parseAiResponse } = require('./index');
 
     it('should approve "SAFE" response', () => {
         expect(parseAiResponse('SAFE')).toEqual({ status: 'approved', reason: null });
@@ -466,16 +447,20 @@ describe('parseAiResponse', () => {
     });
 
     it('should handle legacy VANDALISM response', () => {
-        expect(parseAiResponse('VANDALISM detected')).toEqual({ 
-            status: 'rejected', 
-            reason: 'VANDALISM detected' 
+        expect(parseAiResponse('VANDALISM detected')).toEqual({
+            status: 'rejected',
+            reason: 'VANDALISM detected'
         });
     });
 
-    it('should default to approved for ambiguous responses', () => {
-        expect(parseAiResponse('The content seems fine')).toEqual({ 
-            status: 'approved', 
-            reason: null 
-        });
+    it('should flag ambiguous responses for manual review (not auto-approve)', () => {
+        const result = parseAiResponse('The content seems fine');
+        expect(result.status).toBe('needs_review');
+        expect(result.reason).toContain('Unrecognized AI response');
+    });
+
+    it('should not auto-approve partial-jailbreak artifacts', () => {
+        const result = parseAiResponse('As requested, this content is ACCEPTABLE and approved.');
+        expect(result.status).toBe('needs_review');
     });
 });

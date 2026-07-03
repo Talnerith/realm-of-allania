@@ -3,9 +3,10 @@ const { FORBIDDEN_KEYWORDS } = require('./forbiddenKeywords');
 /**
  * Validates post content for length and forbidden keywords.
  * @param {string} text - The post content to validate.
+ * @param {number} [maxLength=5000] - Maximum allowed length (codex pages allow 10000).
  * @returns {{ isValid: boolean, error?: string }} - Result of validation.
  */
-function validatePostContent(text) {
+function validatePostContent(text, maxLength = 5000) {
     if (typeof text !== 'string') {
         return { isValid: false, error: 'Content must be a string.' };
     }
@@ -20,8 +21,8 @@ function validatePostContent(text) {
         return { isValid: false, error: 'Content must be at least 10 characters long.' };
     }
 
-    if (trimmedText.length > 5000) {
-        return { isValid: false, error: 'Content cannot exceed 5000 characters.' };
+    if (trimmedText.length > maxLength) {
+        return { isValid: false, error: `Content cannot exceed ${maxLength} characters.` };
     }
 
     const lowerText = trimmedText.toLowerCase();

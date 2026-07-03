@@ -115,7 +115,10 @@ export default function CharacterDrawer() {
                     creatorId: user.uid,
                     lastEditorId: user.uid,
                     updatedAt: serverTimestamp(),
-                    updatedBy: 'System'
+                    updatedBy: 'System',
+                    // Required by rules; without it the whole character batch is denied.
+                    // The moderation function auto-approves trusted users.
+                    status: 'pending'
                 });
             }
 

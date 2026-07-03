@@ -1,35 +1,45 @@
 // Search Logic Utility for Unit Testing
 // OPTIMIZATION: Using reduce() for single-pass filtering instead of map().filter()
 
-export const filterCodexResults = (docs, query) => {
+// MODERATION: same visibility rule as RegionView/ThreadView/CodexIndex —
+// approved (or legacy, no status) for everyone; own/pending for the author; everything for mods
+export const isContentVisible = (item, { userId = null, isMod = false } = {}) => {
+    if (item.status === 'approved' || !item.status) return true;
+    if (isMod) return true;
+    return !!userId && (item.userId === userId || item.creatorId === userId);
+};
+
+export const filterCodexResults = (docs, query, viewer) => {
     const lowerQuery = query.toLowerCase();
     return docs.reduce((acc, d) => {
         const item = { id: d.id, ...d.data() };
-        if ((item.title?.toLowerCase().includes(lowerQuery)) ||
-            (item.category?.toLowerCase().includes(lowerQuery))) {
+        if (isContentVisible(item, viewer) &&
+            ((item.title?.toLowerCase().includes(lowerQuery)) ||
+             (item.category?.toLowerCase().includes(lowerQuery)))) {
             acc.push(item);
         }
         return acc;
     }, []);
 };
 
-export const filterThreadResults = (docs, query) => {
+export const filterThreadResults = (docs, query, viewer) => {
     const lowerQuery = query.toLowerCase();
     return docs.reduce((acc, d) => {
         const item = { id: d.id, ...d.data() };
-        if (item.title?.toLowerCase().includes(lowerQuery)) {
+        if (isContentVisible(item, viewer) && item.title?.toLowerCase().includes(lowerQuery)) {
             acc.push(item);
         }
         return acc;
     }, []);
 };
 
-export const filterPostResults = (docs, query) => {
+export const filterPostResults = (docs, query, viewer) => {
     const lowerQuery = query.toLowerCase();
     return docs.reduce((acc, d) => {
         const item = { id: d.id, ...d.data() };
-        if ((item.content?.toLowerCase().includes(lowerQuery)) ||
-            (item.characterName?.toLowerCase().includes(lowerQuery))) {
+        if (isContentVisible(item, viewer) &&
+            ((item.content?.toLowerCase().includes(lowerQuery)) ||
+             (item.characterName?.toLowerCase().includes(lowerQuery)))) {
             acc.push(item);
         }
         return acc;

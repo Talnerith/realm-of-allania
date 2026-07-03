@@ -1,6 +1,9 @@
-import { useState, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import Link from 'next/link';
+import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Shield, Crown, LogIn, Users, Heart } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
 import ActiveUsers from '@/components/ActiveUsers';
 import NotificationBell from '@/components/NotificationBell';
@@ -10,6 +13,21 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [showActiveUsers, setShowActiveUsers] = useState(false);
+
+  // Single notifications listener shared by both (desktop + mobile) bells
+  const [notifications, setNotifications] = useState([]);
+  useEffect(() => {
+    if (!user || !db) return;
+    const q = query(
+      collection(db, 'artifacts', APP_ID, 'users', user.uid, 'notifications'),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    );
+    const unsub = onSnapshot(q, (snapshot) => {
+      setNotifications(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => console.error("Notifications error:", error));
+    return () => { unsub(); setNotifications([]); };
+  }, [user]);
 
   // Single donation surface: one Ko-fi link (PayPal/Stripe are configured
   // inside Ko-fi, not as separate buttons). Env-gated — the button is omitted
@@ -88,7 +106,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
             <button onClick={() => setShowActiveUsers(true)} className="relative p-2 text-slate-400 hover:text-white transition-colors" aria-label="Active Users" title="Active Users">
               <Users className="w-5 h-5" />
             </button>
-            <NotificationBell />
+            <NotificationBell notifications={notifications} />
             <button onClick={onToggleChat} className="relative p-2 text-slate-400 hover:text-white transition-colors" aria-label="Toggle Chat" title="Chat">
               <MessageCircle className="w-5 h-5" />
               {unreadCount > 0 && (
@@ -128,7 +146,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
       <div className="flex md:hidden items-center gap-4">
         {user && (
           <>
-            <NotificationBell />
+            <NotificationBell notifications={notifications} />
             <button onClick={onToggleChat} className="relative text-slate-400 hover:text-white" aria-label="Toggle Chat">
               <MessageCircle className="w-6 h-6" />
               {unreadCount > 0 && (

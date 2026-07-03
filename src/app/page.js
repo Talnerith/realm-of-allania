@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
@@ -106,15 +106,39 @@ export default function Home() {
 
     const onPopState = (event) => {
       const state = event.state;
-      if (state && state.view) {
-        setView(state.view);
-        if (state.view === 'search' && state.query) {
-          setSearchQuery(state.query);
-          setSearchKey(prev => prev + 1);
-        }
-      } else {
+      if (!state || !state.view) {
         setView('map');
+        return;
       }
+
+      // Restore the entity behind the view, not just the view name. The views
+      // self-hydrate from Firestore given an id, so a minimal {id} stub works.
+      if (state.view === 'region') {
+        if (!state.regionId && state.regionId !== 0) { setView('map'); return; }
+        setActiveRegion(prev => prev?.id === state.regionId ? prev : { id: state.regionId, name: 'Loading...' });
+      } else if (state.view === 'thread') {
+        if (!state.threadId) { setView('map'); return; }
+        setActiveThread(prev => prev?.id === state.threadId ? prev : { id: state.threadId });
+      } else if (state.view === 'codex_entry') {
+        // CodexEntry initializes from its prop (no self-fetch), so hydrate the
+        // full document; the render guard shows a loader while it's null
+        if (!state.pageId || !db) { setView('codex'); return; }
+        setActiveCodexPage(prev => {
+          if (prev?.id === state.pageId) return prev;
+          getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', state.pageId))
+            .then(snap => {
+              if (snap.exists()) setActiveCodexPage({ id: snap.id, ...snap.data() });
+              else setView('codex');
+            })
+            .catch(() => setView('codex'));
+          return null;
+        });
+      } else if (state.view === 'search' && state.query) {
+        setSearchQuery(state.query);
+        setSearchKey(prev => prev + 1);
+      }
+
+      setView(state.view);
     };
 
     window.addEventListener('popstate', onPopState);
@@ -149,13 +173,13 @@ export default function Home() {
   // 4. Wiki Link Handler
   const handleWikiLink = useCallback(async (targetTitle) => {
     if (!targetTitle) return;
-    console.log("Navigating via Wiki Link:", targetTitle);
 
     try {
-      // 1. Try Exact Title Match
+      // 1. Try Exact Title Match (approved only — rules deny unapproved reads)
       const q = query(
         collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
         where('title', '==', targetTitle),
+        where('status', '==', 'approved'),
         limit(1)
       );
       const snap = await getDocs(q);
@@ -182,9 +206,11 @@ export default function Home() {
 
     try {
       // Find the page where 'relatedId' matches the characterId
+      // (approved only — rules deny unapproved reads)
       const q = query(
         collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
         where('relatedId', '==', characterId),
+        where('status', '==', 'approved'),
         limit(1)
       );
       const snap = await getDocs(q);
@@ -290,12 +316,16 @@ export default function Home() {
         )}
 
         {view === 'codex_entry' && (
-          <CodexEntry
-            key={activeCodexPage?.id}
-            page={activeCodexPage}
-            goBack={() => navigateTo('codex')}
-            onWikiLink={handleWikiLink}
-          />
+          activeCodexPage ? (
+            <CodexEntry
+              key={activeCodexPage.id}
+              page={activeCodexPage}
+              goBack={() => navigateTo('codex')}
+              onWikiLink={handleWikiLink}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+          )
         )}
 
         {view === 'search' && (
@@ -321,7 +351,7 @@ export default function Home() {
       {user && (
         <ChatSystem
           isOpen={isChatOpen}
-          onClose={() => setIsChatOpen(false)}
+          onClose={() => { setIsChatOpen(false); setChatTarget(null); }}
           initialChatUser={chatTarget}
           onUnreadCountChange={setUnreadCount}
         />

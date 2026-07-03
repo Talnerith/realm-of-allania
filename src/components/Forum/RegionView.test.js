@@ -19,10 +19,13 @@ jest.mock('firebase/firestore', () => ({
   collection: jest.fn(),
   query: jest.fn(),
   where: jest.fn(),
+  orderBy: jest.fn(),
+  limit: jest.fn(),
   doc: jest.fn(),
   onSnapshot: jest.fn(),
   addDoc: jest.fn(),
   setDoc: jest.fn(),
+  writeBatch: jest.fn(() => ({ set: jest.fn(), update: jest.fn(), delete: jest.fn(), commit: jest.fn(() => Promise.resolve()) })),
   serverTimestamp: jest.fn(() => ({ _serverTimestamp: true })),
 }));
 

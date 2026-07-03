@@ -30,8 +30,9 @@ export default function ModerationDashboard() {
     useEffect(() => {
         if (!user || (userRole !== 'admin' && userRole !== 'moderator')) return;
 
-        setLoading(true);
-        
+        // Defer to avoid a synchronous setState cascade inside the effect
+        const loadingTimer = setTimeout(() => setLoading(true), 0);
+
         // All content types now use moderation_logs collection
         const collectionPath = 'moderation_logs';
         const orderField = 'timestamp';
@@ -70,15 +71,17 @@ export default function ModerationDashboard() {
         }
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
+            clearTimeout(loadingTimer);
             const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setPosts(items);
             setLoading(false);
         }, (error) => {
+            clearTimeout(loadingTimer);
             console.error("Error fetching content:", error);
             setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => { clearTimeout(loadingTimer); unsubscribe(); };
     }, [user, userRole, filter, contentType, limitCount]);
 
     // 3. Actions - Hard delete now removes both logs AND actual content

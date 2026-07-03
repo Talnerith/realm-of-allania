@@ -38,11 +38,30 @@ export function GameProvider({ children }) {
       return;
     }
 
+    // Tear down per-user listeners before (re)subscribing, so repeated auth
+    // emissions for the same user don't stack duplicate listeners/intervals
+    const cleanupUserListeners = () => {
+      if (roleUnsub) { roleUnsub(); roleUnsub = null; }
+      if (receiptsUnsub) { receiptsUnsub(); receiptsUnsub = null; }
+      if (charUnsub) { charUnsub(); charUnsub = null; }
+      if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
+    };
+
     const authUnsub = onAuthStateChanged(auth, async (currentUser) => {
+      cleanupUserListeners();
+
       if (currentUser) {
+        // Always expose the user, even if Firestore is unconfigured —
+        // returning early here would leave the app on "Loading Realm..." forever
+        setUser(currentUser);
+
+        if (!db) {
+          setLoading(false);
+          return;
+        }
+
         // --- A. User Role (Private Path) ---
         // We use the user's private settings collection to ensure they have Write access for self-healing
-        if (!db) return; // Guard clause if db is null
         const roleRef = doc(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'settings', 'account');
 
         roleUnsub = onSnapshot(roleRef, async (snapshot) => {
@@ -80,7 +99,7 @@ export function GameProvider({ children }) {
         });
 
         // --- B. Read Receipts ---
-        if (db) {
+        {
           const receiptsRef = collection(db, 'artifacts', APP_ID, 'users', currentUser.uid, 'readReceipts');
           receiptsUnsub = onSnapshot(receiptsRef, (snapshot) => {
             const receipts = {};
@@ -113,28 +132,19 @@ export function GameProvider({ children }) {
           updatePresence(); // Initial update
           presenceInterval = setInterval(updatePresence, 60000); // Update every minute
         }
-
-        setUser(currentUser);
       } else {
-        // Cleanup on Logout
+        // Cleanup on Logout (listeners already torn down above)
         setUser(null);
         setUserRole('user');
         setReadReceipts({});
         setCharacters([]);
-        if (roleUnsub) roleUnsub();
-        if (receiptsUnsub) receiptsUnsub();
-        if (charUnsub) charUnsub();
-        if (presenceInterval) clearInterval(presenceInterval);
       }
       setLoading(false);
     });
 
     return () => {
       if (authUnsub) authUnsub();
-      if (roleUnsub) roleUnsub();
-      if (receiptsUnsub) receiptsUnsub();
-      if (charUnsub) charUnsub();
-      if (presenceInterval) clearInterval(presenceInterval);
+      cleanupUserListeners();
     };
   }, []);
 

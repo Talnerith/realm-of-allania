@@ -3,8 +3,14 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import PostItem from '@/components/Forum/PostItem';
 
 // Mock child components
-jest.mock('@/components/MarkdownEditor', () => () => <div data-testid="markdown-editor">Editor</div>);
-jest.mock('@/components/RichText', () => ({ content }) => <div data-testid="rich-text">{content}</div>);
+jest.mock('@/components/MarkdownEditor', () => {
+    const MockMarkdownEditor = () => <div data-testid="markdown-editor">Editor</div>;
+    return MockMarkdownEditor;
+});
+jest.mock('@/components/RichText', () => {
+    const MockRichText = ({ content }) => <div data-testid="rich-text">{content}</div>;
+    return MockRichText;
+});
 
 // Mock Lucide icons to avoid render issues (though usually fine, safer to mock if they cause trouble)
 // but for standard Jest environment they should be fine. We'll leave them be unless valid issues arise.

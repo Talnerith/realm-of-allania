@@ -19,7 +19,7 @@ export default function LandingPage({ onEnter }) {
       {/* Hero Section */}
       <div className="relative h-96 flex items-center justify-center bg-gradient-to-b from-amber-900/30 to-slate-950">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[url('https://i.pinimg.com/736x/66/be/0e/66be0eb14906bba8b9d1a97179b90d2f.jpg')] bg-cover bg-center opacity-20"></div>
+          <div className="absolute inset-0 bg-[url('/images/landing-hero.jpg')] bg-cover bg-center opacity-20"></div>
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
         </div>
 

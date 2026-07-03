@@ -23,6 +23,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
     const [replyContent, setReplyContent] = useState('');
     const [isSending, setIsSending] = useState(false);
     const [cooldown, setCooldown] = useState(false);
+    const [replyError, setReplyError] = useState(null);
 
     // Banner Edit State
     const [isEditingBanner, setIsEditingBanner] = useState(false);
@@ -63,35 +64,49 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
         const unsubThread = onSnapshot(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), (doc) => {
             if (doc.exists()) { setLiveThread({ id: doc.id, ...doc.data() }); }
             else { setView('region'); }
+        }, (error) => {
+            // Permission denied (e.g. thread was rejected while viewing) — leave
+            console.error("Thread listener error:", error);
+            setView('region');
         });
 
-        // OPTIMIZATION: Database-side sorting
-        const q = query(
-            collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'),
-            where('threadId', '==', thread.id),
-            orderBy('createdAt', 'asc') // Ensure you have an index for threadId + createdAt
-        );
-
-        const unsubPosts = onSnapshot(q, (snapshot) => {
-            const p = [];
-            snapshot.docs.forEach(d => {
-                const data = d.data();
-                // FILTER: Only show approved posts to everyone, pending/rejected to owner or mods
-                const isApprovedOrLegacy = data.status === 'approved' || !data.status;
-                const isOwnerOrMod = isAdminOrMod || (user && user.uid === data.userId);
-                
-                if (isApprovedOrLegacy || isOwnerOrMod) {
-                    p.push({ id: d.id, ...data });
-                }
-            });
-            // Fallback sort just in case (e.g. pending writes)
+        // Posts — security rules deny reading unapproved posts, so non-mods run
+        // a status-filtered query plus (when signed in) an own-posts query,
+        // merged by id. Mods query everything. Sorting stays database-side.
+        const postsRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts');
+        const results = { approved: [], mine: [] };
+        const publish = () => {
+            const byId = new Map();
+            [...results.approved, ...results.mine].forEach(p => byId.set(p.id, p));
+            const p = Array.from(byId.values());
             p.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
             setPosts(p);
-        }, (error) => {
-            console.error("Error fetching posts:", error);
-        });
+        };
+        const onPostsError = (error) => console.error("Error fetching posts:", error);
 
-        return () => { unsubThread(); unsubPosts(); };
+        const unsubs = [unsubThread];
+        if (isAdminOrMod) {
+            unsubs.push(onSnapshot(
+                query(postsRef, where('threadId', '==', thread.id), orderBy('createdAt', 'asc')),
+                (snap) => { results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() })); publish(); },
+                onPostsError
+            ));
+        } else {
+            unsubs.push(onSnapshot(
+                query(postsRef, where('threadId', '==', thread.id), where('status', '==', 'approved'), orderBy('createdAt', 'asc')),
+                (snap) => { results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() })); publish(); },
+                onPostsError
+            ));
+            if (user) {
+                unsubs.push(onSnapshot(
+                    query(postsRef, where('threadId', '==', thread.id), where('userId', '==', user.uid), orderBy('createdAt', 'asc')),
+                    (snap) => { results.mine = snap.docs.map(d => ({ id: d.id, ...d.data() })); publish(); },
+                    onPostsError
+                ));
+            }
+        }
+
+        return () => { unsubs.forEach(u => u()); };
     }, [thread, setView, isAdminOrMod, user]);
 
     // 3. Auto-Scroll on New Posts
@@ -122,10 +137,11 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
 
     const handleReply = useCallback(async () => {
         if (!user) return onRequireAuth();
-        if (!activeCharId) return alert("Please select a character from the roster before posting.");
-        if (replyContent.trim().length < 10) return alert("Post must be at least 10 characters.");
+        if (!activeCharId) return setReplyError("Select a character from the roster before posting.");
+        if (replyContent.trim().length < 10) return setReplyError("Post must be at least 10 characters.");
         if (cooldown) return;
 
+        setReplyError(null);
         setIsSending(true);
         const char = characters.find(c => c.id === activeCharId);
 
@@ -167,7 +183,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
 
         } catch (e) {
             console.error(e);
-            alert("Failed to post reply. Please check connection or limits.");
+            setReplyError("Failed to post reply. Please check your connection and try again.");
         } finally {
             setIsSending(false);
         }
@@ -218,15 +234,19 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
         if (!isAdminOrMod) { alert("Insufficient permissions."); return; }
         if (!window.confirm("Delete this ENTIRE thread?")) return;
         try {
-            // 1. Delete Thread Doc
-            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id));
-
-            // 2. Delete Posts Batch
+            // 1. Delete Posts first (thread doc last, so a failure doesn't
+            // orphan unreachable posts), chunked under Firestore's 500-op batch limit
             const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where("threadId", "==", thread.id));
             const snapshot = await getDocs(q);
-            const batch = writeBatch(db);
-            snapshot.docs.forEach((doc) => batch.delete(doc.ref));
-            await batch.commit();
+            const docs = snapshot.docs;
+            for (let i = 0; i < docs.length; i += 450) {
+                const batch = writeBatch(db);
+                docs.slice(i, i + 450).forEach((d) => batch.delete(d.ref));
+                await batch.commit();
+            }
+
+            // 2. Delete Thread Doc
+            await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id));
 
             // 3. CLEANUP: Delete Thread Banner if it exists
             if (liveThread.bannerUrl && liveThread.bannerUrl.includes('firebasestorage')) {
@@ -417,9 +437,14 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         </div>
 
                         <div className="flex-1 flex flex-col gap-3">
+                            {replyError && (
+                                <div className="text-red-400 text-xs bg-red-900/20 border border-red-900/40 rounded px-3 py-2" role="alert">
+                                    {replyError}
+                                </div>
+                            )}
                             <MarkdownEditor
                                 value={replyContent}
-                                onChange={(e) => setReplyContent(e.target.value)}
+                                onChange={(e) => { setReplyContent(e.target.value); if (replyError) setReplyError(null); }}
                                 placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
                                 minHeight="min-h-[60px]"
                                 onPost={handleReply}

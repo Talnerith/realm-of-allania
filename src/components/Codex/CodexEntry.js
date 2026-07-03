@@ -32,6 +32,10 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
     // Track session uploads for cleanup on cancel
     const [sessionUploads, setSessionUploads] = useState([]);
 
+    // Images removed from the gallery during this edit — deleted from Storage
+    // only when the edit is saved
+    const [pendingRemovals, setPendingRemovals] = useState([]);
+
     // Local copy to prevent flicker when saving
     const [localPage, setLocalPage] = useState(page);
 
@@ -61,8 +65,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
             title, category, content, gallery,
             updatedAt: serverTimestamp(),
             updatedBy: characters.find(c => c.id === activeCharId)?.name || 'Anonymous',
-            lastEditorId: user.uid,
-            status: status
+            lastEditorId: user.uid
         };
 
         try {
@@ -70,19 +73,28 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                 // Create
                 const ref = await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
                     ...pageData,
+                    status,
                     relatedId: localPage.relatedId || '',
                     creatorId: user.uid,
                     createdAt: serverTimestamp()
                 });
-                setLocalPage({ ...pageData, id: ref.id, updatedAt: { toDate: () => new Date() } });
+                setLocalPage({ ...pageData, status, id: ref.id, updatedAt: { toDate: () => new Date() } });
                 if (!isTrusted) {
                     alert("Your codex entry has been submitted for moderation. It will be reviewed shortly.");
                 }
             } else {
-                // Update
+                // Update — do NOT send status: security rules reject non-mod status
+                // changes (which broke regular users editing their approved pages);
+                // the moderation Cloud Function resets edited pages to pending itself
                 await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id), pageData);
                 setLocalPage(prev => ({ ...prev, ...pageData, updatedAt: { toDate: () => new Date() } }));
             }
+
+            // Now that the save committed, delete images removed during this edit
+            for (const url of pendingRemovals) {
+                try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Cleanup failed:", e); }
+            }
+            setPendingRemovals([]);
             setSessionUploads([]); // Clear session tracking on success
             setIsEditing(false);
         } catch (e) {
@@ -103,6 +115,10 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
         }
         setSessionUploads([]);
         setStagedUrl('');
+        // Discard staged edits: restore the gallery and drop pending removals
+        // (the files were never deleted, so the page stays intact)
+        setGallery(localPage.gallery || []);
+        setPendingRemovals([]);
         if (localPage.isNew) goBack(); else setIsEditing(false);
     };
 
@@ -164,12 +180,12 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
         }
     };
 
-    const removeImage = async (url) => {
-        // Remove from UI immediately
+    const removeImage = (url) => {
+        // Remove from UI immediately; defer the Storage delete until Save so
+        // Cancel doesn't leave the published page pointing at a deleted file
         setGallery(gallery.filter(u => u !== url));
-
         if (url.includes('firebasestorage')) {
-            try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Cleanup failed:", e); }
+            setPendingRemovals(prev => prev.includes(url) ? prev : [...prev, url]);
         }
     };
 

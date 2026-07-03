@@ -57,10 +57,15 @@ function parseInline(text, onWikiLink) {
         // IMAGE MATCH
         const imgMatch = part.match(/^!\[(.*?)\]\((.*?)\)$/);
         if (imgMatch) {
+            const src = imgMatch[2].trim();
+            // Only load http(s) URLs — blocks data:/javascript:/other schemes
+            if (!/^https?:\/\//i.test(src)) {
+                return <span key={idx}>{part}</span>;
+            }
             return (
                 <img
                     key={idx}
-                    src={imgMatch[2]}
+                    src={src}
                     alt={imgMatch[1]}
                     className="max-w-full h-auto rounded border border-slate-700 my-2 block"
                     onError={(e) => e.target.style.display = 'none'}

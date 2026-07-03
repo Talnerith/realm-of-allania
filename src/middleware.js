@@ -10,9 +10,13 @@ export function middleware(request) {
   response.headers.set('Referrer-Policy', 'origin-when-cross-origin');
   
   // Content Security Policy
+  // 'unsafe-eval' is only required by React Fast Refresh in development;
+  // production drops it. ('unsafe-inline' remains for Next.js inline
+  // bootstrap scripts — removing it requires nonce-based CSP.)
+  const isDev = process.env.NODE_ENV === 'development';
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.gstatic.com https://www.google.com",
+    `script-src 'self' ${isDev ? "'unsafe-eval' " : ''}'unsafe-inline' https://www.gstatic.com https://www.google.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",

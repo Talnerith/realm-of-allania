@@ -222,12 +222,12 @@ const ImageUploader = React.memo(function ImageUploader({
 export default ImageUploader;
 
 function resizeImage(file, maxWidth) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.onerror = () => reject(new Error('Could not read the selected file.'));
     reader.onload = (event) => {
       const img = new Image();
-      img.src = event.target.result;
+      img.onerror = () => reject(new Error('The selected file is not a valid image.'));
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let width = img.width;
@@ -240,9 +240,15 @@ function resizeImage(file, maxWidth) {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85);
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error('Image compression failed.')),
+          'image/jpeg',
+          0.85
+        );
       };
+      img.src = event.target.result;
     };
+    reader.readAsDataURL(file);
   });
 }
 

@@ -8,8 +8,9 @@ service cloud.firestore {
 
     // Helper to get current character count (default to 0 if missing)
     function getCharCount(userId) {
-       let data = get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data;
-       return data.keys().hasAny(['characterCount']) ? data.characterCount : 0;
+       return exists(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account)
+              ? get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data.get('characterCount', 0)
+              : 0;
     }
 
     // SAFE ROLE CHECK:
@@ -49,13 +50,20 @@ service cloud.firestore {
           allow read: if isOwner(userId) || isMod();
 
           // Admin Permissions (Strict Role Enforcement)
-          allow create: if isAdmin() && request.resource.data.role in ['user', 'moderator', 'admin', 'banned'];
-          allow update: if isAdmin() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role in ['user', 'moderator', 'admin', 'banned']);
+          allow create: if isAdmin() && request.resource.data.role in ['user', 'trusted', 'moderator', 'admin', 'banned'];
+          allow update: if isAdmin() && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']) || request.resource.data.role in ['user', 'trusted', 'moderator', 'admin', 'banned']);
           allow delete: if isAdmin();
 
-          // User Permissions
+          // User Permissions (characterCount may only move by 1 per write, so the
+          // 10-character cap can't be reset by writing an arbitrary low value)
           allow create: if isOwner(userId) && request.resource.data.role == 'user';
-          allow update: if isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']);
+          allow update: if isOwner(userId)
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role'])
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['characterCount'])
+                            || (request.resource.data.characterCount is int
+                                && request.resource.data.characterCount >= 0
+                                && request.resource.data.characterCount <= 10
+                                && (request.resource.data.characterCount - resource.data.get('characterCount', 0)) in [-1, 1]));
         }
 
         match /characters/{charId} {
@@ -84,12 +92,38 @@ service cloud.firestore {
         }
 
         match /threads/{threadId} {
-          allow read: if true;
-          allow create: if isSignedIn() && !isBanned() && isValidTitle(request.resource.data.title) && request.resource.data.regionId is string && request.resource.data.creatorId == request.auth.uid;
-          allow update: if isSignedIn() && !isBanned() 
-                        && (request.auth.uid == resource.data.creatorId || isMod()) 
-                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title)) 
-                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'createdAt'])
+          // Unapproved content is only visible to its author and mods.
+          // (Queries must filter status == 'approved' or creatorId == uid;
+          //  legacy docs without status are covered by the backfill script.)
+          allow read: if resource.data.status == 'approved'
+                      || !('status' in resource.data)
+                      || (isSignedIn() && request.auth.uid == resource.data.creatorId)
+                      || isMod();
+          allow create: if isSignedIn() && !isBanned()
+                        && isValidTitle(request.resource.data.title)
+                        && request.resource.data.regionId is string
+                        && request.resource.data.creatorId == request.auth.uid
+                        // Threads go through moderation like posts: only trusted+ may self-approve
+                        && (request.resource.data.status == 'pending' || (request.resource.data.status == 'approved' && isTrusted()))
+                        // Anti-impersonation: displayed author name must match one of
+                        // the caller's own characters
+                        && (!('createdBy' in request.resource.data)
+                            || (request.resource.data.characterId is string
+                                && request.resource.data.createdBy == get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/characters/$(request.resource.data.characterId)).data.name));
+
+          // Reply bump: any signed-in, non-banned user may update thread activity
+          // metadata when posting a reply (posts + this update commit as one batch)
+          allow update: if isSignedIn() && !isBanned()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt', 'postCount'])
+                        && request.resource.data.postCount is int
+                        && request.resource.data.postCount == resource.data.get('postCount', 0) + 1;
+
+          allow update: if isSignedIn() && !isBanned()
+                        && (request.auth.uid == resource.data.creatorId || isMod())
+                        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title))
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['creatorId', 'createdAt', 'createdBy', 'characterId'])
+                        // Moderation status may only be changed by mods (matches posts/codex)
+                        && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']))
                         // Sacred Texts: Only mods can toggle isLocked, and locked threads can only be edited by mods
                         && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isLocked']))
                         && (isMod() || resource.data.isLocked != true);
@@ -97,7 +131,11 @@ service cloud.firestore {
         }
 
         match /posts/{postId} {
-          allow read: if true;
+          // Unapproved content is only visible to its author and mods
+          allow read: if resource.data.status == 'approved'
+                      || !('status' in resource.data)
+                      || (isSignedIn() && request.auth.uid == resource.data.userId)
+                      || isMod();
           allow create: if isSignedIn() && !isBanned()
                         && isValidPostContent(request.resource.data.content)
                         && request.resource.data.threadId is string
@@ -105,10 +143,15 @@ service cloud.firestore {
                         && (
                              request.resource.data.status == 'pending' ||
                              (request.resource.data.status == 'approved' && isTrusted())
-                           );
+                           )
+                        // Anti-impersonation: displayed character name must match one of
+                        // the caller's own characters
+                        && (!('characterName' in request.resource.data)
+                            || (request.resource.data.characterId is string
+                                && request.resource.data.characterName == get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/characters/$(request.resource.data.characterId)).data.name));
           allow update: if isSignedIn() && !isBanned() && (request.auth.uid == resource.data.userId || isMod())
                         && isValidPostContent(request.resource.data.content)
-                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt', 'threadId'])
+                        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'createdAt', 'threadId', 'characterName', 'characterId'])
                         // Prevent users from editing status, but allow mods
                         && (isMod() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']))
                         // Sacred Texts: Only mods can toggle isLocked, and locked posts can only be edited by mods
@@ -118,7 +161,11 @@ service cloud.firestore {
         }
 
         match /codex_pages/{pageId} {
-          allow read: if true;
+          // Unapproved content is only visible to its author and mods
+          allow read: if resource.data.status == 'approved'
+                      || !('status' in resource.data)
+                      || (isSignedIn() && request.auth.uid == resource.data.creatorId)
+                      || isMod();
           allow create: if isSignedIn() && !isBanned() 
                         && request.resource.data.creatorId == request.auth.uid 
                         && request.resource.data.lastEditorId == request.auth.uid 
@@ -156,20 +203,36 @@ service cloud.firestore {
         allow create: if isSignedIn() && !isBanned()
                       && request.resource.data.participants is list
                       && request.resource.data.participants.size() == 2
-                      && request.auth.uid in request.resource.data.participants;
+                      && request.auth.uid in request.resource.data.participants
+                      && request.resource.data.lastMessage is string
+                      && request.resource.data.lastMessage.size() <= 2000
+                      // participantNames may only carry entries for the two participants
+                      && (!('participantNames' in request.resource.data)
+                          || (request.resource.data.participantNames is map
+                              && request.resource.data.participantNames.keys().hasOnly(request.resource.data.participants)));
 
-        allow read, update, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
+        allow read, delete: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants;
+
+        // Participants may only bump chat metadata (not rewrite participants/names)
+        allow update: if isSignedIn() && !isBanned() && request.auth.uid in resource.data.participants
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessage', 'updatedAt'])
+                      && request.resource.data.lastMessage is string
+                      && request.resource.data.lastMessage.size() <= 2000;
         match /messages/{messageId} {
            // Allow read/delete if participant
            allow read, delete: if isSignedIn() && !isBanned() && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants;
 
            // Strict creation: Must be participant + senderId matches + valid content
+           // + flood control: at most one message per second per chat (the chat
+           // doc's updatedAt is bumped with each send)
            allow create: if isSignedIn() && !isBanned()
                          && request.auth.uid in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.participants
                          && request.resource.data.senderId == request.auth.uid
                          && request.resource.data.text is string
                          && request.resource.data.text.size() > 0
-                         && request.resource.data.text.size() <= 2000;
+                         && request.resource.data.text.size() <= 2000
+                         && (!('updatedAt' in get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data)
+                             || request.time > get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/chats/$(chatId)).data.updatedAt + duration.value(1, 's'));
 
            // No updates allowed (immutability)
            allow update: if false;

@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import { Plus, Book, Loader, AlertCircle, BookLock } from 'lucide-react';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID, CATEGORIES } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
 
 function CodexIndex({ onOpenEntry }) {
-  const { userRole } = useGame();
+  const { user, userRole } = useGame();
   const [pages, setPages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,30 +14,52 @@ function CodexIndex({ onOpenEntry }) {
   const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
 
   useEffect(() => {
-      const q = query(
-          collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'),
-          orderBy('title', 'asc')
-      );
+      if (!db) {
+          // Defer to avoid synchronous setState inside the effect
+          Promise.resolve().then(() => { setLoading(false); setError("Codex unavailable."); });
+          return;
+      }
 
-      const unsub = onSnapshot(q, (snapshot) => {
-          let p = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-          
-          // Filter by status: only show approved for regular users
-          // Mods can see all
-          if (!isAdminOrMod) {
-              p = p.filter(page => page.status === 'approved' || !page.status); // Allow legacy pages without status
-          }
-          
+      // Security rules deny reading unapproved pages, so non-mods run a
+      // status-filtered query plus (when signed in) an own-pages query,
+      // merged by id. Mods query everything.
+      const pagesRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages');
+      const results = { approved: [], mine: [] };
+      const publish = () => {
+          const byId = new Map();
+          [...results.approved, ...results.mine].forEach(p => byId.set(p.id, p));
+          const p = Array.from(byId.values());
+          p.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
           setPages(p);
           setLoading(false);
-      }, (err) => {
+      };
+      const onCodexError = (err) => {
           console.error("Codex Error:", err);
           setError("Failed to load Codex entries.");
           setLoading(false);
-      });
+      };
 
-      return () => unsub();
-  }, [isAdminOrMod]);
+      const unsubs = [];
+      if (isAdminOrMod) {
+          unsubs.push(onSnapshot(query(pagesRef, orderBy('title', 'asc'), limit(500)), (snapshot) => {
+              results.approved = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              publish();
+          }, onCodexError));
+      } else {
+          unsubs.push(onSnapshot(query(pagesRef, where('status', '==', 'approved'), orderBy('title', 'asc'), limit(500)), (snapshot) => {
+              results.approved = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+              publish();
+          }, onCodexError));
+          if (user) {
+              unsubs.push(onSnapshot(query(pagesRef, where('creatorId', '==', user.uid), orderBy('title', 'asc'), limit(500)), (snapshot) => {
+                  results.mine = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+                  publish();
+              }, onCodexError));
+          }
+      }
+
+      return () => unsubs.forEach(u => u());
+  }, [isAdminOrMod, user]);
 
   // OPTIMIZATION: Memoize the categorization logic.
   // This prevents rebuilding the entire category structure on every render.

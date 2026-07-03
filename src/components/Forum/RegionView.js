@@ -1,7 +1,7 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import {
-  collection, query, addDoc, onSnapshot, doc, setDoc,
-  serverTimestamp, where
+  collection, query, onSnapshot, doc, setDoc,
+  serverTimestamp, where, writeBatch, orderBy, limit
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
@@ -37,9 +37,15 @@ function RegionView({ region, setView, setActiveThread }) {
   const [sessionUploads, setSessionUploads] = useState([]);
   const [cooldown, setCooldown] = useState(false);
   const [cleanupError, setCleanupError] = useState(null);
+  const [createError, setCreateError] = useState(null);
+
+  // Ref mirror so the snapshot callback sees the current edit state without
+  // the main effect re-subscribing both listeners on every rename toggle
+  const isEditingNameRef = useRef(isEditingName);
+  useEffect(() => { isEditingNameRef.current = isEditingName; }, [isEditingName]);
 
   useEffect(() => {
-    if (!region || region.id === undefined) return;
+    if (!region || region.id === undefined || !db) return;
 
     // 1. Metadata Query (Single Doc)
     const metaRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'region_metadata', region.id.toString());
@@ -48,41 +54,52 @@ function RegionView({ region, setView, setActiveThread }) {
         const data = docSnap.data();
         setRegionMetadata(data);
         // Only update nameInput if we're not currently editing
-        setNameInput(prev => isEditingName ? prev : (data.name || region.name));
+        setNameInput(prev => isEditingNameRef.current ? prev : (data.name || region.name));
       } else {
         setRegionMetadata({ bannerUrl: '' });
-        setNameInput(prev => isEditingName ? prev : region.name);
+        setNameInput(prev => isEditingNameRef.current ? prev : region.name);
       }
     });
 
-    // 2. Threads Query
-    const q = query(
-      collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'),
-      where('regionId', '==', region.id.toString())
-    );
-
+    // 2. Threads Queries — security rules deny reading unapproved threads, so
+    // non-mods run a status-filtered query plus (when signed in) an
+    // own-threads query, merged by id. Mods query everything.
     const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
     const userId = user?.uid;
+    const rid = region.id.toString();
+    const threadsRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads');
 
-    const unsubThreads = onSnapshot(q, (snapshot) => {
-      const t = [];
-
-      snapshot.docs.forEach(d => {
-        const data = d.data();
-        // FILTER: Only show approved threads to everyone, pending/rejected to owner or mods
-        const isApprovedOrLegacy = data.status === 'approved' || !data.status;
-        const isOwnerOrMod = isAdminOrMod || (userId && userId === data.creatorId);
-        
-        if (isApprovedOrLegacy || isOwnerOrMod) {
-          t.push({ id: d.id, ...data });
-        }
-      });
+    const results = { approved: [], mine: [] };
+    const publish = () => {
+      const byId = new Map();
+      [...results.approved, ...results.mine].forEach(t => byId.set(t.id, t));
+      const t = Array.from(byId.values());
       t.sort((a, b) => (b.updatedAt?.toMillis() || 0) - (a.updatedAt?.toMillis() || 0));
       setThreads(t);
-    });
+    };
+    const onThreadsError = (error) => console.error("Threads listener error:", error);
 
-    return () => { unsubMeta(); unsubThreads(); };
-  }, [region, userRole, user?.uid, isEditingName]);
+    const unsubs = [];
+    if (isAdminOrMod) {
+      unsubs.push(onSnapshot(query(threadsRef, where('regionId', '==', rid), orderBy('updatedAt', 'desc'), limit(100)), (snap) => {
+        results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        publish();
+      }, onThreadsError));
+    } else {
+      unsubs.push(onSnapshot(query(threadsRef, where('regionId', '==', rid), where('status', '==', 'approved'), orderBy('updatedAt', 'desc'), limit(100)), (snap) => {
+        results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        publish();
+      }, onThreadsError));
+      if (userId) {
+        unsubs.push(onSnapshot(query(threadsRef, where('regionId', '==', rid), where('creatorId', '==', userId), orderBy('updatedAt', 'desc'), limit(100)), (snap) => {
+          results.mine = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          publish();
+        }, onThreadsError));
+      }
+    }
+
+    return () => { unsubMeta(); unsubs.forEach(u => u()); };
+  }, [region, userRole, user?.uid]);
 
   const handleSaveBanner = async (url, position) => {
     if (!region) return;
@@ -109,20 +126,27 @@ function RegionView({ region, setView, setActiveThread }) {
   };
 
   const handleCreateThread = async () => {
-    if (!activeCharId) return alert("Please select a character before creating a thread.");
-    if (!newTitle || newTitle.length < 3) return alert("Title must be at least 3 characters.");
-    if (!newContent || newContent.length < 10) return alert("Content must be at least 10 characters.");
+    if (!activeCharId) return setCreateError("Select a character before creating a thread.");
+    if (!newTitle || newTitle.length < 3) return setCreateError("Title must be at least 3 characters.");
+    if (!newContent || newContent.length < 10) return setCreateError("Content must be at least 10 characters.");
     if (cooldown) return;
 
+    setCreateError(null);
     setCooldown(true);
     const char = characters.find(c => c.id === activeCharId);
     const currentRegionName = regionMetadata?.name || region.name;
 
     try {
-      const threadRef = await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'), {
+      // ATOMIC: thread + first post + receipt (+ codex) commit together, so a
+      // partial failure can't leave an empty thread behind
+      const batch = writeBatch(db);
+
+      const threadRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'threads'));
+      batch.set(threadRef, {
         regionId: region.id.toString(),
         title: newTitle,
         createdBy: char.name,
+        characterId: char.id, // rules verify createdBy against this character
         creatorId: user.uid,
         bannerUrl: newBanner.url,
         bannerPosition: newBanner.position,
@@ -131,7 +155,9 @@ function RegionView({ region, setView, setActiveThread }) {
         postCount: 1,
         status: 'pending' // Default status
       });
-      await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), {
+
+      const postRef = doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'));
+      batch.set(postRef, {
         threadId: threadRef.id,
         content: newContent,
         characterName: char.name,
@@ -144,10 +170,11 @@ function RegionView({ region, setView, setActiveThread }) {
         createdAt: serverTimestamp(),
         status: 'pending' // Default status
       });
-      await setDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', threadRef.id), { lastRead: serverTimestamp() });
+
+      batch.set(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'readReceipts', threadRef.id), { lastRead: serverTimestamp() });
 
       if (createCodexEntry) {
-        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
+        batch.set(doc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages')), {
           title: `Lore: ${currentRegionName}`,
           category: 'Regions',
           content: `Tales from **${currentRegionName}**...\n\nStarted by ${char.name}.\n\n${newContent}`,
@@ -160,11 +187,13 @@ function RegionView({ region, setView, setActiveThread }) {
           status: 'pending'
         });
       }
+
+      await batch.commit();
       setSessionUploads([]); // Clear session tracking on success
       setNewTitle(''); setNewContent(''); setNewBanner({ url: '', position: 'center' }); setIsCreating(false);
     } catch (e) {
       console.error("Error creating thread:", e);
-      alert("Failed to create thread.");
+      setCreateError("Failed to create thread. Please check your connection and try again.");
     } finally {
       setTimeout(() => setCooldown(false), 2000);
     }
@@ -195,6 +224,7 @@ function RegionView({ region, setView, setActiveThread }) {
     
     setSessionUploads([]);
     setNewTitle(''); setNewContent(''); setNewBanner({ url: '', position: 'center' });
+    setCreateError(null);
     setIsCreating(false);
   };
 
@@ -292,6 +322,11 @@ function RegionView({ region, setView, setActiveThread }) {
         {isCreating && (
           <div className="bg-slate-900/80 p-6 rounded-lg border border-amber-900 mb-8 backdrop-blur-sm">
             <h3 className="text-amber-100 font-bold mb-4">Post a New Topic</h3>
+            {createError && (
+              <div className="mb-4 text-red-400 text-sm bg-red-900/20 border border-red-900/40 rounded px-3 py-2" role="alert">
+                {createError}
+              </div>
+            )}
             <input className="w-full bg-slate-950 border border-slate-700 rounded p-3 text-slate-100 mb-4 focus:border-amber-500 focus:outline-none" placeholder="Thread Title (Min 3 chars)..." value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
 
             <div className="mb-4 bg-slate-950 p-4 rounded border border-slate-800">
