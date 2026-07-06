@@ -15,7 +15,7 @@ const APP_ID = 'realm-of-allania-v2';
 // OpenRouter model configuration
 // Use standard model (not :free suffix) to ensure proper routing with paid API keys
 // The :free suffix routes through free-tier infrastructure with stricter rate limits
-const OPENROUTER_MODEL = "google/gemini-2.5-flash";
+const OPENROUTER_MODEL = "google/gemini-3.1-flash-lite";
 
 // Export for testing (allows verification of config values sent to third-party APIs)
 module.exports.OPENROUTER_MODEL = OPENROUTER_MODEL;
@@ -858,7 +858,7 @@ exports.moderateImage = onObjectFinalized(
 
             console.log(`[Image Mod] Got signed URL, calling Gemini Vision...`);
 
-            // Call Gemini 2.5 Flash with Vision
+            // Call Gemini 3.1 Flash Lite with Vision
             const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
                 headers: {

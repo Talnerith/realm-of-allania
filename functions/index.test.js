@@ -140,7 +140,7 @@ describe('OpenRouter API Integration', () => {
                         "X-Title": "Realm of Aethelraed Moderation"
                     },
                     body: JSON.stringify({
-                        model: "google/gemini-2.5-flash",
+                        model: "google/gemini-3.1-flash-lite",
                         messages: [
                             {
                                 role: "system",
@@ -295,7 +295,7 @@ describe('OpenRouter API Integration', () => {
                         "X-Title": "Realm of Aethelraed Moderation"
                     },
                     body: JSON.stringify({
-                        model: "google/gemini-2.5-flash",
+                        model: "google/gemini-3.1-flash-lite",
                         messages: [
                             { role: "system", content: systemPrompts[contentType] || systemPrompts.post },
                             { role: "user", content: `Please moderate this ${contentType} content:\n\n${content}` }
