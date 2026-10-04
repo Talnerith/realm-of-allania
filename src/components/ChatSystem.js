@@ -249,20 +249,20 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
 
     return (
         // FIX: Adjusted layout for mobile (inset-0) vs desktop (bottom-20 right-4 w-96)
-        <div className={`fixed z-50 flex flex-col bg-slate-900 border border-amber-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto ${isOpen ? '' : 'hidden'}`}>
-            <div className="bg-slate-950 p-3 border-b border-slate-800 flex justify-between items-center shrink-0">
+        <div className={`fixed z-50 flex flex-col bg-ink-900 border border-gold-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto ${isOpen ? '' : 'hidden'}`}>
+            <div className="bg-ink-950 p-3 border-b border-ink-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                     {activeChatId && (
                         <button
                             onClick={() => setActiveChatId(null)}
-                            className="text-slate-400 hover:text-white mr-1"
+                            className="text-ink-400 hover:text-white mr-1"
                             aria-label="Back to chat list"
                         >
                             <ChevronLeft className="w-5 h-5" />
                         </button>
                     )}
-                    <MessageCircle className="w-5 h-5 text-amber-500" />
-                    <h3 className="font-serif font-bold text-amber-100 truncate max-w-[150px]">
+                    <MessageCircle className="w-5 h-5 text-gold-500" />
+                    <h3 className="font-serif font-bold text-gold-100 truncate max-w-[150px]">
                         {activeChatId
                             ? (chats.find(c => c.id === activeChatId)?.participantNames?.[chats.find(c => c.id === activeChatId)?.participants.find(p => p !== user.uid)] || 'Chat')
                             : 'Messages'
@@ -274,7 +274,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     {activeChatId && (
                         <button
                             onClick={deleteChat}
-                            className="text-slate-600 hover:text-red-500 mr-2"
+                            className="text-ink-600 hover:text-red-500 mr-2"
                             title="Delete Chat Forever"
                             aria-label="Delete chat forever"
                         >
@@ -283,7 +283,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     )}
                     <button
                         onClick={onClose}
-                        className="text-slate-500 hover:text-white"
+                        className="text-ink-500 hover:text-white"
                         aria-label="Close chat window"
                     >
                         <X className="w-5 h-5" />
@@ -291,11 +291,11 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-900/50">
+            <div className="flex-1 overflow-y-auto custom-scrollbar bg-ink-900/50">
                 {!activeChatId ? (
                     <div className="p-2">
                         {chats.length === 0 ? (
-                            <div className="text-center py-8 text-slate-500 text-sm p-4">
+                            <div className="text-center py-8 text-ink-500 text-sm p-4">
                                 <p>No messages yet.</p>
                                 <p className="mt-2 text-xs">Visit a thread and click a user&apos;s avatar to send them a message.</p>
                             </div>
@@ -327,13 +327,13 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
             </div>
 
             {activeChatId && (
-                <form onSubmit={sendMessage} className="p-3 bg-slate-950 border-t border-slate-800 shrink-0 flex flex-col gap-2 pb-safe">
+                <form onSubmit={sendMessage} className="p-3 bg-ink-950 border-t border-ink-800 shrink-0 flex flex-col gap-2 pb-safe">
                     {sendError && (
                         <div className="text-red-400 text-xs px-1" role="alert">{sendError}</div>
                     )}
                     <div className="flex gap-2">
                     <input
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded px-3 py-2 text-sm focus:border-amber-500 focus:outline-none text-white placeholder:text-slate-600"
+                        className="flex-1 bg-ink-900 border border-ink-700 rounded px-3 py-2 text-sm focus:border-gold-500 focus:outline-none text-white placeholder:text-ink-600"
                         placeholder={cooldown ? "Slow down..." : "Type a message..."}
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
@@ -343,7 +343,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     <button
                         type="submit"
                         disabled={isSending || cooldown}
-                        className="p-2 bg-amber-700 hover:bg-amber-600 text-white rounded disabled:opacity-50 transition-opacity"
+                        className="p-2 bg-gold-700 hover:bg-gold-600 text-white rounded disabled:opacity-50 transition-opacity"
                         aria-label={isSending ? "Sending message" : "Send message"}
                     >
                         {isSending ? <Loader className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

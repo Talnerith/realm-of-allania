@@ -1,4 +1,5 @@
 import React from 'react';
+import { isHostedImageUrl } from '@/lib/imageUrls';
 
 // A lightweight Markdown parser for "Vibe Coding"
 // Supports: **bold**, *italic*, __underline__, > quotes, ![img](url), [[WikiLink]], and line breaks.
@@ -14,7 +15,7 @@ const RichText = React.memo(function RichText({ content, className = "", onWikiL
                 // Handle Blockquotes
                 if (line.startsWith('> ')) {
                     return (
-                        <blockquote key={i} className="border-l-4 border-amber-600/50 pl-4 italic text-slate-400 bg-slate-900/30 py-1">
+                        <blockquote key={i} className="border-l-4 border-gold-600/50 pl-4 italic text-ink-400 bg-ink-900/30 py-1">
                             {parseInline(line.substring(2), onWikiLink)}
                         </blockquote>
                     );
@@ -58,16 +59,17 @@ function parseInline(text, onWikiLink) {
         const imgMatch = part.match(/^!\[(.*?)\]\((.*?)\)$/);
         if (imgMatch) {
             const src = imgMatch[2].trim();
-            // Only load http(s) URLs — blocks data:/javascript:/other schemes
-            if (!/^https?:\/\//i.test(src)) {
-                return <span key={idx}>{part}</span>;
+            // Only images hosted in our Storage are shown (moderated, and no
+            // viewer IPs leak to outside hosts). Others show as a labelled stub.
+            if (!isHostedImageUrl(src)) {
+                return <span key={idx} className="text-ink-500 italic">[image{imgMatch[1] ? `: ${imgMatch[1]}` : ''}]</span>;
             }
             return (
                 <img
                     key={idx}
                     src={src}
                     alt={imgMatch[1]}
-                    className="max-w-full h-auto rounded border border-slate-700 my-2 block"
+                    className="max-w-full h-auto rounded border border-ink-700 my-2 block"
                     onError={(e) => e.target.style.display = 'none'}
                 />
             );
@@ -84,7 +86,7 @@ function parseInline(text, onWikiLink) {
                 <button
                     key={idx}
                     onClick={(e) => { e.stopPropagation(); if (onWikiLink) onWikiLink(target.trim()); }}
-                    className="text-amber-400 hover:text-amber-200 hover:underline font-bold decoration-amber-500/30 decoration-2 underline-offset-2 transition-colors inline-block"
+                    className="text-gold-400 hover:text-gold-200 hover:underline font-bold decoration-gold-500/30 decoration-2 underline-offset-2 transition-colors inline-block"
                     title={`Go to: ${target}`}
                 >
                     {display.trim()}
@@ -103,13 +105,13 @@ function parseFormatting(text) {
 
     return tokens.map((token, i) => {
         if (token.startsWith('**') && token.endsWith('**')) {
-            return <strong key={i} className="text-amber-100 font-bold">{token.slice(2, -2)}</strong>;
+            return <strong key={i} className="text-gold-100 font-bold">{token.slice(2, -2)}</strong>;
         }
         if (token.startsWith('__') && token.endsWith('__')) {
-            return <u key={i} className="decoration-amber-500/50 underline-offset-4">{token.slice(2, -2)}</u>;
+            return <u key={i} className="decoration-gold-500/50 underline-offset-4">{token.slice(2, -2)}</u>;
         }
         if (token.startsWith('*') && token.endsWith('*')) {
-            return <em key={i} className="text-amber-200/80">{token.slice(1, -1)}</em>;
+            return <em key={i} className="text-gold-200/80">{token.slice(1, -1)}</em>;
         }
         return token;
     });

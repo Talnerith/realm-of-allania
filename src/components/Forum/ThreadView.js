@@ -15,6 +15,7 @@ import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import PostItem from '@/components/Forum/PostItem';
 import { memo } from 'react';
+import { hostedImageUrl } from '@/lib/imageUrls';
 
 function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, onMessageUser, onRequireAuth, onWikiLink }) {
     const { user, userRole, characters, activeCharId } = useGame();
@@ -204,10 +205,17 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
         if (!editingPostId || !editPostContent.trim()) return;
         if (editPostContent.length < 10) return alert("Content too short.");
         try {
-            await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', editingPostId), { content: editPostContent, isEdited: true, editedAt: serverTimestamp() });
+            // Non-mod edits go back to 'pending' (the rules require it) so the
+            // moderation function checks the new text before others see it
+            await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'posts', editingPostId), {
+                content: editPostContent,
+                isEdited: true,
+                editedAt: serverTimestamp(),
+                ...(!isAdminOrMod && { status: 'pending' })
+            });
             setEditingPostId(null); setEditPostContent('');
         } catch (e) { console.error(e); }
-    }, [editingPostId, editPostContent]);
+    }, [editingPostId, editPostContent, isAdminOrMod]);
 
     const handleEditCancel = useCallback(() => {
         setEditingPostId(null);
@@ -294,16 +302,16 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
         } catch (e) { console.error(e); alert("Failed to update role."); }
     };
 
-    if (!liveThread) return <div className="h-full flex items-center justify-center text-slate-500"><Loader className="animate-spin mr-2" /> Loading...</div>;
+    if (!liveThread) return <div className="h-full flex items-center justify-center text-ink-500"><Loader className="animate-spin mr-2" /> Loading...</div>;
 
-    const threadBanner = liveThread.bannerUrl || null;
+    const threadBanner = hostedImageUrl(liveThread.bannerUrl) || null;
     const bannerPos = liveThread.bannerPosition || 'center';
 
     return (
-        <div ref={scrollContainerRef} className="h-full overflow-y-auto custom-scrollbar bg-slate-900 pb-80">
+        <div ref={scrollContainerRef} className="h-full overflow-y-auto custom-scrollbar bg-ink-900 pb-80">
             {/* Thread Banner */}
             {threadBanner && (
-                <div className="relative w-full h-64 md:h-96 bg-slate-900 border-b border-amber-900/50 overflow-hidden shrink-0 group">
+                <div className="relative w-full h-64 md:h-96 bg-ink-900 border-b border-gold-900/50 overflow-hidden shrink-0 group">
                     <img
                         src={threadBanner}
                         alt="Thread banner"
@@ -311,19 +319,19 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         style={{ objectPosition: bannerPos }}
                         onError={(e) => e.target.style.display = 'none'}
                     />
-                    <div className="absolute inset-0 bg-linear-to-t from-slate-950 to-transparent" />
+                    <div className="absolute inset-0 bg-linear-to-t from-ink-950 to-transparent" />
                     {canEditBanner && (
-                        <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="absolute top-4 right-4 p-2 bg-black/60 text-white hover:text-amber-500 rounded-full border border-white/20 transition-all opacity-0 group-hover:opacity-100"><Edit3 className="w-4 h-4" /></button>
+                        <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="absolute top-4 right-4 p-2 bg-black/60 text-white hover:text-gold-500 rounded-full border border-white/20 transition-all opacity-0 group-hover:opacity-100"><Edit3 className="w-4 h-4" /></button>
                     )}
                 </div>
             )}
 
             {isEditingBanner && (
-                <div className="bg-slate-900 border-b border-amber-900/30 p-4 animate-in slide-in-from-top-2 relative z-30">
+                <div className="bg-ink-900 border-b border-gold-900/30 p-4 animate-in slide-in-from-top-2 relative z-30">
                     <div className="max-w-4xl mx-auto space-y-2">
                         <div className="flex justify-between items-center mb-2">
-                            <h4 className="text-amber-500 font-bold text-xs uppercase">Edit Thread Banner</h4>
-                            <button onClick={() => setIsEditingBanner(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+                            <h4 className="text-gold-500 font-bold text-xs uppercase">Edit Thread Banner</h4>
+                            <button onClick={() => setIsEditingBanner(false)} className="text-ink-400 hover:text-white"><X className="w-4 h-4" /></button>
                         </div>
                         <ImageUploader
                             initialUrl={liveThread.bannerUrl}
@@ -336,7 +344,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                 </div>
             )}
 
-            <div className={`flex items-center gap-4 px-4 md:px-8 py-6 ${threadBanner ? 'relative -mt-20 z-10' : 'sticky top-0 bg-slate-950/95 backdrop-blur-md z-20 border-b border-slate-800'}`}>
+            <div className={`flex items-center gap-4 px-4 md:px-8 py-6 ${threadBanner ? 'relative -mt-20 z-10' : 'sticky top-0 bg-ink-950/95 backdrop-blur-md z-20 border-b border-ink-800'}`}>
                 <button
                     onClick={() => {
                         if (region) {
@@ -346,23 +354,23 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                             onNavigateToRegion({ id: liveThread.regionId, name: 'Loading...' });
                         }
                     }}
-                    className={`flex items-center gap-1 ${threadBanner ? "bg-black/50 px-3 py-1 rounded hover:bg-black/70 text-white border-none" : "text-slate-400 hover:text-white"}`}
+                    className={`flex items-center gap-1 ${threadBanner ? "bg-black/50 px-3 py-1 rounded hover:bg-black/70 text-white border-none" : "text-ink-400 hover:text-white"}`}
                 >
                     <ChevronLeft className="w-5 h-5" /> Back
                 </button>
                 <div className="flex-1">
                     <div className="flex items-center gap-3">
-                        <h1 className={`text-2xl md:text-3xl font-serif font-bold ${threadBanner ? 'text-white drop-shadow-lg' : 'text-amber-100'}`}>{liveThread.title}</h1>
+                        <h1 className={`text-2xl md:text-3xl font-serif font-bold ${threadBanner ? 'text-white drop-shadow-lg' : 'text-gold-100'}`}>{liveThread.title}</h1>
                         {isThreadLocked && (
-                            <span className="flex items-center gap-1 px-2 py-1 bg-amber-900/30 border border-amber-700/50 rounded text-amber-400 text-xs font-bold" title="Sacred Text - Locked">
+                            <span className="flex items-center gap-1 px-2 py-1 bg-gold-900/30 border border-gold-700/50 rounded text-gold-400 text-xs font-bold" title="Sacred Text - Locked">
                                 <BookLock className="w-3.5 h-3.5" /> Sacred Text
                             </span>
                         )}
-                        {!threadBanner && canEditBanner && <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="text-slate-500 hover:text-amber-500"><Edit3 className="w-4 h-4" /></button>}
+                        {!threadBanner && canEditBanner && <button onClick={() => setIsEditingBanner(!isEditingBanner)} className="text-ink-500 hover:text-gold-500"><Edit3 className="w-4 h-4" /></button>}
                         {canLockThread && (
                             <button 
                                 onClick={handleToggleLock} 
-                                className={`${isThreadLocked ? 'text-amber-500 hover:text-amber-400' : 'text-slate-600 hover:text-amber-500'}`} 
+                                className={`${isThreadLocked ? 'text-gold-500 hover:text-gold-400' : 'text-ink-600 hover:text-gold-500'}`} 
                                 title={isThreadLocked ? "Unlock Thread" : "Lock as Sacred Text"}
                             >
                                 {isThreadLocked ? <Unlock className="w-5 h-5" /> : <Lock className="w-5 h-5" />}
@@ -370,7 +378,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         )}
                         {canDeleteThread && <button onClick={handleDeleteThread} className="text-red-900/50 hover:text-red-500" title="Delete Thread"><Trash2 className="w-5 h-5" /></button>}
                     </div>
-                    <div className={`flex items-center gap-2 text-sm ${threadBanner ? 'text-amber-200/80' : 'text-amber-600/60'}`}><MapIcon className="w-3 h-3" /> {region ? region.name : 'Unknown Region'}</div>
+                    <div className={`flex items-center gap-2 text-sm ${threadBanner ? 'text-gold-200/80' : 'text-gold-600/60'}`}><MapIcon className="w-3 h-3" /> {region ? region.name : 'Unknown Region'}</div>
                 </div>
             </div>
 
@@ -403,23 +411,23 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
             {/* ADMIN ROLE MANAGER */}
             {managingUser && (
                 <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
-                    <div className="bg-slate-900 border border-amber-900 rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
-                        <button onClick={() => setManagingUser(null)} className="absolute top-4 right-4 text-slate-500 hover:text-white"><X className="w-5 h-5" /></button>
-                        <div className="flex items-center gap-3 mb-4 text-amber-500"><Gavel className="w-8 h-8" /><h3 className="text-xl font-bold font-serif">Admin Court</h3></div>
-                        <p className="text-slate-300 mb-6">Managing access for <span className="font-bold text-white">{managingUser.name}</span>.</p>
+                    <div className="bg-ink-900 border border-gold-900 rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
+                        <button onClick={() => setManagingUser(null)} className="absolute top-4 right-4 text-ink-500 hover:text-white"><X className="w-5 h-5" /></button>
+                        <div className="flex items-center gap-3 mb-4 text-gold-500"><Gavel className="w-8 h-8" /><h3 className="text-xl font-bold font-serif">Admin Court</h3></div>
+                        <p className="text-ink-300 mb-6">Managing access for <span className="font-bold text-white">{managingUser.name}</span>.</p>
 
-                        <div className="mb-6 p-3 bg-slate-950 border border-slate-800 rounded flex items-center justify-between">
-                            <span className="text-sm text-slate-500 uppercase font-bold">Current Status:</span>
-                            {managingUserRole === null ? (<span className="flex items-center gap-2 text-slate-400 text-sm"><Loader className="w-3 h-3 animate-spin" /> Checking...</span>) : (
-                                <span className={`text-sm font-bold uppercase ${managingUserRole === 'admin' ? 'text-red-400' : managingUserRole === 'moderator' ? 'text-indigo-400' : managingUserRole === 'banned' ? 'text-slate-600 line-through' : 'text-emerald-400'}`}>{managingUserRole}</span>
+                        <div className="mb-6 p-3 bg-ink-950 border border-ink-800 rounded flex items-center justify-between">
+                            <span className="text-sm text-ink-500 uppercase font-bold">Current Status:</span>
+                            {managingUserRole === null ? (<span className="flex items-center gap-2 text-ink-400 text-sm"><Loader className="w-3 h-3 animate-spin" /> Checking...</span>) : (
+                                <span className={`text-sm font-bold uppercase ${managingUserRole === 'admin' ? 'text-red-400' : managingUserRole === 'moderator' ? 'text-indigo-400' : managingUserRole === 'banned' ? 'text-ink-600 line-through' : 'text-emerald-400'}`}>{managingUserRole}</span>
                             )}
                         </div>
 
                         <div className="space-y-2">
-                            <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 flex justify-between items-center group"><span>User (Default)</span><User className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
+                            <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-white border border-ink-700 flex justify-between items-center group"><span>User (Default)</span><User className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
                             <button onClick={() => handleUpdateRole('moderator')} className="w-full text-left px-4 py-3 rounded bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-900/50 flex justify-between items-center group"><span>Moderator</span><Shield className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
-                            <button onClick={() => handleUpdateRole('admin')} className="w-full text-left px-4 py-3 rounded bg-amber-900/30 hover:bg-amber-900/50 text-amber-300 border border-amber-900/50 flex justify-between items-center group"><span>Administrator</span><ShieldAlert className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
-                            <div className="h-px bg-slate-800 my-2"></div>
+                            <button onClick={() => handleUpdateRole('admin')} className="w-full text-left px-4 py-3 rounded bg-gold-900/30 hover:bg-gold-900/50 text-gold-300 border border-gold-900/50 flex justify-between items-center group"><span>Administrator</span><ShieldAlert className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
+                            <div className="h-px bg-ink-800 my-2"></div>
                             <button onClick={() => handleUpdateRole('banned')} className="w-full text-left px-4 py-3 rounded bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-900/50 flex justify-between items-center group"><span>Ban User</span><Gavel className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
                         </div>
                     </div>
@@ -429,11 +437,11 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
             {/* Reply Box - FIXED FOR GUEST */}
             <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-4 z-30 transition-all">
                 {user ? (
-                    <div className="max-w-4xl mx-auto flex gap-4 items-end bg-slate-950/90 backdrop-blur-md border border-amber-900/30 p-3 rounded-xl shadow-2xl">
-                        <div className="hidden md:block w-12 h-12 bg-slate-800 rounded border border-slate-700 shrink-0 overflow-hidden relative">
+                    <div className="max-w-4xl mx-auto flex gap-4 items-end bg-ink-950/90 backdrop-blur-md border border-gold-900/30 p-3 rounded-xl shadow-2xl">
+                        <div className="hidden md:block w-12 h-12 bg-ink-800 rounded border border-ink-700 shrink-0 overflow-hidden relative">
                             {activeCharId && characters.find(c => c.id === activeCharId) ? (
-                                <><img src={characters.find(c => c.id === activeCharId).imageUrl || ''} alt="Character avatar" className="w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => e.target.style.display = 'none'} /><div className="absolute inset-0 flex items-center justify-center font-bold text-amber-500 bg-slate-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0, 1)}</div></>
-                            ) : <div className="w-full h-full flex items-center justify-center text-slate-600"><Ghost className="w-6 h-6" /></div>}
+                                <><img src={hostedImageUrl(characters.find(c => c.id === activeCharId).imageUrl)} alt="Character avatar" className="w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => e.target.style.display = 'none'} /><div className="absolute inset-0 flex items-center justify-center font-bold text-gold-500 bg-ink-800 -z-10">{characters.find(c => c.id === activeCharId).name.substring(0, 1)}</div></>
+                            ) : <div className="w-full h-full flex items-center justify-center text-ink-600"><Ghost className="w-6 h-6" /></div>}
                         </div>
 
                         <div className="flex-1 flex flex-col gap-3">
@@ -458,14 +466,14 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                     </div>
                 ) : (
                     /* GUEST CALL TO ACTION */
-                    <div className="max-w-xl mx-auto bg-slate-900/90 backdrop-blur-md border border-amber-900/50 p-4 rounded-xl shadow-2xl flex items-center justify-between">
+                    <div className="max-w-xl mx-auto bg-ink-900/90 backdrop-blur-md border border-gold-900/50 p-4 rounded-xl shadow-2xl flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <Lock className="w-5 h-5 text-amber-500" />
-                            <p className="text-slate-300 text-sm">Join the chronicles to reply.</p>
+                            <Lock className="w-5 h-5 text-gold-500" />
+                            <p className="text-ink-300 text-sm">Join the chronicles to reply.</p>
                         </div>
                         <button
                             onClick={onRequireAuth}
-                            className="bg-amber-700 hover:bg-amber-600 text-white px-4 py-2 rounded text-sm font-bold shadow-lg"
+                            className="bg-gold-700 hover:bg-gold-600 text-white px-4 py-2 rounded text-sm font-bold shadow-lg"
                         >
                             Login / Signup
                         </button>

@@ -14,28 +14,28 @@ import LandingPage from '@/components/LandingPage';
 
 // Heavy components - lazy loaded for better performance
 const AuthScreen = dynamic(() => import('@/components/AuthScreen'), {
-  loading: () => <div className="flex items-center justify-center h-64"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>,
+  loading: () => <div className="flex items-center justify-center h-64"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>,
   ssr: false
 });
 
 const RegionView = dynamic(() => import('@/components/Forum/RegionView'), {
-  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+  loading: () => <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
 });
 
 const ThreadView = dynamic(() => import('@/components/Forum/ThreadView'), {
-  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+  loading: () => <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
 });
 
 const CodexIndex = dynamic(() => import('@/components/Codex/CodexIndex'), {
-  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+  loading: () => <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
 });
 
 const CodexEntry = dynamic(() => import('@/components/Codex/CodexEntry'), {
-  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+  loading: () => <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
 });
 
 const SearchResults = dynamic(() => import('@/components/Codex/SearchResults'), {
-  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+  loading: () => <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
 });
 
 const CharacterDrawer = dynamic(() => import('@/components/CharacterDrawer'), {
@@ -47,7 +47,7 @@ const ChatSystem = dynamic(() => import('@/components/ChatSystem'), {
 });
 
 const LegalDocs = dynamic(() => import('@/components/Legal/LegalDocs'), {
-  loading: () => <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+  loading: () => <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
 });
 
 const CookieBanner = dynamic(() => import('@/components/Legal/CookieBanner'), {
@@ -258,10 +258,10 @@ export default function Home() {
   const handleLoginClick = useCallback(() => setShowLoginModal(true), []);
 
   if (!gameContext) return null;
-  if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-amber-500 font-serif">Loading Realm...</div>;
+  if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-gold-500 font-serif">Loading Realm...</div>;
 
   return (
-    <main className="h-screen w-full bg-black overflow-hidden flex flex-col relative text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
+    <main className="h-screen w-full bg-black overflow-hidden flex flex-col relative text-ink-200 font-sans selection:bg-gold-900 selection:text-white">
 
       {/* 1. TOP NAVIGATION */}
       <Navbar
@@ -324,7 +324,7 @@ export default function Home() {
               onWikiLink={handleWikiLink}
             />
           ) : (
-            <div className="flex items-center justify-center h-screen bg-slate-950"><Loader className="w-8 h-8 animate-spin text-amber-500" /></div>
+            <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>
           )
         )}
 
@@ -366,7 +366,7 @@ export default function Home() {
             {(!user) && (
               <button
                 onClick={() => setShowLoginModal(false)}
-                className="absolute top-4 right-4 z-50 text-slate-400 hover:text-white"
+                className="absolute top-4 right-4 z-50 text-ink-400 hover:text-white"
               >
                 Close
               </button>

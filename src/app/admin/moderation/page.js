@@ -2,12 +2,18 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, limit, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, limit, getDocs, writeBatch } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
 import { Shield, AlertTriangle, Check, X, Trash2, Filter, ChevronLeft, RefreshCw, Image as ImageIcon, FileText, BookOpen, Trash } from 'lucide-react';
+
+// SHA-256 hex of a string; matches contentHash() in functions/index.js
+async function sha256Hex(text) {
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text || ''));
+    return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 export default function ModerationDashboard() {
     const { user, userRole, loading: authLoading } = useGame();
@@ -131,6 +137,28 @@ export default function ModerationDashboard() {
                     await deleteDoc(itemRef);
                 }
             } else {
+                const contentCollection = item.type === 'post' ? 'posts' : item.type === 'codex' ? 'codex_pages' : null;
+                const contentRef = contentCollection && item.contentId
+                    ? doc(db, 'artifacts', APP_ID, 'public', 'data', contentCollection, item.contentId)
+                    : null;
+
+                // Approve only what this entry showed the moderator. If the author
+                // edited it since, the newer version has its own log entry.
+                // Codex entries with a proposedEdit are the exception: the live page
+                // was deliberately kept at its previous version, so approving
+                // applies the flagged edit itself.
+                let contentUpdate = {};
+                if (action === 'approved' && contentRef) {
+                    const live = await getDoc(contentRef);
+                    if (live.exists() && item.proposedEdit) {
+                        contentUpdate = item.proposedEdit;
+                    } else if (live.exists() && item.contentHash
+                        && await sha256Hex(live.data().content) !== item.contentHash) {
+                        alert('This content was edited after it was flagged. Review its newer moderation entry instead.');
+                        return;
+                    }
+                }
+
                 // Update the moderation log status
                 await updateDoc(itemRef, {
                     status: action, // 'approved' or 'rejected'
@@ -140,37 +168,32 @@ export default function ModerationDashboard() {
                 });
 
                 // Also update the actual content item if it exists
-                if (item.contentId) {
+                if (contentRef) {
                     try {
-                        let contentCollection;
-                        if (item.type === 'post') {
-                            contentCollection = 'posts';
-                        } else if (item.type === 'codex') {
-                            contentCollection = 'codex_pages';
-                        }
-                        
-                        if (contentCollection) {
-                            const contentRef = doc(db, 'artifacts', APP_ID, 'public', 'data', contentCollection, item.contentId);
-                            await updateDoc(contentRef, {
-                                status: action,
-                                moderatedBy: user.uid,
-                                moderatedAt: new Date(),
-                                moderationMethod: 'manual-admin'
-                            });
-                            
-                            // If approving a post, also approve the parent thread so it becomes visible
-                            if (item.type === 'post' && action === 'approved' && item.threadId) {
-                                try {
-                                    const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', item.threadId);
+                        await updateDoc(contentRef, {
+                            ...contentUpdate,
+                            status: action,
+                            moderatedBy: user.uid,
+                            moderatedAt: new Date(),
+                            moderationMethod: 'manual-admin'
+                        });
+
+                        // Approving a pending thread's post publishes the thread too.
+                        // A thread a moderator rejected stays rejected.
+                        if (item.type === 'post' && action === 'approved' && item.threadId) {
+                            try {
+                                const threadRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', item.threadId);
+                                const thread = await getDoc(threadRef);
+                                if (thread.exists() && thread.data().status === 'pending') {
                                     await updateDoc(threadRef, {
                                         status: 'approved',
                                         moderatedBy: user.uid,
                                         moderatedAt: new Date()
                                     });
                                     console.log(`Also approved parent thread ${item.threadId}`);
-                                } catch (threadErr) {
-                                    console.warn("Could not update parent thread status:", threadErr);
                                 }
+                            } catch (threadErr) {
+                                console.warn("Could not update parent thread status:", threadErr);
                             }
                         }
                     } catch (e) {
@@ -235,9 +258,9 @@ export default function ModerationDashboard() {
 
     if (authLoading || loading) {
         return (
-            <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center font-serif">
+            <div className="min-h-screen bg-ink-950 text-ink-200 flex items-center justify-center font-serif">
                 <div className="flex flex-col items-center gap-4">
-                    <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
+                    <RefreshCw className="w-8 h-8 animate-spin text-gold-500" />
                     <p>Consulting the Oracle...</p>
                 </div>
             </div>
@@ -245,24 +268,24 @@ export default function ModerationDashboard() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-amber-900 selection:text-white">
+        <div className="min-h-screen bg-ink-950 text-ink-200 font-sans selection:bg-gold-900 selection:text-white">
             {/* Header */}
-            <header className="bg-slate-900 border-b border-amber-900/30 p-4 sticky top-0 z-10 flex items-center justify-between shadow-md">
+            <header className="bg-ink-900 border-b border-gold-900/30 p-4 sticky top-0 z-10 flex items-center justify-between shadow-md">
                 <div className="flex items-center gap-4">
-                    <Link href="/" className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-colors" title="Back to Game">
+                    <Link href="/" className="p-2 text-ink-400 hover:text-white hover:bg-ink-800 rounded transition-colors" title="Back to Game">
                         <ChevronLeft className="w-6 h-6" />
                     </Link>
                     <div className="flex flex-col">
-                        <h1 className="text-xl font-serif font-bold text-amber-100 flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-amber-500" />
+                        <h1 className="text-xl font-serif font-bold text-gold-100 flex items-center gap-2">
+                            <Shield className="w-5 h-5 text-gold-500" />
                             Moderation Dashboard
                         </h1>
-                        <span className="text-xs text-slate-500 uppercase tracking-wider">Realm of Allania Admin</span>
+                        <span className="text-xs text-ink-500 uppercase tracking-wider">Realm of Allania Admin</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-4">
                     {/* Content Type Selector */}
-                    <div className="hidden md:flex items-center bg-slate-800/50 rounded-lg p-1 border border-slate-700/50">
+                    <div className="hidden md:flex items-center bg-ink-800/50 rounded-lg p-1 border border-ink-700/50">
                         {[
                             { value: 'posts', label: 'Posts' },
                             { value: 'codex', label: 'Codex' },
@@ -271,7 +294,7 @@ export default function ModerationDashboard() {
                             <button
                                 key={value}
                                 onClick={() => setContentType(value)}
-                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${contentType === value ? 'bg-indigo-900/50 text-indigo-200 shadow-sm' : 'text-slate-500 hover:text-white hover:bg-slate-700/50'}`}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${contentType === value ? 'bg-indigo-900/50 text-indigo-200 shadow-sm' : 'text-ink-500 hover:text-white hover:bg-ink-700/50'}`}
                             >
                                 {label}
                             </button>
@@ -279,12 +302,12 @@ export default function ModerationDashboard() {
                     </div>
                     
                     {/* Status Filter */}
-                    <div className="hidden md:flex items-center bg-slate-800 rounded-lg p-1 border border-slate-700">
+                    <div className="hidden md:flex items-center bg-ink-800 rounded-lg p-1 border border-ink-700">
                         {['needs_review', 'rejected', 'approved', 'all'].map(s => (
                             <button
                                 key={s}
                                 onClick={() => setFilter(s)}
-                                className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === s ? 'bg-amber-900/50 text-amber-200 shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-700'}`}
+                                className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === s ? 'bg-gold-900/50 text-gold-200 shadow-sm' : 'text-ink-400 hover:text-white hover:bg-ink-700'}`}
                             >
                                 {s === 'needs_review' ? 'Needs Review' : s === 'rejected' ? 'Flagged' : s}
                             </button>
@@ -292,7 +315,7 @@ export default function ModerationDashboard() {
                     </div>
                     
                     <div className="flex items-center gap-3">
-                        <div className="text-xs text-slate-500 font-mono">
+                        <div className="text-xs text-ink-500 font-mono">
                             {posts.length} Items (Limit {limitCount})
                         </div>
                         {posts.length > 0 && (
@@ -321,7 +344,7 @@ export default function ModerationDashboard() {
                         <button
                             key={value}
                             onClick={() => setContentType(value)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border transition-colors ${contentType === value ? 'bg-indigo-900/20 border-indigo-500 text-indigo-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}
+                            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border transition-colors ${contentType === value ? 'bg-indigo-900/20 border-indigo-500 text-indigo-400' : 'bg-ink-900 border-ink-700 text-ink-500'}`}
                         >
                             {label}
                         </button>
@@ -334,7 +357,7 @@ export default function ModerationDashboard() {
                         <button
                             key={s}
                             onClick={() => setFilter(s)}
-                            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border transition-colors ${filter === s ? 'bg-amber-900/20 border-amber-500 text-amber-500' : 'bg-slate-900 border-slate-700 text-slate-400'}`}
+                            className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold border transition-colors ${filter === s ? 'bg-gold-900/20 border-gold-500 text-gold-500' : 'bg-ink-900 border-ink-700 text-ink-400'}`}
                         >
                             {s === 'needs_review' ? 'Review' : s === 'rejected' ? 'Flagged' : s}
                         </button>
@@ -354,7 +377,7 @@ export default function ModerationDashboard() {
                 )}
 
                 {posts.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center p-12 text-slate-500 border border-dashed border-slate-800 rounded-lg bg-slate-900/30">
+                    <div className="flex flex-col items-center justify-center p-12 text-ink-500 border border-dashed border-ink-800 rounded-lg bg-ink-900/30">
                         <Check className="w-12 h-12 mb-4 text-green-500/50" />
                         <p className="text-lg">No content found in this queue.</p>
                         <p className="text-sm">Great job, Moderator!</p>
@@ -362,30 +385,30 @@ export default function ModerationDashboard() {
                 ) : (
                     <div className="grid gap-4">
                         {posts.map(item => (
-                            <div key={item.id} className="bg-slate-900 border border-slate-800 rounded-lg p-4 shadow-sm hover:border-slate-700 transition-colors group">
+                            <div key={item.id} className="bg-ink-900 border border-ink-800 rounded-lg p-4 shadow-sm hover:border-ink-700 transition-colors group">
                                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start">
                                     {/* Content */}
                                     <div className="flex-1 space-y-2 w-full">
                                         {/* Header with metadata */}
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                                        <div className="flex items-center gap-2 text-xs text-ink-500 flex-wrap">
                                             {/* Content Type Icon */}
                                             <span className="flex items-center gap-1">
                                                 {contentType === 'posts' && <FileText className="w-3 h-3" />}
                                                 {contentType === 'codex' && <BookOpen className="w-3 h-3" />}
                                                 {contentType === 'images' && <ImageIcon className="w-3 h-3" />}
-                                                <span className="font-mono text-slate-400">{item.id.slice(0, 8)}...</span>
+                                                <span className="font-mono text-ink-400">{item.id.slice(0, 8)}...</span>
                                             </span>
                                             <span>•</span>
                                             <span>{new Date(item.createdAt?.toDate?.() || item.timestamp?.toDate?.() || item.createdAt || item.timestamp).toLocaleString()}</span>
                                             <span>•</span>
-                                            <span className="text-amber-500/80">User: {item.userId || item.creatorId}</span>
+                                            <span className="text-gold-500/80">User: {item.userId || item.creatorId}</span>
                                             {item.moderationMethod && (
-                                                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase border ${item.moderationMethod.includes('ai') ? 'border-purple-500/30 text-purple-400' : item.moderationMethod.includes('fallback') ? 'border-orange-500/30 text-orange-400' : 'border-slate-700 text-slate-400'}`}>
+                                                <span className={`px-1.5 py-0.5 rounded text-2xs uppercase border ${item.moderationMethod.includes('ai') ? 'border-purple-500/30 text-purple-400' : item.moderationMethod.includes('fallback') ? 'border-orange-500/30 text-orange-400' : 'border-ink-700 text-ink-400'}`}>
                                                     {item.moderationMethod}
                                                 </span>
                                             )}
                                             {/* Status Badge */}
-                                            <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase border ${
+                                            <span className={`px-1.5 py-0.5 rounded text-2xs uppercase border ${
                                                 item.status === 'approved' ? 'border-green-500/30 text-green-400' :
                                                 item.status === 'rejected' ? 'border-red-500/30 text-red-400' :
                                                 item.status === 'needs_review' ? 'border-orange-500/30 text-orange-400' :
@@ -398,22 +421,22 @@ export default function ModerationDashboard() {
                         {/* Content Display based on type */}
                         {item.type === 'image' ? (
                                             <div className="space-y-2">
-                                                <div className="bg-black/50 p-3 rounded border border-slate-800/50 text-slate-200">
-                                                    <div className="text-xs text-slate-500 mb-1">File Path:</div>
+                                                <div className="bg-black/50 p-3 rounded border border-ink-800/50 text-ink-200">
+                                                    <div className="text-xs text-ink-500 mb-1">File Path:</div>
                                     <code className="text-sm break-all">{item.filePath}</code>
                                 </div>
                             </div>
                         ) : item.type === 'codex' ? (
                                             <div className="space-y-2">
                                                 {item.title && (
-                                                    <div className="text-amber-400 font-bold text-lg font-serif">{item.title}</div>
+                                                    <div className="text-gold-400 font-bold text-lg font-serif">{item.title}</div>
                                                 )}
-                                                <div className="bg-black/50 p-3 rounded border border-slate-800/50 font-serif text-slate-200 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                                <div className="bg-black/50 p-3 rounded border border-ink-800/50 font-serif text-ink-200 whitespace-pre-wrap max-h-64 overflow-y-auto">
                                                     {item.content}
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="bg-black/50 p-3 rounded border border-slate-800/50 font-serif text-slate-200 whitespace-pre-wrap">
+                                            <div className="bg-black/50 p-3 rounded border border-ink-800/50 font-serif text-ink-200 whitespace-pre-wrap">
                                                 {item.content}
                                             </div>
                                         )}
@@ -453,7 +476,7 @@ export default function ModerationDashboard() {
 
                                         <button
                                             onClick={() => handleAction(item.id, 'delete', item)}
-                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-slate-500 hover:text-red-500 hover:bg-slate-800 rounded transition-all text-sm"
+                                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-ink-500 hover:text-red-500 hover:bg-ink-800 rounded transition-all text-sm"
                                             title="Delete Permanently"
                                         >
                                             <Trash2 className="w-4 h-4" />

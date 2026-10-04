@@ -24,25 +24,25 @@ export default function CookieBanner() {
     // FIX: Changed z-[60] to z-50. 
     // Since this component is rendered last in page.js, it will naturally stack on top 
     // of other z-50 elements (like Chat and Drawer) without needing arbitrary values.
-    <div className="fixed bottom-20 md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-slate-900/95 backdrop-blur border border-amber-900/50 p-4 rounded-xl shadow-2xl z-50 animate-in slide-in-from-bottom-10 flex flex-col gap-3">
+    <div className="fixed bottom-20 md:bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-ink-900/95 backdrop-blur border border-gold-900/50 p-4 rounded-xl shadow-2xl z-50 animate-in slide-in-from-bottom-10 flex flex-col gap-3">
         <div className="flex items-start gap-3">
-            <div className="p-2 bg-slate-800 rounded-full shrink-0">
-                <Cookie className="w-5 h-5 text-amber-500" />
+            <div className="p-2 bg-ink-800 rounded-full shrink-0">
+                <Cookie className="w-5 h-5 text-gold-500" />
             </div>
             <div>
                 <h4 className="font-bold text-white text-sm">Cookie Consent</h4>
-                <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                <p className="text-xs text-ink-400 mt-1 leading-relaxed">
                     We use essential cookies to ensure you get the best experience on the Realm of Allania (like keeping you logged in).
                 </p>
             </div>
-            <button onClick={() => setIsVisible(false)} className="text-slate-500 hover:text-white">
+            <button onClick={() => setIsVisible(false)} className="text-ink-500 hover:text-white">
                 <X className="w-4 h-4" />
             </button>
         </div>
         <div className="flex gap-2 justify-end">
             <button 
                 onClick={handleAccept} 
-                className="bg-amber-700 hover:bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded transition-colors w-full md:w-auto"
+                className="bg-gold-700 hover:bg-gold-600 text-white text-xs font-bold px-4 py-2 rounded transition-colors w-full md:w-auto"
             >
                 Accept & Enter
             </button>

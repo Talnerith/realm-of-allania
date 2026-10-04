@@ -3,7 +3,7 @@ if (typeof global.setImmediate === 'undefined') {
 }
 
 const { assertFails, assertSucceeds, initializeTestEnvironment } = require('@firebase/rules-unit-testing');
-const { setDoc, doc, getDoc, onSnapshot } = require('firebase/firestore');
+const { setDoc, doc, getDoc, onSnapshot, updateDoc } = require('firebase/firestore');
 const fs = require('fs');
 
 const PROJECT_ID = 'realm-of-aethelraed';
@@ -49,12 +49,16 @@ beforeEach(async () => {
     // Setup user
     await testEnv.withSecurityRulesDisabled(async (context) => {
         await setDoc(doc(context.firestore(), `artifacts/${APP_ID}/users/user1/settings/account`), { role: 'user' });
+        // Posts must go into an existing, visible thread
+        await setDoc(doc(context.firestore(), `artifacts/${APP_ID}/public/data/threads/thread1`), {
+            title: 'Test Thread', regionId: '1', creatorId: 'user2', status: 'approved', postCount: 1
+        });
     });
 });
 
 describe('Moderation System', () => {
     test('Case A (Spam): Rejected immediately by Layer 2', async () => {
-        const db = testEnv.authenticatedContext('user1').firestore();
+        const db = testEnv.authenticatedContext('user1', { email_verified: true }).firestore();
         const docPath = `artifacts/${APP_ID}/public/data/posts/postSpam`;
         const docRef = doc(db, docPath);
 
@@ -102,7 +106,7 @@ describe('Moderation System', () => {
     }, 30000);
 
     test('Case B (Valid RP): Approved by AI', async () => {
-        const db = testEnv.authenticatedContext('user1').firestore();
+        const db = testEnv.authenticatedContext('user1', { email_verified: true }).firestore();
         const docPath = `artifacts/${APP_ID}/public/data/posts/postRP`;
         const docRef = doc(db, docPath);
 
@@ -121,7 +125,7 @@ describe('Moderation System', () => {
     }, 30000);
 
     test('Case C (Trolling): Rejected by AI', async () => {
-        const db = testEnv.authenticatedContext('user1').firestore();
+        const db = testEnv.authenticatedContext('user1', { email_verified: true }).firestore();
         const docPath = `artifacts/${APP_ID}/public/data/posts/postTroll`;
         const docRef = doc(db, docPath);
 
@@ -137,5 +141,55 @@ describe('Moderation System', () => {
         const result = await waitForDocUpdate(docRef);
         expect(result.status).toBe('rejected');
         expect(result.moderationMethod).toBe('ai-check');
+    }, 30000);
+
+    test('Thread title is moderated with its first post (bad title blocks approval)', async () => {
+        const db = testEnv.authenticatedContext('user1', { email_verified: true }).firestore();
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await setDoc(doc(context.firestore(), `artifacts/${APP_ID}/public/data/threads/threadBad`), {
+                title: 'Get a cheap rolex today', regionId: '1', creatorId: 'user1', status: 'pending', postCount: 1
+            });
+        });
+        const docRef = doc(db, `artifacts/${APP_ID}/public/data/posts/postInBadThread`);
+        await setDoc(docRef, {
+            content: 'I draw my sword and attack the goblin.',
+            threadId: 'threadBad',
+            userId: 'user1',
+            status: 'pending',
+            _mockAiResponse: 'Safe'
+        });
+
+        const result = await waitForDocUpdate(docRef);
+        expect(result.status).toBe('rejected');
+        expect(result.moderationMethod).toBe('auto-regex');
+    }, 30000);
+
+    test('A rejected codex edit restores the last approved version instead of hiding the page', async () => {
+        const pagePath = `artifacts/${APP_ID}/public/data/codex_pages/pageVandal`;
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await setDoc(doc(context.firestore(), pagePath), {
+                title: 'The Old Keep', content: 'A ruined keep on the northern ridge.', gallery: [],
+                creatorId: 'user2', lastEditorId: 'user2', status: 'approved'
+            });
+        });
+
+        const db = testEnv.authenticatedContext('user1', { email_verified: true }).firestore();
+        const pageRef = doc(db, pagePath);
+        await updateDoc(pageRef, {
+            content: 'free robux for everyone, click here', lastEditorId: 'user1', status: 'pending'
+        });
+
+        // The editor can't read the page while it is pending, so poll as admin
+        let restored;
+        for (let i = 0; i < 40 && restored?.status !== 'approved'; i++) {
+            await new Promise((r) => setTimeout(r, 500));
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                restored = (await getDoc(doc(context.firestore(), pagePath))).data();
+            });
+        }
+        expect(restored.status).toBe('approved');
+        expect(restored.content).toBe('A ruined keep on the northern ridge.');
+        expect(restored.lastEditorId).toBe('user2');
+        expect(restored.moderationMethod).toBe('auto-regex');
     }, 30000);
 });

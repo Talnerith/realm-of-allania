@@ -95,15 +95,15 @@ function WorldMap({ setView, setActiveRegion }) {
             hasUnread 
               ? 'border-transparent' 
               : hasThreads 
-                ? 'border-amber-700/40 bg-amber-900/10' 
-                : 'border-transparent hover:border-amber-400/80 hover:bg-amber-500/10'
+                ? 'border-gold-700/40 bg-gold-900/10' 
+                : 'border-transparent hover:border-gold-400/80 hover:bg-gold-500/10'
           }`}
         >
           {/* Region with threads indicator (subtle golden glow) - only when no unread */}
           {hasThreads && !hasUnread && (
             <div className="absolute inset-0 z-0 pointer-events-none">
-              <div className="absolute inset-1 border border-amber-600/30 rounded-sm" />
-              <div className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-amber-500/60 rounded-full" />
+              <div className="absolute inset-1 border border-gold-600/30 rounded-sm" />
+              <div className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-gold-500/60 rounded-full" />
             </div>
           )}
 
@@ -116,9 +116,9 @@ function WorldMap({ setView, setActiveRegion }) {
           )}
 
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <span className="bg-black/90 text-amber-100 text-[10px] leading-tight px-1.5 py-1 rounded border border-amber-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[140px] truncate">
+            <span className="bg-black/90 text-gold-100 text-xs font-semibold leading-tight px-1.5 py-1 rounded border border-gold-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[140px] truncate">
               {regionName}
-              {hasThreads && !hasUnread && <span className="text-amber-400/80 ml-1">({threadCount})</span>}
+              {hasThreads && !hasUnread && <span className="text-gold-400/80 ml-1">({threadCount})</span>}
               {hasUnread && <span className="text-cyan-400 ml-1">●</span>}
             </span>
           </div>
@@ -128,13 +128,13 @@ function WorldMap({ setView, setActiveRegion }) {
   }, [customNames, regionThreads, readReceipts, user, handleRegionClick]);
 
   return (
-    <div className="relative w-full h-full overflow-auto bg-slate-950 custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
-      <div className="relative m-auto inline-block shadow-2xl shadow-black rounded-lg border border-amber-900/50 select-none shrink-0">
+    <div className="relative w-full h-full overflow-auto bg-ink-950 custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
+      <div className="relative m-auto inline-block shadow-2xl shadow-black rounded-lg border border-gold-900/50 select-none shrink-0">
         <img
           src={MAP_IMAGE_URL}
           alt="World Map of Allania"
-          className="max-w-[1400px] w-full h-auto block min-w-[800px] bg-slate-800"
-          onError={(e) => e.target.src = "https://placehold.co/1200x800/1e293b/d97706?text=Map+Not+Found"}
+          className="max-w-[1400px] w-full h-auto block min-w-[800px] bg-ink-800"
+          onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
         />
         <div
           className="absolute inset-0 grid"

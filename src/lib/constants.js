@@ -1,5 +1,5 @@
-// Make sure map.jpg is in your /public folder!
-export const MAP_IMAGE_URL = "/map.jpg";
+// Full-resolution world map (2816x1504 WebP) in /public
+export const MAP_IMAGE_URL = "/map.webp";
 
 // 20 Cols to preserve alignment. 13 Rows for height.
 export const GRID_ROWS = 13; 

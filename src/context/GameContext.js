@@ -51,6 +51,17 @@ export function GameProvider({ children }) {
       cleanupUserListeners();
 
       if (currentUser) {
+        // The rules require a verified email in the ID token. A user who just
+        // clicked the verification link still has an old token, so refresh it.
+        if (!currentUser.emailVerified && !currentUser.isAnonymous) {
+          try {
+            await currentUser.reload();
+            if (currentUser.emailVerified) await currentUser.getIdToken(true);
+          } catch (e) {
+            console.warn("Could not refresh verification status:", e);
+          }
+        }
+
         // Always expose the user, even if Firestore is unconfigured —
         // returning early here would leave the app on "Loading Realm..." forever
         setUser(currentUser);

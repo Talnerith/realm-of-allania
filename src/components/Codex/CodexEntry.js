@@ -8,6 +8,7 @@ import { APP_ID, CATEGORIES } from '@/lib/constants';
 import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import RichText from '@/components/RichText';
+import { hostedImageUrl } from '@/lib/imageUrls';
 
 // Helper for timestamp
 const formatTime = (ts) => {
@@ -57,9 +58,10 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
         if (!content.trim() || content.length < 10) return setError("Content must be at least 10 characters.");
         if (gallery.length > 5) return setError("Gallery cannot exceed 5 images.");
 
-        // Determine status based on user role
-        const isTrusted = userRole === 'trusted' || userRole === 'moderator' || userRole === 'admin';
-        const status = isTrusted ? 'approved' : 'pending';
+        // Everything but mod edits is checked by the moderation function first
+        // (trusted users only skip its AI step, so they're approved in seconds)
+        const isTrusted = userRole === 'trusted' || isAdminOrMod;
+        const status = isAdminOrMod ? 'approved' : 'pending';
 
         const pageData = {
             title, category, content, gallery,
@@ -83,10 +85,13 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                     alert("Your codex entry has been submitted for moderation. It will be reviewed shortly.");
                 }
             } else {
-                // Update — do NOT send status: security rules reject non-mod status
-                // changes (which broke regular users editing their approved pages);
-                // the moderation Cloud Function resets edited pages to pending itself
-                await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id), pageData);
+                // Update — non-mods must send the page back to 'pending' (the rules
+                // require it). If the edit fails moderation, the function restores
+                // the last approved version, so the page never goes offline.
+                await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id), {
+                    ...pageData,
+                    ...(!isAdminOrMod && { status: 'pending' })
+                });
                 setLocalPage(prev => ({ ...prev, ...pageData, updatedAt: { toDate: () => new Date() } }));
             }
 
@@ -195,13 +200,13 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
     const prevImage = (e) => { e.stopPropagation(); setLightboxIndex((i) => (i - 1 + gallery.length) % gallery.length); };
 
     return (
-        <div className="h-full overflow-y-auto custom-scrollbar bg-slate-950">
+        <div className="h-full overflow-y-auto custom-scrollbar bg-ink-950">
             <div className="max-w-5xl mx-auto p-4 md:p-8 animate-in slide-in-from-right-8 pb-32">
                 {/* Lightbox */}
                 {lightboxOpen && (
                     <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxOpen(false)}>
-                        <button className="absolute top-4 right-4 text-white hover:text-amber-500"><X className="w-8 h-8" /></button>
-                        <img src={gallery[lightboxIndex]} alt="Gallery Viewer" className="max-w-full max-h-full object-contain select-none" onClick={(e) => e.stopPropagation()} onError={(e) => { e.target.src = 'https://placehold.co/800x600/1e293b/FFF?text=Error'; }} />
+                        <button className="absolute top-4 right-4 text-white hover:text-gold-500"><X className="w-8 h-8" /></button>
+                        <img src={hostedImageUrl(gallery[lightboxIndex])} alt="Gallery Viewer" className="max-w-full max-h-full object-contain select-none" onClick={(e) => e.stopPropagation()} onError={(e) => { e.target.src = 'https://placehold.co/800x600/1e293b/FFF?text=Error'; }} />
                         {gallery.length > 1 && (
                             <>
                                 <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 text-white"><ChevronLeft className="w-10 h-10" /></button>
@@ -213,7 +218,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
 
                 {/* Header Controls */}
                 <div className="flex items-center gap-4 mb-6">
-                    <button onClick={goBack} className="text-slate-400 hover:text-white flex items-center gap-1">
+                    <button onClick={goBack} className="text-ink-400 hover:text-white flex items-center gap-1">
                         <ChevronLeft className="w-5 h-5" /> Back to Index
                     </button>
                     <div className="flex-1"></div>
@@ -233,7 +238,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                     {!isEditing && !page.isNew && canLock && (
                         <button
                             onClick={handleToggleLock}
-                            className={`flex items-center gap-2 px-3 py-1 mr-2 transition-colors border rounded ${isLocked ? 'text-amber-500 border-amber-900/30 hover:border-amber-700/50' : 'text-slate-500 border-transparent hover:text-amber-500 hover:border-amber-900/30'}`}
+                            className={`flex items-center gap-2 px-3 py-1 mr-2 transition-colors border rounded ${isLocked ? 'text-gold-500 border-gold-900/30 hover:border-gold-700/50' : 'text-ink-500 border-transparent hover:text-gold-500 hover:border-gold-900/30'}`}
                             title={isLocked ? "Unlock Page" : "Lock as Sacred Text"}
                         >
                             {isLocked ? <Unlock className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
@@ -243,18 +248,18 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
 
                     {!isEditing ? (
                         canEdit ? (
-                            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-slate-800 text-slate-200 px-3 py-1 rounded hover:bg-slate-700">
+                            <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 bg-ink-800 text-ink-200 px-3 py-1 rounded hover:bg-ink-700">
                                 <Edit3 className="w-4 h-4" /> Edit Page
                             </button>
                         ) : (
-                            <span className="flex items-center gap-2 px-3 py-1 bg-amber-900/20 border border-amber-700/50 rounded text-amber-400 text-sm">
+                            <span className="flex items-center gap-2 px-3 py-1 bg-gold-900/20 border border-gold-700/50 rounded text-gold-400 text-sm">
                                 <BookLock className="w-4 h-4" /> Sacred Text
                             </span>
                         )
                     ) : (
                         <div className="flex gap-2">
-                            <button onClick={handleCancel} className="text-slate-400 hover:text-white">Cancel</button>
-                            <button onClick={handleSave} className="flex items-center gap-2 bg-amber-700 text-white px-3 py-1 rounded hover:bg-amber-600">
+                            <button onClick={handleCancel} className="text-ink-400 hover:text-white">Cancel</button>
+                            <button onClick={handleSave} className="flex items-center gap-2 bg-gold-700 text-white px-3 py-1 rounded hover:bg-gold-600">
                                 <Save className="w-4 h-4" /> Save Changes
                             </button>
                         </div>
@@ -262,7 +267,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                 </div>
 
                 {/* Content Card */}
-                <div className="bg-slate-900 border border-amber-900/30 rounded-xl overflow-hidden shadow-2xl relative">
+                <div className="bg-ink-900 border border-gold-900/30 rounded-xl overflow-hidden shadow-2xl relative">
 
                     {/* Error Banner */}
                     {error && (
@@ -272,19 +277,19 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                     )}
 
                     {/* Title Area */}
-                    <div className="h-32 bg-linear-to-r from-amber-900/20 to-slate-900 border-b border-amber-900/30 p-6 flex items-end">
+                    <div className="h-32 bg-linear-to-r from-gold-900/20 to-ink-900 border-b border-gold-900/30 p-6 flex items-end">
                         <div className="w-full">
                             {isEditing ? (
                                 <div className="flex flex-col gap-2">
-                                    <select className="bg-slate-950/50 border border-amber-900/50 text-amber-500 text-xs font-bold uppercase rounded p-1" value={category} onChange={e => setCategory(e.target.value)}>
+                                    <select className="bg-ink-950/50 border border-gold-900/50 text-gold-500 text-xs font-bold uppercase rounded p-1" value={category} onChange={e => setCategory(e.target.value)}>
                                         {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
-                                    <input className="bg-transparent border-b border-amber-900/50 text-3xl font-serif font-bold text-amber-100 w-full focus:outline-none focus:border-amber-500" value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" />
+                                    <input className="bg-transparent border-b border-gold-900/50 text-3xl font-serif font-bold text-gold-100 w-full focus:outline-none focus:border-gold-500" value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" />
                                 </div>
                             ) : (
                                 <>
-                                    <div className="text-amber-500 text-xs font-bold uppercase mb-1">{category}</div>
-                                    <h1 className="text-4xl font-serif font-bold text-amber-100">{title}</h1>
+                                    <div className="text-gold-500 text-xs font-bold uppercase mb-1">{category}</div>
+                                    <h1 className="text-4xl font-serif font-bold text-gold-100">{title}</h1>
                                 </>
                             )}
                         </div>
@@ -301,19 +306,19 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                                     minHeight="min-h-[400px]"
                                     onWikiLink={onWikiLink}
                                 />
-                                <div className="text-right text-[10px] text-slate-500">{content.length} / 10000 chars</div>
+                                <div className="text-right text-2xs text-ink-500">{content.length} / 10000 chars</div>
 
                                 {/* Gallery Editor */}
-                                <div className="bg-slate-950 p-4 rounded border border-slate-800">
+                                <div className="bg-ink-950 p-4 rounded border border-ink-800">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h4 className="text-amber-500 font-bold flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Gallery Manager</h4>
-                                        <span className={`text-xs font-bold ${gallery.length >= 5 ? 'text-red-500' : 'text-slate-500'}`}>{gallery.length}/5 Images</span>
+                                        <h4 className="text-gold-500 font-bold flex items-center gap-2"><ImageIcon className="w-4 h-4" /> Gallery Manager</h4>
+                                        <span className={`text-xs font-bold ${gallery.length >= 5 ? 'text-red-500' : 'text-ink-500'}`}>{gallery.length}/5 Images</span>
                                     </div>
 
                                     {/* Image Uploader Integration */}
                                     {gallery.length < 5 && (
-                                        <div className="mb-6 bg-slate-900/50 p-4 rounded border border-slate-800">
-                                            <label className="text-xs text-slate-500 uppercase font-bold mb-2 block">Add New Image</label>
+                                        <div className="mb-6 bg-ink-900/50 p-4 rounded border border-ink-800">
+                                            <label className="text-xs text-ink-500 uppercase font-bold mb-2 block">Add New Image</label>
                                             <ImageUploader
                                                 initialUrl={stagedUrl}
                                                 onImageChanged={handleStagedImage}
@@ -324,7 +329,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                                                 <button
                                                     onClick={addStagedToGallery}
                                                     disabled={!stagedUrl}
-                                                    className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2"
+                                                    className="bg-gold-700 hover:bg-gold-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm flex items-center gap-2"
                                                 >
                                                     <Plus className="w-4 h-4" /> Add to Gallery
                                                 </button>
@@ -334,37 +339,37 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
 
                                     <div className="grid grid-cols-4 gap-2">
                                         {gallery.map((url, idx) => (
-                                            <div key={idx} className="relative aspect-square rounded overflow-hidden border border-slate-700 group">
-                                                <img src={url} alt={`Gallery Image ${idx + 1}`} className="w-full h-full object-cover" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
+                                            <div key={idx} className="relative aspect-square rounded overflow-hidden border border-ink-700 group">
+                                                <img src={hostedImageUrl(url)} alt={`Gallery Image ${idx + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }} />
                                                 <button onClick={() => removeImage(url)} className="absolute top-1 right-1 bg-red-900/80 text-white p-1 rounded-full"><Trash2 className="w-3 h-3" /></button>
                                             </div>
                                         ))}
-                                        {gallery.length === 0 && <p className="col-span-4 text-center text-slate-500 text-sm italic py-4">No images in gallery yet.</p>}
+                                        {gallery.length === 0 && <p className="col-span-4 text-center text-ink-500 text-sm italic py-4">No images in gallery yet.</p>}
                                     </div>
                                 </div>
                             </div>
                         ) : (
                             <>
-                                <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-lg text-slate-300 mb-8">
+                                <div className="prose prose-invert prose-amber max-w-none whitespace-pre-wrap font-serif text-xl leading-relaxed text-ink-300 mb-8">
                                     <RichText content={content} onWikiLink={onWikiLink} />
                                 </div>
 
                                 {/* View Mode Gallery */}
                                 {gallery.length > 0 && (
-                                    <div className="border-t border-slate-800 pt-8 mt-8">
-                                        <h3 className="text-amber-100 font-bold mb-4 flex items-center gap-2"><ImageIcon className="w-5 h-5 text-amber-500" /> Gallery</h3>
+                                    <div className="border-t border-ink-800 pt-8 mt-8">
+                                        <h3 className="text-gold-100 font-bold mb-4 flex items-center gap-2"><ImageIcon className="w-5 h-5 text-gold-500" /> Gallery</h3>
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                             {gallery.map((url, idx) => (
-                                                <div key={idx} onClick={() => openLightbox(idx)} className="aspect-square rounded border border-slate-700 overflow-hidden cursor-pointer hover:border-amber-500">
-                                                    <img src={url} alt={`Gallery Image ${idx + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
+                                                <div key={idx} onClick={() => openLightbox(idx)} className="aspect-square rounded border border-ink-700 overflow-hidden cursor-pointer hover:border-gold-500">
+                                                    <img src={hostedImageUrl(url)} alt={`Gallery Image ${idx + 1}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" onError={(e) => { e.target.src = 'https://placehold.co/400x400/1e293b/FFF?text=Error'; }} />
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="mt-8 pt-8 border-t border-slate-800 text-xs text-slate-500 flex justify-between">
-                                    <span>Updated by <span className="text-amber-500">{localPage.updatedBy}</span></span>
+                                <div className="mt-8 pt-8 border-t border-ink-800 text-xs text-ink-500 flex justify-between">
+                                    <span>Updated by <span className="text-gold-500">{localPage.updatedBy}</span></span>
                                     <span>{formatTime(localPage.updatedAt)}</span>
                                 </div>
                             </>

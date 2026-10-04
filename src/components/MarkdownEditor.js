@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Bold, Italic, Underline, Image as ImageIcon, Quote, Eye, Edit2, Send, Loader, Link2 } from 'lucide-react';
 import RichText from '@/components/RichText';
+import { isHostedImageUrl, importImageFromUrl } from '@/lib/imageUrls';
 
 const MarkdownEditor = React.memo(function MarkdownEditor({
   value,
@@ -50,9 +51,16 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
     }, 0);
   }, [onChange]);
 
-  const handleImage = useCallback(() => {
+  // Pasted links are copied into our Storage (and moderated) before use
+  const handleImage = useCallback(async () => {
     const url = prompt("Enter Image URL:");
-    if (url) insertSyntax(`![Image](${url})`, '');
+    if (!url) return;
+    try {
+      const hostedUrl = isHostedImageUrl(url) ? url : await importImageFromUrl(url, 'uploads');
+      insertSyntax(`![Image](${hostedUrl})`, '');
+    } catch (e) {
+      alert(e.message);
+    }
   }, [insertSyntax]);
 
   const handleWikiLink = useCallback(() => {
@@ -61,14 +69,14 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
   }, [insertSyntax]);
 
   return (
-    <div className={`border border-slate-700 rounded-lg bg-slate-950 overflow-hidden focus-within:border-amber-500 transition-colors flex flex-col shadow-sm ${className}`}>
+    <div className={`border border-ink-700 rounded-lg bg-ink-950 overflow-hidden focus-within:border-gold-500 transition-colors flex flex-col shadow-sm ${className}`}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between p-2 bg-slate-900 border-b border-slate-800 shrink-0">
+      <div className="flex items-center justify-between p-2 bg-ink-900 border-b border-ink-800 shrink-0">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <ToolButton icon={<Bold className="w-4 h-4" />} label="Bold" onClick={() => insertSyntax('**', '**')} disabled={isPreview || disabled} />
           <ToolButton icon={<Italic className="w-4 h-4" />} label="Italic" onClick={() => insertSyntax('*', '*')} disabled={isPreview || disabled} />
           <ToolButton icon={<Underline className="w-4 h-4" />} label="Underline" onClick={() => insertSyntax('__', '__')} disabled={isPreview || disabled} />
-          <div className="w-px h-4 bg-slate-700 mx-1"></div>
+          <div className="w-px h-4 bg-ink-700 mx-1"></div>
           <ToolButton icon={<Quote className="w-4 h-4" />} label="Quote" onClick={() => insertSyntax('\n> ', '')} disabled={isPreview || disabled} />
           <ToolButton icon={<Link2 className="w-4 h-4" />} label="Wiki Link" onClick={handleWikiLink} disabled={isPreview || disabled} />
           <ToolButton icon={<ImageIcon className="w-4 h-4" />} label="Image" onClick={handleImage} disabled={isPreview || disabled} />
@@ -78,7 +86,7 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsPreview((prev) => !prev)}
-            className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isPreview ? 'bg-amber-900/50 text-amber-200 border border-amber-700/50' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+            className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isPreview ? 'bg-gold-900/50 text-gold-200 border border-gold-700/50' : 'bg-ink-800 text-ink-400 hover:text-white'}`}
           >
             {isPreview ? <><Edit2 className="w-3 h-3" /> Edit</> : <><Eye className="w-3 h-3" /> Preview</>}
           </button>
@@ -88,7 +96,7 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
             <button
               onClick={onPost}
               disabled={disabled || isSubmitting || isSubmitDisabled}
-              className="flex items-center gap-2 bg-amber-700 hover:bg-amber-600 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-white px-3 py-1 rounded text-xs font-bold shadow-lg shadow-amber-900/20 transition-all hover:scale-105 ml-2"
+              className="flex items-center gap-2 bg-gold-700 hover:bg-gold-600 disabled:bg-ink-800 disabled:text-ink-500 disabled:cursor-not-allowed text-white px-3 py-1 rounded text-xs font-bold shadow-lg shadow-gold-900/20 transition-all hover:scale-105 ml-2"
             >
               {isSubmitting ? <Loader className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
               {submitLabel}
@@ -98,15 +106,15 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
       </div>
 
       {/* Editor / Preview Area */}
-      <div className="relative w-full bg-slate-950">
+      <div className="relative w-full bg-ink-950">
         {isPreview ? (
-          <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-slate-900/30 prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none ${minHeight} max-h-[500px]`}>
-            {value ? <RichText content={value} onWikiLink={onWikiLink} /> : <span className="text-slate-600 italic">Nothing to preview...</span>}
+          <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-ink-900/30 prose prose-invert prose-p:text-ink-300 prose-headings:text-gold-100 max-w-none ${minHeight} max-h-[500px]`}>
+            {value ? <RichText content={value} onWikiLink={onWikiLink} /> : <span className="text-ink-600 italic">Nothing to preview...</span>}
           </div>
         ) : (
           <textarea
             ref={textareaRef}
-            className={`w-full bg-slate-950 p-4 text-slate-200 focus:outline-none font-serif resize-none block custom-scrollbar ${minHeight}`}
+            className={`w-full bg-ink-950 p-4 text-ink-200 focus:outline-none font-serif resize-none block custom-scrollbar ${minHeight}`}
             placeholder={placeholder}
             value={value}
             onChange={onChange}
@@ -127,7 +135,7 @@ function ToolButton({ icon, label, onClick, disabled }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="p-1.5 text-slate-400 hover:text-amber-500 hover:bg-slate-800 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+      className="p-1.5 text-ink-400 hover:text-gold-500 hover:bg-ink-800 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-400"
       title={label}
     >
       {icon}

@@ -4,6 +4,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { storage } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
+import { importImageFromUrl } from '@/lib/imageUrls';
 
 const ImageUploader = React.memo(function ImageUploader({
   initialUrl = '',
@@ -81,10 +82,29 @@ const ImageUploader = React.memo(function ImageUploader({
     }
   }, [user, lastUploadedUrl, folder, position, onImageChanged]);
 
-  const handleUrlChange = useCallback((e) => {
-    setPreviewUrl(e.target.value);
-    onImageChanged(e.target.value, position);
-  }, [position, onImageChanged]);
+  // Pasted links are copied into the user's Storage folder by a Cloud
+  // Function (and moderated like an upload); the site only shows hosted images
+  const [urlInput, setUrlInput] = useState('');
+  const handleUrlImport = useCallback(async () => {
+    if (!urlInput.trim()) return;
+    if (!user) {
+      alert("You must be logged in to add images.");
+      return;
+    }
+    setIsUploading(true);
+    try {
+      const url = await importImageFromUrl(urlInput.trim(), folder);
+      setLastUploadedUrl(url);
+      setPreviewUrl(url);
+      onImageChanged(url, position);
+      setUrlInput('');
+      setMode('preview');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  }, [urlInput, user, folder, position, onImageChanged]);
 
   // --- Drag Logic (Unified Mouse & Touch) ---
   const handleStart = useCallback((clientX, clientY) => {
@@ -149,39 +169,55 @@ const ImageUploader = React.memo(function ImageUploader({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-4 text-sm border-b border-slate-700 pb-2">
-        <button onClick={() => setMode('upload')} className={`${mode === 'upload' ? 'text-amber-500 font-bold' : 'text-slate-500 hover:text-slate-300'}`}>Upload File</button>
-        <button onClick={() => setMode('url')} className={`${mode === 'url' ? 'text-amber-500 font-bold' : 'text-slate-500 hover:text-slate-300'}`}>Image URL</button>
+      <div className="flex gap-4 text-sm border-b border-ink-700 pb-2">
+        <button onClick={() => setMode('upload')} className={`${mode === 'upload' ? 'text-gold-500 font-bold' : 'text-ink-500 hover:text-ink-300'}`}>Upload File</button>
+        <button onClick={() => setMode('url')} className={`${mode === 'url' ? 'text-gold-500 font-bold' : 'text-ink-500 hover:text-ink-300'}`}>Image URL</button>
       </div>
 
       <div className="min-h-[60px]">
         {mode === 'upload' && (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-700 hover:border-amber-500 hover:bg-slate-900 rounded-lg p-4 cursor-pointer flex flex-col items-center justify-center text-slate-500 gap-2 transition-colors"
+            className="border-2 border-dashed border-ink-700 hover:border-gold-500 hover:bg-ink-900 rounded-lg p-4 cursor-pointer flex flex-col items-center justify-center text-ink-500 gap-2 transition-colors"
           >
-            {isUploading ? <Loader className="w-5 h-5 animate-spin text-amber-500" /> : <Upload className="w-5 h-5" />}
+            {isUploading ? <Loader className="w-5 h-5 animate-spin text-gold-500" /> : <Upload className="w-5 h-5" />}
             <span className="text-xs">{isUploading ? 'Compressing & Uploading...' : 'Click to select image (Max 1600px)'}</span>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} disabled={isUploading} />
           </div>
         )}
         {mode === 'url' && (
           <div className="flex gap-2 items-center">
-            <LinkIcon className="w-4 h-4 text-slate-500" />
-            <input className="flex-1 bg-slate-950 border border-slate-700 rounded p-2 text-sm text-slate-200 focus:border-amber-500 outline-none" placeholder="https://example.com/image.jpg" value={previewUrl} onChange={handleUrlChange} />
+            <LinkIcon className="w-4 h-4 text-ink-500" />
+            <input
+              className="flex-1 bg-ink-950 border border-ink-700 rounded p-2 text-sm text-ink-200 focus:border-gold-500 outline-none"
+              placeholder="https://example.com/image.jpg"
+              aria-label="Image URL"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleUrlImport(); } }}
+              disabled={isUploading}
+            />
+            <button
+              type="button"
+              onClick={handleUrlImport}
+              disabled={isUploading || !urlInput.trim()}
+              className="px-3 py-2 rounded bg-gold-700 hover:bg-gold-600 disabled:opacity-50 text-white text-sm"
+            >
+              {isUploading ? <Loader className="w-4 h-4 animate-spin" /> : 'Add'}
+            </button>
           </div>
         )}
       </div>
 
       {previewUrl && (
         <div className="space-y-2 animate-in fade-in">
-          <div className="flex justify-between items-center text-xs text-amber-500 font-bold uppercase tracking-wider">
+          <div className="flex justify-between items-center text-xs text-gold-500 font-bold uppercase tracking-wider">
             <span>Preview & Focus</span>
-            <span className="flex items-center gap-1 text-slate-500 font-normal normal-case"><Move className="w-3 h-3" /> Drag to set focus point</span>
+            <span className="flex items-center gap-1 text-ink-500 font-normal normal-case"><Move className="w-3 h-3" /> Drag to set focus point</span>
           </div>
 
           <div
-            className={`relative overflow-hidden bg-slate-800 border-2 border-amber-500/30 cursor-move group touch-none ${containerClass}`}
+            className={`relative overflow-hidden bg-ink-800 border-2 border-gold-500/30 cursor-move group touch-none ${containerClass}`}
             onMouseDown={onMouseDown}
             onMouseMove={onMouseMove}
             onMouseUp={onMouseUp}
@@ -207,12 +243,12 @@ const ImageUploader = React.memo(function ImageUploader({
                 <>
                   <div className="absolute top-0 left-0 right-0 h-[15%] bg-black/40 border-b border-white/30 backdrop-blur-[1px]"></div>
                   <div className="absolute bottom-0 left-0 right-0 h-[15%] bg-black/40 border-t border-white/30 backdrop-blur-[1px]"></div>
-                  <div className="absolute top-2 left-2 text-[10px] text-white/70 font-mono">Cutoff Area</div>
+                  <div className="absolute top-2 left-2 text-2xs text-white/70 font-mono">Cutoff Area</div>
                 </>
               )}
             </div>
           </div>
-          <div className="text-center text-[10px] text-slate-600 font-mono">Focus Position: {position}</div>
+          <div className="text-center text-2xs text-ink-500 font-mono">Focus Position: {position}</div>
         </div>
       )}
     </div>

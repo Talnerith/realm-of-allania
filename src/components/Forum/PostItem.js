@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import RichText from '@/components/RichText';
+import { hostedImageUrl } from '@/lib/imageUrls';
 
 const PostItem = memo(function PostItem({
     post,
@@ -40,7 +41,7 @@ const PostItem = memo(function PostItem({
                 {isOwner && !editingPostId && (
                     <button
                         onClick={() => onEditStart(post)}
-                        className="text-slate-500 hover:text-amber-500 bg-slate-900/50 rounded p-1"
+                        className="text-ink-500 hover:text-gold-500 bg-ink-900/50 rounded p-1"
                         aria-label="Edit Post"
                         title="Edit Post"
                     >
@@ -50,7 +51,7 @@ const PostItem = memo(function PostItem({
                 {isAdminOrMod && !editingPostId && (
                     <button
                         onClick={() => onDelete(post.id)}
-                        className="text-red-900/50 hover:text-red-500 bg-slate-900/50 rounded p-1"
+                        className="text-red-900/50 hover:text-red-500 bg-ink-900/50 rounded p-1"
                         aria-label="Delete Post"
                         title="Delete Post"
                     >
@@ -60,14 +61,14 @@ const PostItem = memo(function PostItem({
             </div>
 
             {/* MOBILE AVATAR HEADER */}
-            <div className="md:hidden flex items-start gap-3 bg-slate-800/50 p-2 rounded-t-lg border-b border-slate-700">
+            <div className="md:hidden flex items-start gap-3 bg-ink-800/50 p-2 rounded-t-lg border-b border-ink-700">
                 <button
                     type="button"
                     onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                    className="w-10 h-10 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 relative shrink-0 cursor-pointer p-0"
+                    className="w-10 h-10 bg-ink-800 rounded-lg overflow-hidden border border-ink-700 relative shrink-0 cursor-pointer p-0"
                 >
                     <img
-                        src={post.characterImageUrl || ''}
+                        src={hostedImageUrl(post.characterImageUrl)}
                         alt={`${post.characterName}'s avatar`}
                         className="w-full h-full object-cover"
                         style={{ objectPosition: post.characterImagePosition || 'center' }}
@@ -78,17 +79,17 @@ const PostItem = memo(function PostItem({
                 <div className="flex-1">
                     <div className="flex justify-between items-start">
                         <div>
-                            <div className="text-amber-500 font-bold text-sm">{post.characterName}</div>
-                            <div className="text-[10px] text-slate-500 uppercase">{post.characterRace} {post.characterClass}</div>
+                            <div className="text-gold-500 font-bold text-sm">{post.characterName}</div>
+                            <div className="text-2xs text-ink-500 uppercase">{post.characterRace} {post.characterClass}</div>
                         </div>
-                        <span className="text-[10px] text-slate-600">{formatTimestamp(post.createdAt)}</span>
+                        <span className="text-2xs text-ink-500">{formatTimestamp(post.createdAt)}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-2">
                         {user && user.uid !== post.userId && (
                             <button
                                 onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
-                                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                                className="text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
                                 title="Send Message"
                             >
                                 <MessageCircle className="w-3 h-3" /> DM
@@ -97,7 +98,7 @@ const PostItem = memo(function PostItem({
                         {isAdminOrMod && (
                             <button
                                 onClick={() => onCopyUserId(post.userId)}
-                                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                                className="text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
                                 aria-label="Copy User ID"
                                 title="Copy User ID"
                             >
@@ -107,7 +108,7 @@ const PostItem = memo(function PostItem({
                         {isAdmin && (
                             <button
                                 onClick={() => onManageUser({ id: post.userId, name: post.characterName })}
-                                className="text-[10px] bg-slate-800 hover:bg-amber-900 text-slate-400 hover:text-amber-500 border border-slate-700 hover:border-amber-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
+                                className="text-2xs bg-ink-800 hover:bg-gold-900 text-ink-400 hover:text-gold-500 border border-ink-700 hover:border-gold-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
                                 title="Manage User Role"
                             >
                                 <Shield className="w-3 h-3" /> Role
@@ -121,19 +122,19 @@ const PostItem = memo(function PostItem({
             <div className="hidden md:flex flex-col items-center gap-2 w-24 shrink-0">
                 <button
                     onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                    className="w-20 h-20 bg-slate-800 rounded-lg border-2 border-slate-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-amber-500 transition-colors p-0"
+                    className="w-20 h-20 bg-ink-800 rounded-lg border-2 border-ink-700 overflow-hidden shadow-lg relative bg-cover bg-center cursor-pointer hover:border-gold-500 transition-colors p-0"
                     aria-label={`View ${post.characterName || 'User'}'s profile`}
 
                 >
                     <img
-                        src={post.characterImageUrl || ''}
+                        src={hostedImageUrl(post.characterImageUrl)}
                         alt={`${post.characterName || 'User'}'s avatar`}
                         className="w-full h-full object-cover"
                         style={{ objectPosition: post.characterImagePosition || 'center' }}
                         onError={(e) => e.target.style.display = 'none'}
 
                     />
-                    <span className="absolute inset-0 flex items-center justify-center text-3xl bg-slate-700 text-slate-300 font-bold -z-10">
+                    <span className="absolute inset-0 flex items-center justify-center text-3xl bg-ink-700 text-ink-300 font-bold -z-10">
                         {post.characterName ? post.characterName.substring(0, 1) : '?'}
                     </span>
 
@@ -142,18 +143,18 @@ const PostItem = memo(function PostItem({
                     <button
                         type="button"
                         onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                        className="text-xs font-bold text-amber-500 truncate w-full cursor-pointer hover:underline bg-transparent border-none p-0"
+                        className="text-xs font-bold text-gold-500 truncate w-full cursor-pointer hover:underline bg-transparent border-none p-0"
                     >
                         {post.characterName}
                     </button>
-                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
+                    <div className="text-2xs text-ink-500 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
 
                     {/* Buttons */}
                     <div className="mt-1 flex flex-wrap justify-center gap-1">
                         {user && user.uid !== post.userId && (
                             <button
                                 onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
-                                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
+                                className="text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
                                 title="Send Message"
                             >
                                 <MessageCircle className="w-3 h-3" /> DM
@@ -162,7 +163,7 @@ const PostItem = memo(function PostItem({
                         {isAdminOrMod && (
                             <button
                                 onClick={() => onCopyUserId(post.userId)}
-                                className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-amber-500 border border-slate-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
+                                className="text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
                                 aria-label="Copy User ID"
                                 title="Copy User ID"
                             >
@@ -172,7 +173,7 @@ const PostItem = memo(function PostItem({
                         {isAdmin && (
                             <button
                                 onClick={() => onManageUser({ id: post.userId, name: post.characterName })}
-                                className="text-[10px] bg-slate-800 hover:bg-amber-900 text-slate-400 hover:text-amber-500 border border-slate-700 hover:border-amber-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
+                                className="text-2xs bg-ink-800 hover:bg-gold-900 text-ink-400 hover:text-gold-500 border border-ink-700 hover:border-gold-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
                                 title="Manage User Role"
                             >
                                 <Shield className="w-3 h-3" /> Role
@@ -183,7 +184,7 @@ const PostItem = memo(function PostItem({
             </div>
 
             {/* CONTENT CARD */}
-            <div className="flex-1 bg-slate-900/50 border border-slate-800 p-4 md:p-6 rounded-xl md:rounded-tl-none relative shadow-sm">
+            <div className="flex-1 bg-ink-900/50 border border-ink-800 p-4 md:p-6 rounded-xl md:rounded-tl-none relative shadow-sm">
                 {isEditing ? (
                     <div className="space-y-2">
                         <MarkdownEditor
@@ -193,18 +194,18 @@ const PostItem = memo(function PostItem({
                             onWikiLink={onWikiLink}
                         />
                         <div className="flex gap-2 justify-end">
-                            <button onClick={onEditCancel} className="px-3 py-1 text-slate-400 hover:text-white text-xs">Cancel</button>
-                            <button onClick={onEditSave} className="px-3 py-1 bg-amber-700 text-white rounded hover:bg-amber-600 text-xs">Save Edits</button>
+                            <button onClick={onEditCancel} className="px-3 py-1 text-ink-400 hover:text-white text-xs">Cancel</button>
+                            <button onClick={onEditSave} className="px-3 py-1 bg-gold-700 text-white rounded hover:bg-gold-600 text-xs">Save Edits</button>
                         </div>
                     </div>
                 ) : (
                     <>
-                        <div className="prose prose-invert prose-p:text-slate-300 prose-headings:text-amber-100 max-w-none">
-                            <RichText content={post.content} className="font-serif text-lg" onWikiLink={onWikiLink} />
+                        <div className="prose prose-invert prose-p:text-ink-300 prose-headings:text-gold-100 max-w-none">
+                            <RichText content={post.content} className="font-serif text-xl leading-relaxed" onWikiLink={onWikiLink} />
                         </div>
                         <div className="absolute top-2 right-4 hidden md:flex gap-2 items-center">
-                            {post.isEdited && <span className="text-[10px] text-slate-600 italic">(Edited)</span>}
-                            <span className="text-[10px] text-slate-700">{formatTimestamp(post.createdAt)}</span>
+                            {post.isEdited && <span className="text-2xs text-ink-500 italic">(Edited)</span>}
+                            <span className="text-2xs text-ink-500">{formatTimestamp(post.createdAt)}</span>
                         </div>
                     </>
                 )}

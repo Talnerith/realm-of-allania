@@ -44,7 +44,7 @@ export const metadata = {
     siteName: 'Realm of Allania',
     images: [
       {
-        url: '/map.jpg', // Ensure you have a good default social share image in public folder
+        url: '/og-image.jpg', // 1200x630 crop of the world map
         width: 1200,
         height: 630,
         alt: 'Map of Allania',
@@ -57,7 +57,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Realm of Allania',
     description: 'Join the immersive text-based RPG forum.',
-    images: ['/map.jpg'],
+    images: ['/og-image.jpg'],
   },
   robots: {
     index: true,
@@ -81,7 +81,7 @@ export default function RootLayout({ children }) {
         <meta name="theme-color" content="#b45309" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
       </head>
-      <body className="bg-slate-950 text-slate-200 antialiased h-full overflow-hidden">
+      <body className="bg-ink-950 text-ink-200 antialiased h-full overflow-hidden">
         <ErrorBoundary>
           <GameProvider>
             {children}

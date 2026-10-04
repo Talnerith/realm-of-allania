@@ -8,11 +8,11 @@ const formatTime = (timestamp) => {
 const ChatMessage = memo(function ChatMessage({ msg, isMe }) {
     return (
         <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-            <div className={`max-w-[80%] rounded-lg p-3 text-sm ${isMe ? 'bg-amber-900/40 text-amber-100 border border-amber-900/50' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
+            <div className={`max-w-[80%] rounded-lg p-3 text-sm ${isMe ? 'bg-gold-900/40 text-gold-100 border border-gold-900/50' : 'bg-ink-800 text-ink-300 border border-ink-700'}`}>
                 {msg.text}
             </div>
             {/* TIMESTAMP */}
-            <span className="text-[10px] text-slate-600 mt-1 px-1">
+            <span className="text-2xs text-ink-500 mt-1 px-1">
                 {formatTime(msg.createdAt)}
             </span>
         </div>

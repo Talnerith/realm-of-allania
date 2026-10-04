@@ -15,38 +15,38 @@ export default function LandingPage({ onEnter }) {
   };
 
   return (
-    <div className="h-full w-full overflow-y-auto custom-scrollbar bg-slate-950 text-slate-200">
+    <div className="h-full w-full overflow-y-auto custom-scrollbar bg-ink-950 text-ink-200">
       {/* Hero Section */}
-      <div className="relative h-96 flex items-center justify-center bg-gradient-to-b from-amber-900/30 to-slate-950">
+      <div className="relative h-96 flex items-center justify-center bg-gradient-to-b from-gold-900/30 to-ink-950">
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute inset-0 bg-[url('/images/landing-hero.jpg')] bg-cover bg-center opacity-20"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
+          <div className="absolute inset-0 bg-[url('/images/landing-hero.webp')] bg-cover bg-center opacity-20"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/50 to-transparent"></div>
         </div>
 
         <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-          <h1 className="text-5xl md:text-7xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500 mb-6 drop-shadow-sm">
+          <h1 className="text-5xl md:text-7xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-gold-200 to-gold-500 mb-6 drop-shadow-sm">
             Realm of Allania
           </h1>
-          <p className="text-xl md:text-2xl text-slate-300 font-light max-w-2xl mx-auto mb-8">
+          <p className="text-xl md:text-2xl text-ink-300 font-light max-w-2xl mx-auto mb-8">
             An immersive Play-by-Post Roleplaying experience set in a high-fantasy world of magic, intrigue, and endless adventure.
           </p>
           <button
             onClick={handleEnter}
-            className="group relative inline-flex items-center justify-center px-8 py-3 bg-amber-600 hover:bg-amber-500 text-white font-serif tracking-wide transition-all shadow-lg hover:shadow-amber-900/50 rounded-sm"
+            className="group relative inline-flex items-center justify-center px-8 py-3 bg-gold-600 hover:bg-gold-500 text-white font-serif tracking-wide transition-all shadow-lg hover:shadow-gold-900/50 rounded-sm"
           >
             <span>Enter the Realm</span>
             <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </button>
 
-          <div className="mt-4 flex items-center justify-center space-x-2 text-slate-400 text-sm">
+          <div className="mt-4 flex items-center justify-center space-x-2 text-ink-400 text-sm">
             <input
               type="checkbox"
               id="skipLanding"
               checked={skipFuture}
               onChange={(e) => setSkipFuture(e.target.checked)}
-              className="accent-amber-600 w-4 h-4 rounded border-slate-600 bg-slate-800"
+              className="accent-gold-600 w-4 h-4 rounded border-ink-600 bg-ink-800"
             />
-            <label htmlFor="skipLanding" className="cursor-pointer select-none hover:text-slate-300 transition-colors">
+            <label htmlFor="skipLanding" className="cursor-pointer select-none hover:text-ink-300 transition-colors">
               Don&apos;t show this introduction again
             </label>
           </div>
@@ -59,11 +59,11 @@ export default function LandingPage({ onEnter }) {
         {/* What is Play-by-Post? */}
         <section className="grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <h2 className="text-3xl font-serif text-amber-500 mb-4 flex items-center">
+            <h2 className="text-3xl font-serif text-gold-500 mb-4 flex items-center">
               <Book className="mr-3 w-8 h-8" />
               What is Play-by-Post?
             </h2>
-            <div className="space-y-4 text-slate-300 leading-relaxed text-lg">
+            <div className="space-y-4 text-ink-300 leading-relaxed text-lg">
               <p>
                 Play-by-Post (PbP) is a text-based roleplaying game format where the story unfolds through forum posts rather than real-time sessions.
               </p>
@@ -72,16 +72,26 @@ export default function LandingPage({ onEnter }) {
               </p>
             </div>
           </div>
-          <div className="bg-slate-900 p-6 rounded-lg border border-slate-800 shadow-xl relative group">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg"></div>
-            <div className="rounded-lg overflow-hidden border border-slate-800 shadow-xl">
-              <img
-                src="/images/tutorial-demo.gif"
-                alt="Play-by-Post Tutorial"
+          <div className="bg-ink-900 p-6 rounded-lg border border-ink-800 shadow-xl relative group">
+            <div className="absolute inset-0 bg-gradient-to-br from-gold-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg"></div>
+            <div className="rounded-lg overflow-hidden border border-ink-800 shadow-xl">
+              <video
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                poster="/images/tutorial-demo-poster.jpg"
+                width={640}
+                height={360}
+                aria-label="Play-by-Post Tutorial"
                 className="w-full h-auto object-cover"
-              />
+              >
+                <source src="/images/tutorial-demo.webm" type="video/webm" />
+                <source src="/images/tutorial-demo.mp4" type="video/mp4" />
+              </video>
             </div>
-            <div className="mt-4 text-center text-xs text-slate-500 font-sans uppercase tracking-widest">
+            <div className="mt-4 text-center text-xs text-ink-500 font-sans uppercase tracking-widest">
               Storytelling at your pace
             </div>
           </div>
@@ -89,38 +99,38 @@ export default function LandingPage({ onEnter }) {
 
         {/* Features Grid */}
         <section>
-          <h2 className="text-3xl font-serif text-amber-500 mb-12 text-center">Platform Features</h2>
+          <h2 className="text-3xl font-serif text-gold-500 mb-12 text-center">Platform Features</h2>
 
           <div className="grid md:grid-cols-3 gap-8">
             {/* World Map */}
-            <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800 hover:border-amber-900/50 transition-colors">
-              <div className="h-12 w-12 bg-amber-900/20 text-amber-500 flex items-center justify-center rounded-lg mb-4">
+            <div className="bg-ink-900/50 p-6 rounded-lg border border-ink-800 hover:border-gold-900/50 transition-colors">
+              <div className="h-12 w-12 bg-gold-900/20 text-gold-500 flex items-center justify-center rounded-lg mb-4">
                 <Map className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-serif text-slate-200 mb-3">Interactive World Map</h3>
-              <p className="text-slate-400">
+              <h3 className="text-xl font-serif text-ink-200 mb-3">Interactive World Map</h3>
+              <p className="text-ink-400">
                 Navigate the diverse regions of Allania visually. Click on any region to discover its lore, active threads, and current events. The world is yours to explore.
               </p>
             </div>
 
             {/* Live Chat */}
-            <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800 hover:border-amber-900/50 transition-colors">
+            <div className="bg-ink-900/50 p-6 rounded-lg border border-ink-800 hover:border-gold-900/50 transition-colors">
               <div className="h-12 w-12 bg-blue-900/20 text-blue-500 flex items-center justify-center rounded-lg mb-4">
                 <MessageSquare className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-serif text-slate-200 mb-3">Real-time Messaging</h3>
-              <p className="text-slate-400">
+              <h3 className="text-xl font-serif text-ink-200 mb-3">Real-time Messaging</h3>
+              <p className="text-ink-400">
                 Coordinate with other players, plan your next adventure, or just hang out in our integrated live chat system. Seamlessly switch between writing posts and chatting.
               </p>
             </div>
 
             {/* Codex */}
-            <div className="bg-slate-900/50 p-6 rounded-lg border border-slate-800 hover:border-amber-900/50 transition-colors">
+            <div className="bg-ink-900/50 p-6 rounded-lg border border-ink-800 hover:border-gold-900/50 transition-colors">
               <div className="h-12 w-12 bg-purple-900/20 text-purple-500 flex items-center justify-center rounded-lg mb-4">
                 <Book className="w-6 h-6" />
               </div>
-              <h3 className="text-xl font-serif text-slate-200 mb-3">The Codex</h3>
-              <p className="text-slate-400">
+              <h3 className="text-xl font-serif text-ink-200 mb-3">The Codex</h3>
+              <p className="text-ink-400">
                 A living wiki of the world&apos;s lore, characters, and history. Contribute your own knowledge and keep track of the ever-expanding universe of Allania.
               </p>
             </div>
@@ -128,38 +138,38 @@ export default function LandingPage({ onEnter }) {
         </section>
 
         {/* Tutorial Section - Getting Started */}
-        <section className="bg-slate-900 rounded-xl p-8 border border-slate-800">
-          <h2 className="text-3xl font-serif text-slate-200 mb-8 flex items-center">
-            <Sword className="mr-3 w-8 h-8 text-amber-500" />
+        <section className="bg-ink-900 rounded-xl p-8 border border-ink-800">
+          <h2 className="text-3xl font-serif text-ink-200 mb-8 flex items-center">
+            <Sword className="mr-3 w-8 h-8 text-gold-500" />
             Getting Started
           </h2>
 
           <div className="space-y-8">
             <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-slate-800 text-amber-500 font-bold text-xl border border-slate-700">1</div>
+              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-ink-800 text-gold-500 font-bold text-xl border border-ink-700">1</div>
               <div>
-                <h3 className="text-xl text-amber-100 mb-2">Create Your Account</h3>
-                <p className="text-slate-400">
+                <h3 className="text-xl text-gold-100 mb-2">Create Your Account</h3>
+                <p className="text-ink-400">
                   Sign up to gain access to posting features. You can browse the world as a guest, but to make your mark, you must be a registered adventurer.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-slate-800 text-amber-500 font-bold text-xl border border-slate-700">2</div>
+              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-ink-800 text-gold-500 font-bold text-xl border border-ink-700">2</div>
               <div>
-                <h3 className="text-xl text-amber-100 mb-2">Create a Character</h3>
-                <p className="text-slate-400">
+                <h3 className="text-xl text-gold-100 mb-2">Create a Character</h3>
+                <p className="text-ink-400">
                   Use the Character Drawer to create your persona. Define their name, appearance, and backstory. This profile will accompany every post you make.
                 </p>
               </div>
             </div>
 
             <div className="flex flex-col md:flex-row gap-6">
-              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-slate-800 text-amber-500 font-bold text-xl border border-slate-700">3</div>
+              <div className="flex-shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-ink-800 text-gold-500 font-bold text-xl border border-ink-700">3</div>
               <div>
-                <h3 className="text-xl text-amber-100 mb-2">Join a Thread</h3>
-                <p className="text-slate-400">
+                <h3 className="text-xl text-gold-100 mb-2">Join a Thread</h3>
+                <p className="text-ink-400">
                   Navigate to a region on the map, find an open thread, or start your own. Write your first post and wait for others to respond!
                 </p>
               </div>
@@ -169,7 +179,7 @@ export default function LandingPage({ onEnter }) {
           <div className="mt-12 text-center">
             <button
               onClick={handleEnter}
-              className="px-8 py-3 border border-amber-600 text-amber-500 hover:bg-amber-600 hover:text-white transition-colors uppercase tracking-widest text-sm font-semibold rounded-sm"
+              className="px-8 py-3 border border-gold-600 text-gold-500 hover:bg-gold-600 hover:text-white transition-colors uppercase tracking-widest text-sm font-semibold rounded-sm"
             >
               Start Your Journey
             </button>
@@ -179,7 +189,7 @@ export default function LandingPage({ onEnter }) {
       </div>
 
       {/* Footer */}
-      <footer className="bg-slate-950 py-12 text-center text-slate-600 text-sm border-t border-slate-900 mt-12">
+      <footer className="bg-ink-950 py-12 text-center text-ink-600 text-sm border-t border-ink-900 mt-12">
         <p>&copy; {new Date().getFullYear()} Realm of Allania. All rights reserved.</p>
         <p className="mt-2">A Play-by-Post Roleplaying Community.</p>
       </footer>

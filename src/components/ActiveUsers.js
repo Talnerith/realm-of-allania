@@ -46,15 +46,15 @@ export default function ActiveUsers({ isOpen, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-slate-900 border border-amber-900/50 rounded-lg p-6 w-full max-w-sm shadow-2xl relative">
+      <div className="bg-ink-900 border border-gold-900/50 rounded-lg p-6 w-full max-w-sm shadow-2xl relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white"
+          className="absolute top-4 right-4 text-ink-400 hover:text-white"
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="flex items-center gap-3 mb-4 text-amber-500">
+        <div className="flex items-center gap-3 mb-4 text-gold-500">
           <Users className="w-6 h-6" />
           <h2 className="font-serif font-bold text-xl">Active Users</h2>
         </div>
@@ -64,22 +64,22 @@ export default function ActiveUsers({ isOpen, onClose }) {
             activeUsers.map((activeUser) => { // Rename to activeUser to avoid conflict
               const isCurrentUser = user && activeUser.id === user.uid;
               return (
-                <div key={activeUser.id} className={`flex items-center gap-3 p-2 rounded border transition-colors ${isCurrentUser ? 'bg-amber-900/20 border-amber-800/50' : 'bg-slate-950/50 border-slate-800'}`}>
-                  <div className={`w-2 h-2 rounded-full animate-pulse ${isCurrentUser ? 'bg-amber-500' : 'bg-green-500'}`}></div>
-                  <span className={`font-medium ${isCurrentUser ? 'text-amber-200' : 'text-slate-200'}`}>
-                    {activeUser.username} {isCurrentUser && <span className="text-amber-500 text-xs ml-1">(You)</span>}
+                <div key={activeUser.id} className={`flex items-center gap-3 p-2 rounded border transition-colors ${isCurrentUser ? 'bg-gold-900/20 border-gold-800/50' : 'bg-ink-950/50 border-ink-800'}`}>
+                  <div className={`w-2 h-2 rounded-full animate-pulse ${isCurrentUser ? 'bg-gold-500' : 'bg-green-500'}`}></div>
+                  <span className={`font-medium ${isCurrentUser ? 'text-gold-200' : 'text-ink-200'}`}>
+                    {activeUser.username} {isCurrentUser && <span className="text-gold-500 text-xs ml-1">(You)</span>}
                   </span>
                 </div>
               );
             })
           ) : (
-            <div className="text-slate-500 text-center py-4 italic">
+            <div className="text-ink-500 text-center py-4 italic">
               The realm is quiet...
             </div>
           )}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-slate-800 text-xs text-center text-slate-500">
+        <div className="mt-4 pt-4 border-t border-ink-800 text-xs text-center text-ink-500">
           {activeUsers.length} soul{activeUsers.length !== 1 ? 's' : ''} present in the realm
         </div>
       </div>

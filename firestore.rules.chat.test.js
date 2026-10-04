@@ -2,10 +2,12 @@
  * @jest-environment node
  */
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
+const { doc, setDoc, updateDoc, writeBatch, serverTimestamp, Timestamp } = require('firebase/firestore');
 const fs = require('fs');
 const path = require('path');
 
 const PROJECT_ID = 'realm-of-aethelraed';
+const CHAT_PATH = 'artifacts/realm-of-allania-v2/chats/chat_123';
 
 describe('Firestore Security Rules - Chats', () => {
     let testEnv;
@@ -28,136 +30,79 @@ describe('Firestore Security Rules - Chats', () => {
 
     beforeEach(async () => {
         await testEnv.clearFirestore();
+        // A chat whose last activity was a minute ago (outside the 1s flood window)
+        await testEnv.withSecurityRulesDisabled((context) => setDoc(doc(context.firestore(), CHAT_PATH), {
+            participants: ['alice', 'bob'],
+            lastMessage: 'Chat started',
+            updatedAt: Timestamp.fromDate(new Date(Date.now() - 60000))
+        }));
     });
 
-    const getDb = (auth) => {
-        const token = auth ? { ...auth, sub: auth.uid } : undefined;
-        // Remove uid to avoid "uid field is no longer supported" error
-        if (token && token.uid) delete token.uid;
-        return testEnv.authenticatedContext(auth ? auth.uid : 'alice', token).firestore();
+    const dbFor = (uid, token = { email_verified: true }) => testEnv.authenticatedContext(uid, token).firestore();
+
+    // How the client sends: message + chat bump in one batch
+    const sendMessage = (db, id, message) => {
+        const batch = writeBatch(db);
+        batch.set(doc(db, `${CHAT_PATH}/messages/${id}`), { createdAt: serverTimestamp(), ...message });
+        batch.update(doc(db, CHAT_PATH), { lastMessage: String(message.text).slice(0, 50), updatedAt: serverTimestamp() });
+        return batch.commit();
     };
-    const getAdminDb = () => testEnv.unauthenticatedContext().firestore(); // Admin bypass not strictly needed if we setup data correctly
 
     it('should allow participants to send valid messages', async () => {
-        const aliceDb = getDb({ uid: 'alice' });
+        await assertSucceeds(sendMessage(dbFor('alice'), 'msg_1', { senderId: 'alice', text: 'Hello world' }));
+    });
 
-        // Setup: Create a chat where alice is a participant
-        // Note: We might need admin privileges or a valid setup to create the parent chat first
-        // But since we are mocking the DB state for the get() call, we just need the document to exist.
-        // However, rules unit testing uses the actual emulator. So we must write the chat doc first.
+    it('should deny messages written without bumping the chat (flood-control bypass)', async () => {
+        const db = dbFor('alice');
+        await assertFails(setDoc(doc(db, `${CHAT_PATH}/messages/msg_1`), {
+            senderId: 'alice', text: 'Spam', createdAt: serverTimestamp()
+        }));
+    });
 
-        // Bypass rules using rules-unit-testing specific method if needed, or just use a valid write.
-        // Let's try to write the chat doc as alice (assuming chat creation rules work and alice is participant)
+    it('should deny a second message within the same second', async () => {
+        const db = dbFor('alice');
+        await assertSucceeds(sendMessage(db, 'msg_1', { senderId: 'alice', text: 'One' }));
+        await assertFails(sendMessage(db, 'msg_2', { senderId: 'alice', text: 'Two' }));
+    });
 
-        const chatId = 'chat_123';
-        const chatPath = `artifacts/realm-of-allania-v2/chats/${chatId}`;
-
-        // Setup chat document using `withSecurityRulesDisabled` to ensure it exists for the test
-        await testEnv.withSecurityRulesDisabled(async (context) => {
-            await context.firestore().doc(chatPath).set({
-                participants: ['alice', 'bob']
-            });
-        });
-
-        // Test creating a message
-        const messagePath = `${chatPath}/messages/msg_1`;
-        await assertSucceeds(aliceDb.doc(messagePath).set({
-            senderId: 'alice',
-            text: 'Hello world',
-            createdAt: new Date()
+    it('should deny setting the chat timestamp into the future (would block the other person)', async () => {
+        await assertFails(updateDoc(doc(dbFor('alice'), CHAT_PATH), {
+            lastMessage: 'x', updatedAt: Timestamp.fromDate(new Date('2999-01-01'))
         }));
     });
 
     it('should deny non-participants from sending messages', async () => {
-        const eveDb = getDb({ uid: 'eve' }); // Eve is not in participants
+        await assertFails(sendMessage(dbFor('eve'), 'msg_2', { senderId: 'eve', text: 'I am hacking' }));
+    });
 
-        const chatId = 'chat_123';
-        const chatPath = `artifacts/realm-of-allania-v2/chats/${chatId}`;
-
-        await testEnv.withSecurityRulesDisabled(async (context) => {
-            await context.firestore().doc(chatPath).set({
-                participants: ['alice', 'bob']
-            });
-        });
-
-        const messagePath = `${chatPath}/messages/msg_2`;
-        await assertFails(eveDb.doc(messagePath).set({
-            senderId: 'eve',
-            text: 'I am hacking',
-            createdAt: new Date()
-        }));
+    it('should deny unverified accounts from sending messages', async () => {
+        await assertFails(sendMessage(dbFor('alice', { email_verified: false }), 'msg_2', { senderId: 'alice', text: 'Hi' }));
     });
 
     it('should deny sending messages with wrong senderId (Spoofing)', async () => {
-        const aliceDb = getDb({ uid: 'alice' });
-
-        const chatId = 'chat_123';
-        const chatPath = `artifacts/realm-of-allania-v2/chats/${chatId}`;
-
-        await testEnv.withSecurityRulesDisabled(async (context) => {
-            await context.firestore().doc(chatPath).set({
-                participants: ['alice', 'bob']
-            });
-        });
-
-        const messagePath = `${chatPath}/messages/msg_3`;
-        // Alice tries to claim she is 'bob'
-        await assertFails(aliceDb.doc(messagePath).set({
-            senderId: 'bob',
-            text: 'Spoofed message',
-            createdAt: new Date()
-        }));
+        await assertFails(sendMessage(dbFor('alice'), 'msg_3', { senderId: 'bob', text: 'Spoofed message' }));
     });
 
     it('should deny empty or too long messages', async () => {
-        const aliceDb = getDb({ uid: 'alice' });
-
-        const chatId = 'chat_123';
-        const chatPath = `artifacts/realm-of-allania-v2/chats/${chatId}`;
-
-        await testEnv.withSecurityRulesDisabled(async (context) => {
-            await context.firestore().doc(chatPath).set({
-                participants: ['alice', 'bob']
-            });
-        });
-
-        // Empty text
-        await assertFails(aliceDb.doc(`${chatPath}/messages/fail_1`).set({
-            senderId: 'alice',
-            text: '',
-            createdAt: new Date()
-        }));
-
-        // Too long text (> 2000)
-        const longText = 'a'.repeat(2001);
-        await assertFails(aliceDb.doc(`${chatPath}/messages/fail_2`).set({
-            senderId: 'alice',
-            text: longText,
-            createdAt: new Date()
-        }));
+        const db = dbFor('alice');
+        await assertFails(sendMessage(db, 'fail_1', { senderId: 'alice', text: '' }));
+        await assertFails(sendMessage(db, 'fail_2', { senderId: 'alice', text: 'a'.repeat(2001) }));
     });
 
     it('should deny updating messages (Immutability)', async () => {
-        const aliceDb = getDb({ uid: 'alice' });
+        const messagePath = `${CHAT_PATH}/messages/msg_update`;
+        await testEnv.withSecurityRulesDisabled((context) => setDoc(doc(context.firestore(), messagePath), {
+            senderId: 'alice', text: 'Original', createdAt: new Date()
+        }));
+        await assertFails(updateDoc(doc(dbFor('alice'), messagePath), { text: 'Edited' }));
+    });
 
-        const chatId = 'chat_123';
-        const chatPath = `artifacts/realm-of-allania-v2/chats/${chatId}`;
-        const messagePath = `${chatPath}/messages/msg_update`;
-
-        await testEnv.withSecurityRulesDisabled(async (context) => {
-            await context.firestore().doc(chatPath).set({
-                participants: ['alice', 'bob']
-            });
-            await context.firestore().doc(messagePath).set({
-                senderId: 'alice',
-                text: 'Original',
-                createdAt: new Date()
-            });
-        });
-
-        // Try to update text
-        await assertFails(aliceDb.doc(messagePath).update({
-            text: 'Edited'
+    it('should allow starting a chat with a server timestamp', async () => {
+        await assertSucceeds(setDoc(doc(dbFor('alice'), 'artifacts/realm-of-allania-v2/chats/new_chat'), {
+            participants: ['alice', 'carol'],
+            participantNames: { alice: 'Alice', carol: 'Carol' },
+            lastMessage: 'Chat started',
+            updatedAt: serverTimestamp()
         }));
     });
 });

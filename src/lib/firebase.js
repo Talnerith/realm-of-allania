@@ -2,6 +2,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 // We check if the variables exist to prevent silent crashes
@@ -40,3 +41,4 @@ if (app && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SI
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
+export const functions = app ? getFunctions(app, 'us-central1') : null;

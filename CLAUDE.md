@@ -6,7 +6,7 @@ Realm of Allania — a web-based Play-by-Post (PbP) roleplaying platform (intera
 ## Stack
 - **Framework**: Next.js 16 (App Router), React 19 — JavaScript (ES6+), no TypeScript
 - **Backend**: Firebase 12 — Firestore, Auth, Storage, App Check (reCAPTCHA v3)
-- **Functions**: Firebase Cloud Functions v2 (Node 22), in `functions/` — uses OpenRouter (`google/gemini-3.1-flash-lite`) for AI content moderation
+- **Functions**: Firebase Cloud Functions v2 (Node 22), in `functions/` — uses OpenRouter for AI content moderation (model is the `OPENROUTER_MODEL` constant in `functions/index.js`; must support vision + reasoning)
 - **Styling**: Tailwind CSS 4 (via `@tailwindcss/postcss`)
 - **Icons**: lucide-react
 - **Testing**: Jest 30 + React Testing Library (jsdom); `@firebase/rules-unit-testing` for security rules
@@ -58,8 +58,11 @@ Key patterns:
 - **GameContext** (`src/context/GameContext.js`) is the auth + data hub: wraps `onAuthStateChanged`, sets up Firestore real-time listeners (role, read receipts, characters, presence heartbeat every 60s), and exposes `useGame()`. Context value is memoized.
 - **Firestore path convention**: data lives under `artifacts/{APP_ID}/...`. `APP_ID = 'realm-of-allania-v2'` (defined in both `src/lib/constants.js` and `functions/index.js` — keep them in sync).
 - **Roles**: `user` / `moderator` / `admin` / `banned`, stored at `artifacts/{APP_ID}/users/{uid}/settings/account`. The role doc self-heals (auto-created) if missing.
-- **Security layers**: Firestore/Storage rules are the primary auth layer; CSP/security headers set in both `middleware.js` and `next.config.mjs`. App Check guards client calls.
-- **Moderation**: Cloud Functions trigger on document writes / storage uploads and call OpenRouter (Gemini) for text/image moderation; keyword filtering in `validation.js` + `forbiddenKeywords.js`.
+- **Security layers**: Firestore/Storage rules are the primary auth layer; CSP is set in `src/middleware.js`; the other security headers (HSTS, X-Frame-Options, etc.) in `next.config.mjs`. App Check guards client calls.
+- **Moderation**: Cloud Functions trigger on document writes / storage uploads and call OpenRouter for text/image moderation; keyword filtering in `validation.js` + `forbiddenKeywords.js`. Verdict parsing is strict on purpose: only a bare `SAFE` approves, `REJECT`/`UNSAFE` must lead the reply, anything else goes to `needs_review` (a wordy reply often means the model was being talked into it). Thinking is on at low effort with `exclude: true`; keep `max_tokens` large enough for the reasoning or the verdict comes back empty.
+- **Moderation flow**: clients create posts/threads/codex pages as `pending` (only mods may write `approved`), and every non-mod content edit must set `status: 'pending'` (rules enforce it). The functions moderate only `pending` docs and write the verdict in a transaction only if the content is unchanged (`applyVerdictIfUnchanged`). Trusted users skip the AI step but never the keyword filter; images are always AI-checked. A thread is approved with its creator's first approved post, and its title is moderated with that post. A codex edit that fails moderation restores `approvedSnapshot` instead of hiding the page; the log's `proposedEdit` lets a mod apply it. Auto-promotion to `trusted` needs verified email, 14-day-old account, 10 approved items across 3+ threads (`PROMOTION_RULES`).
+- **Images**: only Storage-hosted images render (`src/lib/imageUrls.js` `hostedImageUrl`/`isHostedImageUrl`; CSP `img-src` matches). Pasted URLs go through the `importImageFromUrl` callable (`functions/importImage.js`), which blocks private/metadata addresses, caps size, checks magic bytes and rate-limits, then saves to Storage where `moderateImage` checks it.
+- **Write requirements**: content writes require `request.auth.token.email_verified` (`canWrite()` in rules) and server timestamps (`updatedAt == request.time`) on threads and chats.
 
 ## Conventions
 - `@/*` path alias maps to `src/*` (jsconfig.json + jest moduleNameMapper).
@@ -69,6 +72,7 @@ Key patterns:
 - **Mock all Firebase in tests** — never hit real endpoints. Mock `@/lib/firebase`, `firebase/auth`, `firebase/firestore`, `firebase/storage`, and `@/context/GameContext` (`useGame`).
 - Always clean up real-time listeners in `useEffect` return functions.
 - When approving a child doc (Post), also update the parent (Thread) so it stays visible (status propagation).
+- **Design tokens** live in `src/app/globals.css` (`@theme`): use `ink-*` (neutral) and `gold-*` (accent) colors, never raw `slate-*`/`amber-*`; `font-serif` (Cormorant Garamond) for display/prose, `font-sans` (Inter) for UI; `text-2xs` (11px) is the smallest text size. Change the look by editing tokens, not by editing hundreds of class names.
 - `firebase.js`, `auth`, `db`, `storage` may be `null` when env vars are absent — guard with null checks (the codebase does this everywhere).
 
 ## Gotchas
@@ -92,12 +96,13 @@ Condensed from the project's accumulated testing conventions.
 
 ## Debugging patterns
 - **Cryptic frontend errors can be backend symptoms**: a Chrome `storage/unauthorized` (or similar Firebase error) may be the surface of a crashed Cloud Function — check Google Cloud Function logs first (`npm run logs` from `functions/`).
-- **Minified production bugs**: variables collapse to `_`/`a`/`b`; reproduce locally with `npm run build && npm start`. `Cannot access '_' before initialization` (TDZ) usually means hook-ordering issues — check `useCallback`/`useEffect` placement.
-- **CSP violations** (`Content Security Policy directive`): check the CSP config in `middleware.js` and `next.config.mjs` (they must stay in sync).
+- **Minified production bugs**: variables collapse to `_`/`a`/`b`; reproduce locally with `npm run build && npm start`. `Cannot access '_' before initialization` (TDZ) usually means hook-ordering issues — check `useCallback`/`useEffect` placement. In Cloud Functions the same error usually means a second block-scoped `const db` in a handler — declare `const db = admin.firestore()` once at the top of each handler.
+- **CSP violations** (`Content Security Policy directive`): check the CSP in `src/middleware.js`. It must keep: `https://www.google.com` + `https://www.gstatic.com` in script-src and connect-src, and `https://www.google.com` in frame-src (reCAPTCHA / App Check — removing them breaks login silently); `wss://*.firebaseio.com` + `https://*.googleapis.com` in connect-src (Firestore/Storage); `https://fonts.googleapis.com` / `https://fonts.gstatic.com` for fonts.
+- **Storage cleanup**: deleting an old image (avatar, banner) must never block the main operation — catch and log `deleteObject` failures (`storage/object-not-found` is expected).
 - **`useMemo`/`React.memo` not preventing re-renders**: the props (especially handler functions) are likely re-created each parent render — wrap handlers in `useCallback` before passing to memoized children.
 
 ## Learnings log
-Dated post-mortem entries carried over from the project's `.Jules/` notes. Append new lessons here.
+Dated post-mortem entries (originally kept in `.Jules/`, removed in `06ef8ff` — see `git show 06ef8ff~1:.Jules/sentinel.md` for the full write-ups). Append new lessons here.
 
 - **2024-05-23 — Unstable props defeat `useMemo`**: `useMemo`/`React.memo` are useless if handler props are re-created every parent render. Always `useCallback` handlers passed to memoized components.
 - **2025-02-18 — Accessibility gaps**: heavy reliance on icon-only Lucide buttons and `div` + `onClick` without semantic HTML/ARIA (notably `Navbar.js`). When touching a component with icons, add `aria-label`/`title` and convert clickable `div`s to `<button>`.
@@ -105,5 +110,16 @@ Dated post-mortem entries carried over from the project's `.Jules/` notes. Appen
 - **2025-10-26 — Firestore insecure creation (identity spoofing)**: rules let any authed user create threads/posts/chats with arbitrary `creatorId`/`userId`. Fixed with `request.resource.data.creatorId == request.auth.uid` on create, and `request.auth.uid in request.resource.data.participants` for chats.
 - **2025-10-27 — Update identity spoofing**: ownership checks permit an update but don't protect the fields changed. Protect immutable identity/timestamp fields with `!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId','creatorId','createdAt'])`.
 - **2025-10-28 — Chat message spoofing & immutability**: nested subcollections inherit parent context but still need explicit validation. Split `read, write, delete` into granular perms; enforce `senderId == request.auth.uid` on create; deny `update` entirely to keep chat history append-only.
+- **2026-10-04 — Security review fixes**: a review found moderation bypasses (unmoderated thread titles, farmable auto-trust, edit-after-flag swaps, race between edit and verdict, extension-less image uploads, hotlinked images) and rule gaps (client-set future timestamps pinning threads / blocking chats, flood control skippable, banned users editing characters). Also: `resource.data.isLocked` on a doc without that field is a rules *error* (deny) — use `resource.data.get('isLocked', false)`. `withSecurityRulesDisabled` doesn't return its callback's value.
 - **2025-12-24 — Mobile parity**: `md:hidden` mobile views duplicate desktop structure but can miss interactive handlers (`onClick`). Apply handlers to both mobile and desktop variants.
 
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

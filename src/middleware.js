@@ -18,9 +18,11 @@ export function middleware(request) {
     "default-src 'self'",
     `script-src 'self' ${isDev ? "'unsafe-eval' " : ''}'unsafe-inline' https://www.gstatic.com https://www.google.com`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: https: blob:",
+    // Only our own assets and Storage-hosted images (pasted links are imported
+    // into Storage), so pages never load images from third-party hosts
+    "img-src 'self' data: blob: https://firebasestorage.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.google.com https://www.gstatic.com",
+    "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.google.com https://www.gstatic.com https://*.cloudfunctions.net",
     "frame-src 'self' https://www.google.com",
     "object-src 'none'",
     "base-uri 'self'",

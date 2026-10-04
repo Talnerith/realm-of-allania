@@ -55,12 +55,12 @@ export default function NotificationBell({ notifications = [] }) {
     const getNotificationIcon = (type) => {
         switch (type) {
             case 'promotion':
-                return <Award className="w-5 h-5 text-amber-500" />;
+                return <Award className="w-5 h-5 text-gold-500" />;
             case 'content_rejected':
             case 'image_rejected':
                 return <AlertCircle className="w-5 h-5 text-red-500" />;
             default:
-                return <Bell className="w-5 h-5 text-slate-400" />;
+                return <Bell className="w-5 h-5 text-ink-400" />;
         }
     };
 
@@ -69,7 +69,7 @@ export default function NotificationBell({ notifications = [] }) {
             {/* Bell Icon with Badge */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-slate-400 hover:text-white transition-colors rounded-full hover:bg-slate-800"
+                className="relative p-2 text-ink-400 hover:text-white transition-colors rounded-full hover:bg-ink-800"
                 title="Notifications"
             >
                 <Bell className="w-5 h-5" />
@@ -90,17 +90,17 @@ export default function NotificationBell({ notifications = [] }) {
                     />
                     
                     {/* Dropdown Panel */}
-                    <div className="absolute right-0 mt-2 w-80 md:w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 max-h-[32rem] overflow-hidden flex flex-col">
+                    <div className="absolute right-0 mt-2 w-80 md:w-96 bg-ink-900 border border-ink-700 rounded-lg shadow-2xl z-50 max-h-[32rem] overflow-hidden flex flex-col">
                         {/* Header */}
-                        <div className="p-4 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-slate-900">
-                            <h3 className="font-bold text-slate-200 flex items-center gap-2">
-                                <Bell className="w-4 h-4 text-amber-500" />
+                        <div className="p-4 border-b border-ink-800 flex items-center justify-between sticky top-0 bg-ink-900">
+                            <h3 className="font-bold text-ink-200 flex items-center gap-2">
+                                <Bell className="w-4 h-4 text-gold-500" />
                                 Notifications
                             </h3>
                             {unreadCount > 0 && (
                                 <button
                                     onClick={handleMarkAllAsRead}
-                                    className="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1"
+                                    className="text-xs text-gold-500 hover:text-gold-400 flex items-center gap-1"
                                 >
                                     <Check className="w-3 h-3" />
                                     Mark all read
@@ -111,17 +111,17 @@ export default function NotificationBell({ notifications = [] }) {
                         {/* Notification List */}
                         <div className="overflow-y-auto custom-scrollbar flex-1">
                             {notifications.length === 0 ? (
-                                <div className="p-8 text-center text-slate-500">
+                                <div className="p-8 text-center text-ink-500">
                                     <Bell className="w-12 h-12 mx-auto mb-2 opacity-30" />
                                     <p className="text-sm">No notifications yet</p>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-slate-800">
+                                <div className="divide-y divide-ink-800">
                                     {notifications.map(notification => (
                                         <div
                                             key={notification.id}
-                                            className={`p-4 hover:bg-slate-800/50 transition-colors group ${
-                                                !notification.read ? 'bg-slate-800/30' : ''
+                                            className={`p-4 hover:bg-ink-800/50 transition-colors group ${
+                                                !notification.read ? 'bg-ink-800/30' : ''
                                             }`}
                                         >
                                             <div className="flex items-start gap-3">
@@ -130,12 +130,12 @@ export default function NotificationBell({ notifications = [] }) {
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className={`text-sm ${
-                                                        !notification.read ? 'text-slate-200 font-medium' : 'text-slate-400'
+                                                        !notification.read ? 'text-ink-200 font-medium' : 'text-ink-400'
                                                     }`}>
                                                         {notification.message}
                                                     </p>
                                                     {notification.createdAt && (
-                                                        <p className="text-xs text-slate-600 mt-1">
+                                                        <p className="text-xs text-ink-600 mt-1">
                                                             {notification.createdAt.toDate().toLocaleString()}
                                                         </p>
                                                     )}
@@ -144,7 +144,7 @@ export default function NotificationBell({ notifications = [] }) {
                                                     {!notification.read && (
                                                         <button
                                                             onClick={() => handleMarkAsRead(notification.id)}
-                                                            className="p-1 text-slate-500 hover:text-amber-500 rounded"
+                                                            className="p-1 text-ink-500 hover:text-gold-500 rounded"
                                                             title="Mark as read"
                                                         >
                                                             <Check className="w-4 h-4" />
@@ -152,7 +152,7 @@ export default function NotificationBell({ notifications = [] }) {
                                                     )}
                                                     <button
                                                         onClick={() => handleDelete(notification.id)}
-                                                        className="p-1 text-slate-500 hover:text-red-500 rounded"
+                                                        className="p-1 text-ink-500 hover:text-red-500 rounded"
                                                         title="Delete"
                                                     >
                                                         <X className="w-4 h-4" />

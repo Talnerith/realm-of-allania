@@ -20,14 +20,18 @@ service firebase.storage {
         // Everyone can view
         allow read: if true;
 
-        // Only the owner of the folder can upload, update, or delete
-        // We also enforce file type and size limits
-        // Raster formats only: SVG (image/svg+xml) can carry scripts and skips
-        // the AI image moderator, which only inspects raster extensions.
-        allow write: if request.auth != null
+        // Only the owner of the folder can upload, update, or delete.
+        // Uploads need a verified email (like all public content) and must be
+        // raster images by both content type and file name: SVG (image/svg+xml)
+        // can carry scripts, and the extension check keeps file names honest.
+        // Every upload is checked by the moderateImage Cloud Function.
+        allow delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null
                       && request.auth.uid == userId
-                      && (request.resource == null || // Allow delete (resource is null on delete)
-                         (request.resource.contentType.matches('image/(jpeg|png|gif|webp)') && request.resource.size < 5 * 1024 * 1024));
+                      && request.auth.token.email_verified == true
+                      && filename.matches('.*[.](jpg|jpeg|png|gif|webp)')
+                      && request.resource.contentType.matches('image/(jpeg|png|gif|webp)')
+                      && request.resource.size < 5 * 1024 * 1024;
       }
     }
   }
