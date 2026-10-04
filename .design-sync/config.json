@@ -1,0 +1,146 @@
+{
+  "projectId": "e5b73efd-529c-441b-b0a1-0774af975472",
+  "shape": "package",
+  "pkg": "realm-of-aethelraed",
+  "globalName": "Allania",
+  "buildCmd": "node .design-sync/build-dist.mjs",
+  "entry": "./.design-sync/.cache/dist/index.mjs",
+  "cssEntry": ".design-sync/.cache/dist/allania.css",
+  "extraFonts": [
+    ".design-sync/fonts/fonts.css"
+  ],
+  "provider": {
+    "component": "AllaniaProvider"
+  },
+  "componentSrcMap": {
+    "AllaniaProvider": null,
+    "Navbar": "src/components/Navbar.js",
+    "LandingPage": "src/components/LandingPage.js",
+    "AuthScreen": "src/components/AuthScreen.js",
+    "WorldMap": "src/components/WorldMap.js",
+    "RegionView": "src/components/Forum/RegionView.js",
+    "ThreadView": "src/components/Forum/ThreadView.js",
+    "PostItem": "src/components/Forum/PostItem.js",
+    "CharacterDrawer": "src/components/CharacterDrawer.js",
+    "CharacterListItem": "src/components/CharacterListItem.js",
+    "ChatSystem": "src/components/ChatSystem.js",
+    "ChatListItem": "src/components/Chat/ChatListItem.js",
+    "ChatMessage": "src/components/Chat/ChatMessage.js",
+    "ActiveUsers": "src/components/ActiveUsers.js",
+    "NotificationBell": "src/components/NotificationBell.js",
+    "CodexIndex": "src/components/Codex/CodexIndex.js",
+    "CodexEntry": "src/components/Codex/CodexEntry.js",
+    "SearchResults": "src/components/Codex/SearchResults.js",
+    "RichText": "src/components/RichText.js",
+    "MarkdownEditor": "src/components/MarkdownEditor.js",
+    "ImageUploader": "src/components/ImageUploader.js",
+    "CookieBanner": "src/components/Legal/CookieBanner.js",
+    "LegalDocs": "src/components/Legal/LegalDocs.js"
+  },
+  "dtsPropsFor": {
+    "Navbar": "currentView?: 'landing' | 'map' | 'region' | 'thread' | 'codex' | 'codex_entry' | 'search' | 'legal' | 'login'; setView?: (view: string) => void; onSearch?: (query: string) => void; onToggleChat?: () => void; onLoginClick?: () => void; unreadCount?: number;",
+    "LandingPage": "onEnter?: () => void;",
+    "AuthScreen": "onLegalClick?: () => void; currentView?: string; onBack?: () => void;",
+    "WorldMap": "setView?: (view: string) => void; setActiveRegion?: (region: { id: number; name: string }) => void;",
+    "RegionView": "region: { id: number | string; name?: string }; setView?: (view: string) => void; setActiveThread?: (thread: { id: string; title?: string }) => void; onWikiLink?: (title: string) => void;",
+    "ThreadView": "thread: { id: string; title?: string; createdBy?: string; isLocked?: boolean }; region?: { id: number | string; name?: string }; setView?: (view: string) => void; onOpenCodex?: (characterIdOrTitle: string) => void; onNavigateToRegion?: (region: { id: number | string; name?: string }) => void; onMessageUser?: (target: { id: string; name: string; characterId?: string }) => void; onRequireAuth?: () => void; onWikiLink?: (title: string) => void;",
+    "PostItem": "post: { id: string; content: string; userId: string; characterId?: string; characterName?: string; characterRace?: string; characterClass?: string; characterImageUrl?: string; characterImagePosition?: string; createdAt?: { toDate(): Date }; isEdited?: boolean; status?: 'pending' | 'approved' | 'rejected' | 'needs_review' }; user?: { uid: string } | null; activeCharId?: string | null; isAdmin?: boolean; isAdminOrMod?: boolean; editingPostId?: string | null; editPostContent?: string; onEditStart?: (post: object) => void; onEditSave?: () => void; onEditCancel?: () => void; onEditChange?: (value: string) => void; onDelete?: (postId: string) => void; onMessageUser?: (target: { id: string; name: string; characterId?: string }) => void; onOpenCodex?: (characterId: string) => void; onCopyUserId?: (userId: string) => void; onManageUser?: (target: { id: string; name: string }) => void; onWikiLink?: (title: string) => void; copiedUserId?: string | null;",
+    "CharacterDrawer": "",
+    "CharacterListItem": "char: { id: string; name: string; race?: string; class?: string; imageUrl?: string; imagePosition?: string }; isActive?: boolean; onSelect?: (id: string) => void; onEdit?: (char: object) => void;",
+    "ChatSystem": "isOpen: boolean; onClose?: () => void; initialChatUser?: { id: string; name?: string; characterId?: string } | null; onUnreadCountChange?: (count: number) => void;",
+    "ChatListItem": "chat: { id: string; lastMessage?: string; updatedAt?: { toDate(): Date } }; name: string; isActive?: boolean; isUnread?: boolean; onSelect?: (chatId: string) => void;",
+    "ChatMessage": "msg: { id?: string; text: string; senderId?: string; createdAt?: { toDate(): Date } }; isMe?: boolean;",
+    "ActiveUsers": "isOpen: boolean; onClose?: () => void;",
+    "NotificationBell": "notifications?: Array<{ id: string; type?: string; message: string; read?: boolean; createdAt?: { toDate(): Date } }>;",
+    "CodexIndex": "onOpenEntry?: (page: object) => void;",
+    "CodexEntry": "page: { id?: string; isNew?: boolean; title?: string; category?: string; content?: string; gallery?: string[]; isLocked?: boolean; updatedBy?: string; updatedAt?: { toDate(): Date } }; goBack?: () => void; onWikiLink?: (title: string) => void;",
+    "SearchResults": "query: string; onNavigate?: (view: string) => void; onOpenThread?: (thread: object) => void; onOpenCodex?: (page: object) => void;",
+    "RichText": "content: string; className?: string; onWikiLink?: (title: string) => void;",
+    "MarkdownEditor": "value: string; onChange: (value: string) => void; placeholder?: string; className?: string; minHeight?: string; onPost?: (() => void) | null; submitLabel?: string; disabled?: boolean; isSubmitting?: boolean; isSubmitDisabled?: boolean; onWikiLink?: ((title: string) => void) | null;",
+    "ImageUploader": "initialUrl?: string; initialPosition?: string; onImageChanged?: (url: string, position: string) => void; folder?: 'character_portraits' | 'codex_gallery' | 'region_banners' | 'thread_banners' | 'uploads'; shape?: 'square' | 'banner' | 'circle';",
+    "CookieBanner": "",
+    "LegalDocs": "goBack?: () => void;"
+  },
+  "overrides": {
+    "ThreadView": {
+      "cardMode": "single",
+      "viewport": "1280x900",
+      "primaryStory": "SignedInPlayer"
+    },
+    "RegionView": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "WorldMap": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "LandingPage": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "AuthScreen": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "CodexIndex": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "CodexEntry": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "SearchResults": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "LegalDocs": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "ChatSystem": {
+      "cardMode": "single",
+      "viewport": "1280x900",
+      "primaryStory": "OpenConversation"
+    },
+    "ActiveUsers": {
+      "cardMode": "single",
+      "viewport": "1280x900",
+      "primaryStory": "Open"
+    },
+    "CharacterDrawer": {
+      "cardMode": "single",
+      "viewport": "1280x900",
+      "primaryStory": "OpenRoster"
+    },
+    "Navbar": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "NotificationBell": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "CookieBanner": {
+      "cardMode": "single",
+      "viewport": "1280x900",
+      "primaryStory": "Visible"
+    },
+    "MarkdownEditor": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "ImageUploader": {
+      "cardMode": "column",
+      "viewport": "1280x900"
+    },
+    "PostItem": {
+      "cardMode": "column"
+    },
+    "RichText": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}

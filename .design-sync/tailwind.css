@@ -1,0 +1,57 @@
+/* Stylesheet shipped with the design system: the app's own globals.css
+   (Tailwind 4 + ink/gold tokens), compiled against the components and the
+   previews, plus a safelist so the design agent can use the core utility
+   vocabulary in its own layouts (only compiled classes exist in a design). */
+@import "../src/app/globals.css";
+
+@source "../src";
+@source "./previews";
+
+/* Colors: the brand ramps (ink = neutrals, gold = accent) and state colors */
+@source inline("{,hover:}{bg,text,border}-{ink,gold}-{50,{100..900..100},950}");
+@source inline("{ring,from,via,to}-{ink,gold}-{500,600,700,800,900,950}");
+@source inline("{bg,border,from,to}-{ink,gold}-{500,600,700,800,900,950}/{10,20,30,50,80,90}");
+@source inline("{bg,text,border}-{red,emerald,cyan}-{300,400,500,600,700,900,950}");
+@source inline("{bg,text,border}-{white,black,transparent,current}");
+@source inline("bg-black/{20,40,60,80,90}");
+
+/* Type */
+@source inline("text-{2xs,xs,sm,base,lg,xl,2xl,3xl,4xl,5xl,6xl,7xl}");
+@source inline("md:text-{base,lg,xl,2xl,3xl,4xl,5xl,6xl,7xl}");
+@source inline("font-{serif,sans,mono,light,normal,medium,semibold,bold}");
+@source inline("{tracking-{tighter,tight,normal,wide,wider,widest},leading-{none,tight,snug,normal,relaxed,loose},uppercase,lowercase,capitalize,italic,not-italic,underline,line-through,truncate,whitespace-nowrap,whitespace-pre-wrap,break-words,text-left,text-center,text-right}");
+
+/* Spacing and sizing */
+@source inline("{p,px,py,pt,pb,pl,pr,m,mx,my,mt,mb,ml,mr,gap,gap-x,gap-y,space-x,space-y}-{0,0.5,1,1.5,2,2.5,3,4,5,6,8,10,12,16,20,24}");
+@source inline("md:{p,px,py,gap}-{2,4,6,8,10,12}");
+@source inline("{w,h,min-w,min-h,size}-{0,1,2,3,4,5,6,8,10,12,14,16,20,24,32,40,48,56,64,72,80,96,full,screen,auto,fit}");
+@source inline("max-w-{xs,sm,md,lg,xl,2xl,3xl,4xl,5xl,6xl,7xl,full,prose}");
+@source inline("{w,h}-{1/2,1/3,2/3,1/4,3/4}");
+
+/* Layout */
+@source inline("{,md:,lg:}{flex,inline-flex,grid,block,inline-block,hidden,contents}");
+@source inline("{,md:,lg:}{flex-row,flex-col,flex-wrap,flex-1,flex-none,shrink-0,grow,items-start,items-center,items-end,items-baseline,items-stretch,justify-start,justify-center,justify-end,justify-between,justify-around,self-start,self-center,self-end}");
+@source inline("{,md:,lg:}grid-cols-{1,2,3,4,5,6,12}");
+@source inline("{,md:,lg:}col-span-{1,2,3,4,6,12}");
+@source inline("{relative,absolute,fixed,sticky,inset-0,top-0,right-0,bottom-0,left-0,z-0,z-10,z-20,z-30,z-40,z-50,overflow-hidden,overflow-auto,overflow-y-auto,overflow-x-auto}");
+
+/* Surfaces and motion */
+@source inline("rounded{,-none,-sm,-md,-lg,-xl,-2xl,-3xl,-full}");
+@source inline("{border,border-0,border-2,border-t,border-b,border-l,border-r,border-dashed}");
+@source inline("shadow{,-sm,-md,-lg,-xl,-2xl,-inner,-none}");
+@source inline("{,hover:,group-hover:}opacity-{0,50,100}");
+@source inline("opacity-{10,20,30,40,60,70,80,90}");
+@source inline("{transition,transition-colors,transition-all,transition-opacity,transition-transform,duration-150,duration-200,duration-300,duration-500,ease-in-out,animate-pulse,animate-spin,cursor-pointer,select-none,pointer-events-none,backdrop-blur,backdrop-blur-sm,backdrop-blur-md,blur-sm,object-cover,object-contain,aspect-square,aspect-video,bg-gradient-to-b,bg-gradient-to-t,bg-gradient-to-r,bg-gradient-to-br}");
+
+/* next/font sets these on <html> in the app; designs get the shipped files */
+:root {
+  --font-inter: "Inter";
+  --font-cormorant: "Cormorant Garamond";
+}
+
+/* The app shell locks the page and scrolls inner panels; designs are
+   ordinary scrolling pages */
+html {
+  height: auto;
+  overflow: visible;
+}

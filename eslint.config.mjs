@@ -10,6 +10,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Claude Design sync: generated bundle, staged tooling, build cache
+    "ds-bundle/**",
+    ".ds-sync/**",
+    ".design-sync/.cache/**",
   ]),
 ]);
 

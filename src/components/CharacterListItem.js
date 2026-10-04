@@ -21,14 +21,17 @@ const CharacterListItem = memo(function CharacterListItem({ char, isActive, onSe
             className={`relative p-3 rounded-xl border flex items-center gap-4 cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-gold-500 ${isActive ? 'bg-gold-900/30 border-gold-500 shadow-lg shadow-gold-900/20' : 'bg-ink-800/50 border-ink-700 hover:bg-ink-800 hover:border-ink-500'}`}
         >
             <div className="w-16 h-16 shrink-0 bg-ink-900 rounded-lg overflow-hidden border border-ink-600">
-                <img
-                    src={hostedImageUrl(char.imageUrl)}
-                    className="w-full h-full object-cover"
-                    style={{ objectPosition: char.imagePosition || 'center' }}
-                    onError={(e) => e.target.style.display = 'none'}
-                    alt={char.name}
-                />
-                {!char.imageUrl && <div className="w-full h-full flex items-center justify-center font-bold text-ink-500 text-xl">{char.name[0]}</div>}
+                {hostedImageUrl(char.imageUrl) ? (
+                    <img
+                        src={hostedImageUrl(char.imageUrl)}
+                        className="w-full h-full object-cover"
+                        style={{ objectPosition: char.imagePosition || 'center' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        alt={char.name}
+                    />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center font-serif font-bold text-ink-400 text-2xl" aria-hidden="true">{char.name?.[0]}</div>
+                )}
             </div>
             <div className="overflow-hidden flex-1">
                 <h4 className={`font-bold truncate ${isActive ? 'text-gold-100' : 'text-ink-300'}`}>{char.name}</h4>

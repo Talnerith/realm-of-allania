@@ -29,6 +29,11 @@ const PostItem = memo(function PostItem({
     const isOwner = user && user.uid === post.userId;
     const isEditing = editingPostId === post.id;
 
+    // Portrait, or the character's initial when there is none (an <img> with an
+    // empty src shows broken-image alt text instead of the fallback)
+    const portrait = hostedImageUrl(post.characterImageUrl);
+    const initial = post.characterName ? post.characterName.substring(0, 1) : '?';
+
     const formatTimestamp = (timestamp) => {
         if (!timestamp?.toDate) return 'Just now';
         return timestamp.toDate().toLocaleString();
@@ -67,14 +72,16 @@ const PostItem = memo(function PostItem({
                     onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
                     className="w-10 h-10 bg-ink-800 rounded-lg overflow-hidden border border-ink-700 relative shrink-0 cursor-pointer p-0"
                 >
-                    <img
-                        src={hostedImageUrl(post.characterImageUrl)}
-                        alt={`${post.characterName}'s avatar`}
-                        className="w-full h-full object-cover"
-                        style={{ objectPosition: post.characterImagePosition || 'center' }}
-                        onError={(e) => e.target.style.display = 'none'}
-
-                    />
+                    <span className="absolute inset-0 flex items-center justify-center text-lg bg-ink-700 text-ink-300 font-serif font-bold" aria-hidden="true">{initial}</span>
+                    {portrait && (
+                        <img
+                            src={portrait}
+                            alt={`${post.characterName}'s avatar`}
+                            className="relative w-full h-full object-cover"
+                            style={{ objectPosition: post.characterImagePosition || 'center' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                    )}
                 </button>
                 <div className="flex-1">
                     <div className="flex justify-between items-start">
@@ -126,17 +133,18 @@ const PostItem = memo(function PostItem({
                     aria-label={`View ${post.characterName || 'User'}'s profile`}
 
                 >
-                    <img
-                        src={hostedImageUrl(post.characterImageUrl)}
-                        alt={`${post.characterName || 'User'}'s avatar`}
-                        className="w-full h-full object-cover"
-                        style={{ objectPosition: post.characterImagePosition || 'center' }}
-                        onError={(e) => e.target.style.display = 'none'}
-
-                    />
-                    <span className="absolute inset-0 flex items-center justify-center text-3xl bg-ink-700 text-ink-300 font-bold -z-10">
-                        {post.characterName ? post.characterName.substring(0, 1) : '?'}
+                    <span className="absolute inset-0 flex items-center justify-center text-3xl bg-ink-700 text-ink-300 font-serif font-bold" aria-hidden="true">
+                        {initial}
                     </span>
+                    {portrait && (
+                        <img
+                            src={portrait}
+                            alt={`${post.characterName || 'User'}'s avatar`}
+                            className="relative w-full h-full object-cover"
+                            style={{ objectPosition: post.characterImagePosition || 'center' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                        />
+                    )}
 
                 </button>
                 <div className="text-center w-full">
