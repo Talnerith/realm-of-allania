@@ -1,5 +1,7 @@
 import './globals.css';
 import { GameProvider } from '@/context/GameContext';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { themeInitScript } from '@/lib/theme';
 import VersionUpdater from '@/components/VersionUpdater';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { Inter, Cormorant_Garamond } from 'next/font/google';
@@ -74,19 +76,22 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable}`}>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} data-theme="dark" data-accent="ember" suppressHydrationWarning>
       <head>
-        {/* Preload critical assets if needed */}
+        {/* Apply the saved/system theme before first paint (no dark flash in light mode) */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#b45309" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
       </head>
       <body className="bg-ink-950 text-ink-200 antialiased h-full overflow-hidden">
         <ErrorBoundary>
-          <GameProvider>
-            {children}
-            <VersionUpdater />
-          </GameProvider>
+          <ThemeProvider>
+            <GameProvider>
+              {children}
+              <VersionUpdater />
+            </GameProvider>
+          </ThemeProvider>
         </ErrorBoundary>
       </body>
     </html>

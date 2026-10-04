@@ -1,6 +1,7 @@
 // The Realm of Allania component library as synced to Claude Design.
 // Built by .design-sync/build-dist.mjs (Firebase/auth replaced by sample data).
-export { AllaniaProvider } from './stubs/GameContext.js';
+export { AllaniaProvider, useTheme } from './stubs/GameContext.js';
+export { default as ThemeToggle } from '@/components/ThemeToggle';
 
 export { default as Navbar } from '@/components/Navbar';
 export { default as LandingPage } from '@/components/LandingPage';

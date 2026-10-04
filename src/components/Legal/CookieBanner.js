@@ -30,12 +30,12 @@ export default function CookieBanner() {
                 <Cookie className="w-5 h-5 text-gold-500" />
             </div>
             <div>
-                <h4 className="font-bold text-white text-sm">Cookie Consent</h4>
+                <h4 className="font-bold text-ink-50 text-sm">Cookie Consent</h4>
                 <p className="text-xs text-ink-400 mt-1 leading-relaxed">
                     We use essential cookies to ensure you get the best experience on the Realm of Allania (like keeping you logged in).
                 </p>
             </div>
-            <button onClick={() => setIsVisible(false)} className="text-ink-500 hover:text-white">
+            <button onClick={() => setIsVisible(false)} className="text-ink-500 hover:text-ink-50">
                 <X className="w-4 h-4" />
             </button>
         </div>

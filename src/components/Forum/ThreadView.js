@@ -16,10 +16,28 @@ import MarkdownEditor from '@/components/MarkdownEditor';
 import PostItem from '@/components/Forum/PostItem';
 import { memo } from 'react';
 import { hostedImageUrl } from '@/lib/imageUrls';
+import ThemeToggle from '@/components/ThemeToggle';
+
+// Placeholder post while the thread loads
+const PostSkeleton = () => (
+    <div className="flex flex-col md:flex-row gap-4 md:gap-6 motion-safe:animate-skeleton" aria-hidden="true">
+        <div className="hidden md:flex flex-col items-center gap-2 w-28 shrink-0">
+            <div className="w-[5.5rem] h-[5.5rem] rounded-[14px] bg-ink-800" />
+            <div className="h-3 w-16 rounded bg-ink-800" />
+        </div>
+        <div className="flex-1 min-w-0 rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) p-4 md:pt-9 md:px-10 md:pb-8 space-y-3">
+            <div className="h-4 w-11/12 rounded bg-ink-800" />
+            <div className="h-4 w-full rounded bg-ink-800" />
+            <div className="h-4 w-4/5 rounded bg-ink-800" />
+            <div className="h-4 w-2/3 rounded bg-ink-800" />
+        </div>
+    </div>
+);
 
 function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, onMessageUser, onRequireAuth, onWikiLink }) {
     const { user, userRole, characters, activeCharId } = useGame();
-    const [posts, setPosts] = useState([]);
+    // null until the first snapshot arrives (loading skeleton)
+    const [posts, setPosts] = useState(null);
     const [liveThread, setLiveThread] = useState(thread);
     const [replyContent, setReplyContent] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -75,27 +93,33 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
         // a status-filtered query plus (when signed in) an own-posts query,
         // merged by id. Mods query everything. Sorting stays database-side.
         const postsRef = collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts');
-        const results = { approved: [], mine: [] };
+        const results = { approved: [], mine: [], ready: false };
+        // Wait for the main (approved/all) query, so an early own-posts snapshot
+        // doesn't flash the empty state
         const publish = () => {
+            if (!results.ready) return;
             const byId = new Map();
             [...results.approved, ...results.mine].forEach(p => byId.set(p.id, p));
             const p = Array.from(byId.values());
             p.sort((a, b) => (a.createdAt?.toMillis() || 0) - (b.createdAt?.toMillis() || 0));
             setPosts(p);
         };
-        const onPostsError = (error) => console.error("Error fetching posts:", error);
+        const onPostsError = (error) => {
+            console.error("Error fetching posts:", error);
+            setPosts((prev) => prev ?? []);
+        };
 
         const unsubs = [unsubThread];
         if (isAdminOrMod) {
             unsubs.push(onSnapshot(
                 query(postsRef, where('threadId', '==', thread.id), orderBy('createdAt', 'asc')),
-                (snap) => { results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() })); publish(); },
+                (snap) => { results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() })); results.ready = true; publish(); },
                 onPostsError
             ));
         } else {
             unsubs.push(onSnapshot(
                 query(postsRef, where('threadId', '==', thread.id), where('status', '==', 'approved'), orderBy('createdAt', 'asc')),
-                (snap) => { results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() })); publish(); },
+                (snap) => { results.approved = snap.docs.map(d => ({ id: d.id, ...d.data() })); results.ready = true; publish(); },
                 onPostsError
             ));
             if (user) {
@@ -119,7 +143,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                 behavior: 'smooth'
             });
         }
-    }, [posts.length]);
+    }, [posts?.length]);
 
     // Admin Role Fetcher...
     useEffect(() => {
@@ -302,13 +326,16 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
         } catch (e) { console.error(e); alert("Failed to update role."); }
     };
 
-    if (!liveThread) return <div className="h-full flex items-center justify-center text-ink-500"><Loader className="animate-spin mr-2" /> Loading...</div>;
-
-    const threadBanner = hostedImageUrl(liveThread.bannerUrl) || null;
-    const bannerPos = liveThread.bannerPosition || 'center';
+    const threadBanner = hostedImageUrl(liveThread?.bannerUrl) || null;
+    const bannerPos = liveThread?.bannerPosition || 'center';
+    const titleKnown = Boolean(liveThread?.title);
+    const activeChar = characters.find(c => c.id === activeCharId);
 
     return (
-        <div ref={scrollContainerRef} className="h-full overflow-y-auto custom-scrollbar bg-ink-900 pb-80">
+        <div
+            ref={scrollContainerRef}
+            className="h-full overflow-y-auto custom-scrollbar pb-80 scroll-smooth bg-ink-950 bg-[radial-gradient(1100px_380px_at_50%_-140px,var(--page-glow),transparent_70%)] bg-no-repeat"
+        >
             {/* Thread Banner */}
             {threadBanner && (
                 <div className="relative w-full h-64 md:h-96 bg-ink-900 border-b border-gold-900/50 overflow-hidden shrink-0 group">
@@ -331,7 +358,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                     <div className="max-w-4xl mx-auto space-y-2">
                         <div className="flex justify-between items-center mb-2">
                             <h4 className="text-gold-500 font-bold text-xs uppercase">Edit Thread Banner</h4>
-                            <button onClick={() => setIsEditingBanner(false)} className="text-ink-400 hover:text-white"><X className="w-4 h-4" /></button>
+                            <button onClick={() => setIsEditingBanner(false)} className="text-ink-400 hover:text-ink-50"><X className="w-4 h-4" /></button>
                         </div>
                         <ImageUploader
                             initialUrl={liveThread.bannerUrl}
@@ -344,23 +371,29 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                 </div>
             )}
 
-            <div className={`flex items-center gap-4 px-4 md:px-8 py-6 ${threadBanner ? 'relative -mt-20 z-10' : 'sticky top-0 bg-ink-950/95 backdrop-blur-md z-20 border-b border-ink-800'}`}>
+            {/* Header: padded to line up with the max-w-4xl post column */}
+            <div className={threadBanner ? 'relative -mt-20 z-10' : 'sticky top-0 z-20 bg-ink-950/95 backdrop-blur-md border-b border-(color:--card-border)'}>
+              <div className="max-w-4xl mx-auto w-full px-4 md:px-8 py-6 md:py-7 flex items-center gap-4">
                 <button
                     onClick={() => {
                         if (region) {
                             setView('region');
                         } else {
                             // If we came from search, we need to load the region explicitly
-                            onNavigateToRegion({ id: liveThread.regionId, name: 'Loading...' });
+                            onNavigateToRegion({ id: liveThread?.regionId, name: 'Loading...' });
                         }
                     }}
-                    className={`flex items-center gap-1 ${threadBanner ? "bg-black/50 px-3 py-1 rounded hover:bg-black/70 text-white border-none" : "text-ink-400 hover:text-white"}`}
+                    className={`flex items-center gap-1 shrink-0 rounded-full border pl-2 pr-3.5 py-1.5 text-sm transition-colors ${threadBanner ? 'bg-black/50 hover:bg-black/70 text-white border-white/20' : 'border-(color:--card-border) text-ink-400 hover:text-ink-50 hover:bg-ink-800 hover:border-ink-700'}`}
                 >
-                    <ChevronLeft className="w-5 h-5" /> Back
+                    <ChevronLeft className="w-4 h-4" aria-hidden="true" /> Back
                 </button>
-                <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                        <h1 className={`text-2xl md:text-3xl font-serif font-bold ${threadBanner ? 'text-white drop-shadow-lg' : 'text-gold-100'}`}>{liveThread.title}</h1>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {titleKnown ? (
+                            <h1 className={`font-serif font-bold text-[clamp(1.75rem,1.1rem+2.4vw,3.25rem)] leading-[1.08] tracking-[-0.005em] text-balance ${threadBanner ? 'text-ink-50 drop-shadow-lg' : 'text-gold-100'}`}>{liveThread.title}</h1>
+                        ) : (
+                            <div className="h-10 md:h-12 w-2/3 max-w-md rounded-lg bg-ink-800 motion-safe:animate-skeleton" aria-hidden="true" />
+                        )}
                         {isThreadLocked && (
                             <span className="flex items-center gap-1 px-2 py-1 bg-gold-900/30 border border-gold-700/50 rounded text-gold-400 text-xs font-bold" title="Sacred Text - Locked">
                                 <BookLock className="w-3.5 h-3.5" /> Sacred Text
@@ -378,12 +411,28 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         )}
                         {canDeleteThread && <button onClick={handleDeleteThread} className="text-red-900/50 hover:text-red-500" title="Delete Thread"><Trash2 className="w-5 h-5" /></button>}
                     </div>
-                    <div className={`flex items-center gap-2 text-sm ${threadBanner ? 'text-gold-200/80' : 'text-gold-600/60'}`}><MapIcon className="w-3 h-3" /> {region ? region.name : 'Unknown Region'}</div>
+                    <div className={`mt-2 flex items-center gap-2 text-xs uppercase tracking-[.14em] ${threadBanner ? 'text-gold-200/80' : 'text-gold-500'}`}><MapIcon className="w-3 h-3" aria-hidden="true" /> {region ? region.name : 'Unknown Region'}</div>
                 </div>
+                <ThemeToggle />
+              </div>
             </div>
 
-            <div className="max-w-4xl mx-auto w-full p-4 md:p-8 space-y-6">
-                {posts.map((post) => (
+            <div className="max-w-4xl mx-auto w-full px-4 md:px-8 pt-10 pb-8 space-y-11" aria-busy={posts === null}>
+                {posts === null && (
+                    <>
+                        <span className="sr-only">Loading posts…</span>
+                        {[0, 1, 2].map((i) => <PostSkeleton key={i} />)}
+                    </>
+                )}
+                {posts?.length === 0 && (
+                    <div className="py-16 text-center">
+                        <p className="font-serif text-3xl text-ink-300">No posts yet</p>
+                        <p className="mt-2 text-sm text-ink-500">Write the opening of this tale in the reply box below.</p>
+                    </div>
+                )}
+                {posts?.map((post, i) => (
+                    // Posts rise in, staggered 60ms (capped so long threads don't lag)
+                    <div key={post.id} className="motion-safe:animate-rise-in" style={{ animationDelay: `${Math.min(i, 4) * 60}ms` }}>
                     <PostItem
                         key={post.id}
                         post={post}
@@ -405,6 +454,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         onWikiLink={onWikiLink}
                         copiedUserId={copiedUserId}
                     />
+                    </div>
                 ))}
             </div>
 
@@ -412,9 +462,9 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
             {managingUser && (
                 <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 animate-in fade-in">
                     <div className="bg-ink-900 border border-gold-900 rounded-xl p-6 max-w-sm w-full shadow-2xl relative">
-                        <button onClick={() => setManagingUser(null)} className="absolute top-4 right-4 text-ink-500 hover:text-white"><X className="w-5 h-5" /></button>
+                        <button onClick={() => setManagingUser(null)} className="absolute top-4 right-4 text-ink-500 hover:text-ink-50"><X className="w-5 h-5" /></button>
                         <div className="flex items-center gap-3 mb-4 text-gold-500"><Gavel className="w-8 h-8" /><h3 className="text-xl font-bold font-serif">Admin Court</h3></div>
-                        <p className="text-ink-300 mb-6">Managing access for <span className="font-bold text-white">{managingUser.name}</span>.</p>
+                        <p className="text-ink-300 mb-6">Managing access for <span className="font-bold text-ink-50">{managingUser.name}</span>.</p>
 
                         <div className="mb-6 p-3 bg-ink-950 border border-ink-800 rounded flex items-center justify-between">
                             <span className="text-sm text-ink-500 uppercase font-bold">Current Status:</span>
@@ -424,7 +474,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         </div>
 
                         <div className="space-y-2">
-                            <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-white border border-ink-700 flex justify-between items-center group"><span>User (Default)</span><User className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
+                            <button onClick={() => handleUpdateRole('user')} className="w-full text-left px-4 py-3 rounded bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-ink-50 border border-ink-700 flex justify-between items-center group"><span>User (Default)</span><User className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
                             <button onClick={() => handleUpdateRole('moderator')} className="w-full text-left px-4 py-3 rounded bg-indigo-900/30 hover:bg-indigo-900/50 text-indigo-300 border border-indigo-900/50 flex justify-between items-center group"><span>Moderator</span><Shield className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
                             <button onClick={() => handleUpdateRole('admin')} className="w-full text-left px-4 py-3 rounded bg-gold-900/30 hover:bg-gold-900/50 text-gold-300 border border-gold-900/50 flex justify-between items-center group"><span>Administrator</span><ShieldAlert className="w-4 h-4 opacity-0 group-hover:opacity-100" /></button>
                             <div className="h-px bg-ink-800 my-2"></div>
@@ -434,17 +484,20 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                 </div>
             )}
 
-            {/* Reply Box - FIXED FOR GUEST */}
-            <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-4 z-30 transition-all">
+            {/* Reply bar */}
+            <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-2 md:p-4 z-30">
                 {user ? (
-                    <div className="max-w-4xl mx-auto flex gap-4 items-end bg-ink-950/90 backdrop-blur-md border border-gold-900/30 p-3 rounded-xl shadow-2xl">
-                        <div className="hidden md:block w-12 h-12 bg-ink-800 rounded border border-ink-700 shrink-0 overflow-hidden relative">
-                            {activeCharId && characters.find(c => c.id === activeCharId) ? (
-                                <><div className="absolute inset-0 flex items-center justify-center font-serif font-bold text-lg text-gold-500 bg-ink-800" aria-hidden="true">{characters.find(c => c.id === activeCharId).name.substring(0, 1)}</div>{hostedImageUrl(characters.find(c => c.id === activeCharId).imageUrl) && <img src={hostedImageUrl(characters.find(c => c.id === activeCharId).imageUrl)} alt="Character avatar" className="relative w-full h-full object-cover" style={{ objectPosition: characters.find(c => c.id === activeCharId).imagePosition || 'center' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}</>
-                            ) : <div className="w-full h-full flex items-center justify-center text-ink-600"><Ghost className="w-6 h-6" /></div>}
+                    <div className="max-w-4xl mx-auto flex gap-4 items-end bg-(color:--card-bg)/90 backdrop-blur-md border border-(color:--card-border) focus-within:border-gold-700/60 p-3 rounded-xl shadow-[inset_0_-2px_0_0_oklch(100%_0_0/.02),0_24px_60px_-20px_oklch(0%_0_0/.6)] transition-colors duration-200">
+                        <div className="hidden md:block w-12 h-12 rounded-[10px] border border-gold-800 shrink-0 overflow-hidden relative bg-[color-mix(in_oklab,var(--color-gold-900)_40%,var(--color-ink-800))]">
+                            {activeChar ? (
+                                <>
+                                    <div className="absolute inset-0 flex items-center justify-center font-serif font-bold text-lg text-gold-300" aria-hidden="true">{activeChar.name.substring(0, 1)}</div>
+                                    {hostedImageUrl(activeChar.imageUrl) && <img src={hostedImageUrl(activeChar.imageUrl)} alt="Character avatar" className="relative w-full h-full object-cover" style={{ objectPosition: activeChar.imagePosition || 'center' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                                </>
+                            ) : <div className="w-full h-full flex items-center justify-center text-ink-500"><Ghost className="w-6 h-6" aria-hidden="true" /></div>}
                         </div>
 
-                        <div className="flex-1 flex flex-col gap-3">
+                        <div className="flex-1 min-w-0 flex flex-col gap-3 max-[520px]:gap-2">
                             {replyError && (
                                 <div className="text-red-400 text-xs bg-red-900/20 border border-red-900/40 rounded px-3 py-2" role="alert">
                                     {replyError}
@@ -453,7 +506,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                             <MarkdownEditor
                                 value={replyContent}
                                 onChange={(e) => { setReplyContent(e.target.value); if (replyError) setReplyError(null); }}
-                                placeholder={activeCharId ? `Reply as ${characters.find(c => c.id === activeCharId)?.name}...` : "Create a character to reply..."}
+                                placeholder={activeChar ? `Reply as ${activeChar.name}...` : "Create a character to reply..."}
                                 minHeight="min-h-[60px]"
                                 onPost={handleReply}
                                 submitLabel={cooldown ? "Cooling..." : "Post Reply"}
@@ -466,14 +519,14 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                     </div>
                 ) : (
                     /* GUEST CALL TO ACTION */
-                    <div className="max-w-xl mx-auto bg-ink-900/90 backdrop-blur-md border border-gold-900/50 p-4 rounded-xl shadow-2xl flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <Lock className="w-5 h-5 text-gold-500" />
+                    <div className="max-w-xl mx-auto bg-(color:--card-bg)/90 backdrop-blur-md border border-(color:--card-border) p-4 rounded-xl shadow-[0_24px_60px_-20px_oklch(0%_0_0/.6)] flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <Lock className="w-5 h-5 text-gold-500 shrink-0" aria-hidden="true" />
                             <p className="text-ink-300 text-sm">Join the chronicles to reply.</p>
                         </div>
                         <button
                             onClick={onRequireAuth}
-                            className="bg-gold-700 hover:bg-gold-600 text-white px-4 py-2 rounded text-sm font-bold shadow-lg"
+                            className="bg-gold-700 hover:bg-gold-600 text-white px-4 py-2 rounded text-sm font-bold shrink-0"
                         >
                             Login / Signup
                         </button>

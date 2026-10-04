@@ -69,7 +69,7 @@ export default function NotificationBell({ notifications = [] }) {
             {/* Bell Icon with Badge */}
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-ink-400 hover:text-white transition-colors rounded-full hover:bg-ink-800"
+                className="relative p-2 text-ink-400 hover:text-ink-50 transition-colors rounded-full hover:bg-ink-800"
                 title="Notifications"
                 aria-label="Notifications"
                 aria-expanded={isOpen}

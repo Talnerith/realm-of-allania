@@ -25,6 +25,14 @@ How this repo syncs to Claude Design (project "Realm of Allania", id in config.j
 - Capture freezes the clock, so dates in cards read as a fixed 2024 date.
 - ActiveUsers hides presence older than the app's cutoff (Brannock, 9 min) — correct behaviour.
 
+- [RENDER_THIN] "rendered height is 0px" on most cards: AllaniaProvider renders a `display: contents` wrapper (ThemeProvider scope="local"), which has no box of its own; the measured child is the wrapper. Benign: the screenshots render fully.
+- [GRID_OVERFLOW] ThreadView "escape (fixed/portal)": the reply bar is position:fixed, but each card cell has transform:translateZ(0) and the stories wrap in Frame, so it stays inside its cell. Benign: confirmed in the sheets.
+
+## Theme (added 2026-10-04)
+- Themes live in the app: `src/context/ThemeContext.js` (ThemeProvider/useTheme), tokens in `src/app/globals.css`. AllaniaProvider wraps ThemeProvider with `scope="local"` so several themes can share a preview page. The catalogue default is pinned dark via `provider.props.theme` in config.json.
+- `node .design-sync/verify-theme.mjs` (after a build) renders ThreadView + drawer in every theme × accent at 390/1440px and checks overflow, toolbar clipping and 4.5:1 text contrast. Run it after any color/token change.
+- Loading previews use the id "__pending__" (firestore stand-in never answers queries for it); the sample store is global per page, so per-story `data` doesn't isolate.
+
 ## Re-sync risks
 - `sample-data.js` mirrors real Firestore document shapes by hand. If a component starts reading a new field or collection, its preview silently shows empty states: check cards after component changes.
 - `dtsPropsFor` in config.json is hand-written per component (plain JS has no types). A changed component signature needs the matching entry updated, or the design agent codes against a stale contract.

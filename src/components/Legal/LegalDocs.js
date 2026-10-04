@@ -17,7 +17,7 @@ export default function LegalDocs({ goBack }) {
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
             {goBack && (
-                <button onClick={goBack} className="flex items-center gap-1 text-ink-400 hover:text-white transition-colors">
+                <button onClick={goBack} className="flex items-center gap-1 text-ink-400 hover:text-ink-50 transition-colors">
                     <ChevronLeft className="w-5 h-5" /> Back
                 </button>
             )}
@@ -50,7 +50,7 @@ export default function LegalDocs({ goBack }) {
             
             {activeTab === 'tos' && (
                 <div className="space-y-6">
-                    <h2 className="text-2xl font-serif font-bold text-white">Terms of Service</h2>
+                    <h2 className="text-2xl font-serif font-bold text-ink-50">Terms of Service</h2>
                     <p className="text-sm text-ink-500">Last Updated: 2025</p>
 
                     <Section title="1. Acceptance of Terms">
@@ -85,7 +85,7 @@ export default function LegalDocs({ goBack }) {
 
             {activeTab === 'privacy' && (
                 <div className="space-y-6">
-                    <h2 className="text-2xl font-serif font-bold text-white">Privacy Policy</h2>
+                    <h2 className="text-2xl font-serif font-bold text-ink-50">Privacy Policy</h2>
                     <p className="text-sm text-ink-500">Last Updated: 2025</p>
 
                     <Section title="1. Data Collection">
@@ -113,7 +113,7 @@ export default function LegalDocs({ goBack }) {
 
             {activeTab === 'cookies' && (
                 <div className="space-y-6">
-                    <h2 className="text-2xl font-serif font-bold text-white">Cookie Policy</h2>
+                    <h2 className="text-2xl font-serif font-bold text-ink-50">Cookie Policy</h2>
                     
                     <Section title="1. What Are Cookies?">
                         Cookies are small text files stored on your device to help the website function properly.

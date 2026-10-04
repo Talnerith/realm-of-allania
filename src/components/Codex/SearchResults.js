@@ -100,7 +100,7 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
             Search Results
         </h2>
         <p className="text-ink-500 mb-8 border-b border-ink-800 pb-4">
-            Showing results for &quot;<span className="text-white">{searchQuery}</span>&quot;
+            Showing results for &quot;<span className="text-ink-50">{searchQuery}</span>&quot;
         </p>
 
         {loading ? (

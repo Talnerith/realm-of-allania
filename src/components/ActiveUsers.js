@@ -49,7 +49,7 @@ export default function ActiveUsers({ isOpen, onClose }) {
       <div className="bg-ink-900 border border-gold-900/50 rounded-lg p-6 w-full max-w-sm shadow-2xl relative">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-ink-400 hover:text-white"
+          className="absolute top-4 right-4 text-ink-400 hover:text-ink-50"
         >
           <X className="w-5 h-5" />
         </button>

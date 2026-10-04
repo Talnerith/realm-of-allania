@@ -258,10 +258,10 @@ export default function Home() {
   const handleLoginClick = useCallback(() => setShowLoginModal(true), []);
 
   if (!gameContext) return null;
-  if (loading) return <div className="h-screen w-screen bg-black flex items-center justify-center text-gold-500 font-serif">Loading Realm...</div>;
+  if (loading) return <div className="h-screen w-screen bg-ink-950 flex items-center justify-center text-gold-500 font-serif">Loading Realm...</div>;
 
   return (
-    <main className="h-screen w-full bg-black overflow-hidden flex flex-col relative text-ink-200 font-sans selection:bg-gold-900 selection:text-white">
+    <main className="h-screen w-full bg-ink-950 overflow-hidden flex flex-col relative text-ink-200 font-sans selection:bg-gold-900 selection:text-white">
 
       {/* 1. TOP NAVIGATION */}
       <Navbar
@@ -366,7 +366,7 @@ export default function Home() {
             {(!user) && (
               <button
                 onClick={() => setShowLoginModal(false)}
-                className="absolute top-4 right-4 z-50 text-ink-400 hover:text-white"
+                className="absolute top-4 right-4 z-50 text-ink-400 hover:text-ink-50"
               >
                 Close
               </button>

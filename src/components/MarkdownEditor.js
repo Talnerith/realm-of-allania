@@ -69,36 +69,41 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
   }, [insertSyntax]);
 
   return (
-    <div className={`border border-ink-700 rounded-lg bg-ink-950 overflow-hidden focus-within:border-gold-500 transition-colors flex flex-col shadow-sm ${className}`}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between p-2 bg-ink-900 border-b border-ink-800 shrink-0">
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+    <div className={`min-w-0 border border-ink-700 rounded-xl bg-ink-950 overflow-hidden focus-within:border-gold-500 focus-within:ring-[3px] focus-within:ring-gold-500/[0.22] transition-[border-color,box-shadow] flex flex-col shadow-sm ${className}`}>
+      {/* Toolbar: format buttons may scroll, actions never shrink. Tighter below 520px so nothing clips. */}
+      <div className="flex items-center justify-between gap-2 p-2 max-[520px]:p-1.5 max-[520px]:gap-1.5 bg-ink-900 border-b border-ink-800 shrink-0">
+        <div className="flex items-center gap-1 max-[520px]:gap-0 min-w-0 flex-1 overflow-x-auto no-scrollbar">
           <ToolButton icon={<Bold className="w-4 h-4" />} label="Bold" onClick={() => insertSyntax('**', '**')} disabled={isPreview || disabled} />
           <ToolButton icon={<Italic className="w-4 h-4" />} label="Italic" onClick={() => insertSyntax('*', '*')} disabled={isPreview || disabled} />
           <ToolButton icon={<Underline className="w-4 h-4" />} label="Underline" onClick={() => insertSyntax('__', '__')} disabled={isPreview || disabled} />
-          <div className="w-px h-4 bg-ink-700 mx-1"></div>
+          <div className="w-px h-4 bg-ink-700 mx-1 max-[520px]:mx-0.5 shrink-0" aria-hidden="true"></div>
           <ToolButton icon={<Quote className="w-4 h-4" />} label="Quote" onClick={() => insertSyntax('\n> ', '')} disabled={isPreview || disabled} />
           <ToolButton icon={<Link2 className="w-4 h-4" />} label="Wiki Link" onClick={handleWikiLink} disabled={isPreview || disabled} />
           <ToolButton icon={<ImageIcon className="w-4 h-4" />} label="Image" onClick={handleImage} disabled={isPreview || disabled} />
         </div>
 
         {/* Right Side: Preview & Optional Post Button */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 max-[520px]:gap-1 shrink-0">
           <button
+            type="button"
             onClick={() => setIsPreview((prev) => !prev)}
-            className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isPreview ? 'bg-gold-900/50 text-gold-200 border border-gold-700/50' : 'bg-ink-800 text-ink-400 hover:text-white'}`}
+            aria-label={isPreview ? 'Edit' : 'Preview'}
+            aria-pressed={isPreview}
+            className={`flex items-center gap-2 px-3 py-1 max-[520px]:p-[0.4375rem] max-[520px]:gap-0 rounded text-xs font-bold transition-colors ${isPreview ? 'bg-gold-900/50 text-gold-200 border border-gold-700/50' : 'bg-ink-800 text-ink-400 hover:text-ink-50'}`}
           >
-            {isPreview ? <><Edit2 className="w-3 h-3" /> Edit</> : <><Eye className="w-3 h-3" /> Preview</>}
+            {isPreview ? <Edit2 className="w-3 h-3 max-[520px]:w-3.5 max-[520px]:h-3.5" aria-hidden="true" /> : <Eye className="w-3 h-3 max-[520px]:w-3.5 max-[520px]:h-3.5" aria-hidden="true" />}
+            <span className="max-[520px]:hidden">{isPreview ? 'Edit' : 'Preview'}</span>
           </button>
 
           {/* INTEGRATED POST BUTTON */}
           {onPost && (
             <button
+              type="button"
               onClick={onPost}
               disabled={disabled || isSubmitting || isSubmitDisabled}
-              className="flex items-center gap-2 bg-gold-700 hover:bg-gold-600 disabled:bg-ink-800 disabled:text-ink-500 disabled:cursor-not-allowed text-white px-3 py-1 rounded text-xs font-bold shadow-lg shadow-gold-900/20 transition-all hover:scale-105 ml-2"
+              className="flex items-center gap-2 bg-gold-700 hover:bg-gold-600 disabled:bg-ink-800 disabled:text-ink-500 disabled:cursor-not-allowed text-white px-3 py-1 max-[520px]:px-3 max-[520px]:py-1.5 rounded text-xs font-bold whitespace-nowrap"
             >
-              {isSubmitting ? <Loader className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+              {isSubmitting ? <Loader className="w-3 h-3 animate-spin" aria-hidden="true" /> : <Send className="w-3 h-3" aria-hidden="true" />}
               {submitLabel}
             </button>
           )}
@@ -108,13 +113,14 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
       {/* Editor / Preview Area */}
       <div className="relative w-full bg-ink-950">
         {isPreview ? (
-          <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-ink-900/30 prose prose-invert prose-p:text-ink-300 prose-headings:text-gold-100 max-w-none ${minHeight} max-h-[500px]`}>
-            {value ? <RichText content={value} onWikiLink={onWikiLink} /> : <span className="text-ink-600 italic">Nothing to preview...</span>}
+          <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-ink-900/30 max-w-none ${minHeight} max-h-[500px]`}>
+            {value ? <RichText content={value} className="font-serif text-lg leading-[1.55] text-ink-200" onWikiLink={onWikiLink} /> : <span className="text-ink-500 italic">Nothing to preview...</span>}
           </div>
         ) : (
           <textarea
             ref={textareaRef}
-            className={`w-full bg-ink-950 p-4 text-ink-200 focus:outline-none font-serif resize-none block custom-scrollbar ${minHeight}`}
+            aria-label={placeholder}
+            className={`w-full bg-ink-950 p-4 text-ink-200 placeholder:text-ink-500 focus:outline-none font-serif text-lg leading-[1.55] resize-none block custom-scrollbar ${minHeight}`}
             placeholder={placeholder}
             value={value}
             onChange={onChange}
@@ -135,7 +141,8 @@ function ToolButton({ icon, label, onClick, disabled }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="p-1.5 text-ink-400 hover:text-gold-500 hover:bg-ink-800 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-400"
+      className="p-1.5 max-[520px]:p-1 shrink-0 text-ink-400 hover:text-gold-500 hover:bg-ink-800 rounded transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-400"
+      aria-label={label}
       title={label}
     >
       {icon}

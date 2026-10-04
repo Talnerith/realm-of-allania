@@ -10,7 +10,7 @@ const RichText = React.memo(function RichText({ content, className = "", onWikiL
     const lines = content.split('\n');
 
     return (
-        <div className={`space-y-2 ${className}`}>
+        <div className={`space-y-2 ${/leading-/.test(className) ? '' : 'leading-relaxed'} ${className}`}>
             {lines.map((line, i) => {
                 // Handle Blockquotes
                 if (line.startsWith('> ')) {
@@ -28,7 +28,7 @@ const RichText = React.memo(function RichText({ content, className = "", onWikiL
 
                 // Standard Paragraph
                 return (
-                    <p key={i} className="leading-relaxed whitespace-pre-wrap">
+                    <p key={i} className="leading-[inherit] whitespace-pre-wrap">
                         {parseInline(line, onWikiLink)}
                     </p>
                 );

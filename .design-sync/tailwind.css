@@ -15,6 +15,9 @@
 @source inline("{bg,text,border}-{white,black,transparent,current}");
 @source inline("bg-black/{20,40,60,80,90}");
 
+/* Theme-aware semantic surfaces (values per theme in globals.css) */
+@source inline("{bg-(color:--card-bg),bg-(color:--card-bg)/90,border-(color:--card-border),shadow-(--card-shadow),text-(color:--story),text-ink-50,hover:text-ink-50,rounded-[14px],rounded-[10px]}");
+
 /* Type */
 @source inline("text-{2xs,xs,sm,base,lg,xl,2xl,3xl,4xl,5xl,6xl,7xl}");
 @source inline("md:text-{base,lg,xl,2xl,3xl,4xl,5xl,6xl,7xl}");

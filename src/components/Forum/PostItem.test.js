@@ -38,10 +38,10 @@ describe('PostItem Accessibility', () => {
     it('renders avatar button with accessible label', () => {
         render(<PostItem post={mockPost} {...mockHandlers} />);
 
-        // The desktop avatar button
-        const avatarBtn = screen.getByLabelText("View Aethelraed's profile");
-        expect(avatarBtn).toBeInTheDocument();
-        expect(avatarBtn.tagName).toBe('BUTTON');
+        // Mobile and desktop portraits are both labelled buttons (one is hidden per breakpoint)
+        const avatarBtns = screen.getAllByLabelText("View Aethelraed's profile");
+        expect(avatarBtns).toHaveLength(2);
+        avatarBtns.forEach((btn) => expect(btn.tagName).toBe('BUTTON'));
     });
 
     it('renders owner actions with accessible labels', () => {

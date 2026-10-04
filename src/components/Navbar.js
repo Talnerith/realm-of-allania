@@ -103,11 +103,11 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
 
         {user ? (
           <>
-            <button onClick={() => setShowActiveUsers(true)} className="relative p-2 text-ink-400 hover:text-white transition-colors" aria-label="Active Users" title="Active Users">
+            <button onClick={() => setShowActiveUsers(true)} className="relative p-2 text-ink-400 hover:text-ink-50 transition-colors" aria-label="Active Users" title="Active Users">
               <Users className="w-5 h-5" />
             </button>
             <NotificationBell notifications={notifications} />
-            <button onClick={onToggleChat} className="relative p-2 text-ink-400 hover:text-white transition-colors" aria-label="Toggle Chat" title="Chat">
+            <button onClick={onToggleChat} className="relative p-2 text-ink-400 hover:text-ink-50 transition-colors" aria-label="Toggle Chat" title="Chat">
               <MessageCircle className="w-5 h-5" />
               {unreadCount > 0 && (
                 <span className="absolute top-0 right-0 w-4 h-4 bg-red-600 text-2xs font-bold text-white flex items-center justify-center rounded-full shadow-lg border border-ink-950 animate-in zoom-in-50">
@@ -147,7 +147,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
         {user && (
           <>
             <NotificationBell notifications={notifications} />
-            <button onClick={onToggleChat} className="relative text-ink-400 hover:text-white" aria-label="Toggle Chat">
+            <button onClick={onToggleChat} className="relative text-ink-400 hover:text-ink-50" aria-label="Toggle Chat">
               <MessageCircle className="w-6 h-6" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-2xs font-bold text-white flex items-center justify-center rounded-full shadow-lg border border-ink-950">

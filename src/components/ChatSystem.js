@@ -310,7 +310,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     {activeChatId && (
                         <button
                             onClick={() => setActiveChatId(null)}
-                            className="text-ink-400 hover:text-white mr-1"
+                            className="text-ink-400 hover:text-ink-50 mr-1"
                             aria-label="Back to chat list"
                         >
                             <ChevronLeft className="w-5 h-5" />
@@ -338,7 +338,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     )}
                     <button
                         onClick={onClose}
-                        className="text-ink-500 hover:text-white"
+                        className="text-ink-500 hover:text-ink-50"
                         aria-label="Close chat window"
                     >
                         <X className="w-5 h-5" />
@@ -388,7 +388,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     )}
                     <div className="flex gap-2">
                     <input
-                        className="flex-1 bg-ink-900 border border-ink-700 rounded px-3 py-2 text-sm focus:border-gold-500 focus:outline-none text-white placeholder:text-ink-600"
+                        className="flex-1 bg-ink-900 border border-ink-700 rounded px-3 py-2 text-sm focus:border-gold-500 focus:outline-none text-ink-50 placeholder:text-ink-600"
                         placeholder={cooldown ? "Slow down..." : "Type a message..."}
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}

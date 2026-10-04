@@ -12,7 +12,7 @@ const ChatListItem = memo(function ChatListItem({ chat, name, isActive, isUnread
             <div className="flex justify-between items-baseline mb-1">
                 <div className="flex items-center gap-2">
                     {isUnread && <span className="w-2 h-2 rounded-full bg-gold-500 animate-pulse shrink-0" title="New Message"></span>}
-                    <span className={`font-bold group-hover:text-gold-400 ${isUnread ? 'text-white' : 'text-ink-200'}`}>{name}</span>
+                    <span className={`font-bold group-hover:text-gold-400 ${isUnread ? 'text-ink-50' : 'text-ink-200'}`}>{name}</span>
                 </div>
                 <span className="text-2xs text-ink-500">{timeDisplay}</span>
             </div>

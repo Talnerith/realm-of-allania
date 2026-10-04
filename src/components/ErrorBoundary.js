@@ -84,14 +84,14 @@ class ErrorBoundary extends Component {
               </button>
               <button
                 onClick={this.handleGoHome}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-white border border-ink-700 rounded-lg transition-colors font-bold"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-ink-800 hover:bg-ink-700 text-ink-300 hover:text-ink-50 border border-ink-700 rounded-lg transition-colors font-bold"
               >
                 <Home className="w-4 h-4" />
                 Return Home
               </button>
               <button
                 onClick={this.handleReload}
-                className="px-4 py-3 bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-white border border-ink-700 rounded-lg transition-colors text-sm"
+                className="px-4 py-3 bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-ink-50 border border-ink-700 rounded-lg transition-colors text-sm"
                 title="Reload Page"
               >
                 <RefreshCw className="w-4 h-4" />

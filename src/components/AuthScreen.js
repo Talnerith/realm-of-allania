@@ -109,7 +109,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
               <input
                 type="email"
                 placeholder="Email Address"
-                className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-gold-500 focus:outline-none"
+                className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-4 text-ink-50 focus:border-gold-500 focus:outline-none"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -144,7 +144,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
           <Mail className="w-16 h-16 text-gold-500 mx-auto mb-4" />
           <h2 className="text-2xl font-serif font-bold text-gold-100 mb-2">Verify Your Raven</h2>
           <p className="text-ink-400 mb-6">
-            We sent a verification link to <span className="text-white font-bold">{user.email}</span>.
+            We sent a verification link to <span className="text-ink-50 font-bold">{user.email}</span>.
             Please check your inbox (and spam) to enter the Realm.
           </p>
 
@@ -153,7 +153,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
               <CheckCircle className="w-5 h-5" /> Sent! Check your inbox.
             </div>
           ) : (
-            <button onClick={handleResend} className="w-full bg-ink-800 hover:bg-ink-700 text-white py-3 rounded transition-colors mb-4">
+            <button onClick={handleResend} className="w-full bg-ink-800 hover:bg-ink-700 text-ink-50 py-3 rounded transition-colors mb-4">
               Resend Verification Email
             </button>
           )}
@@ -163,7 +163,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
               I have verified it, let me in!
             </button>
 
-            <button onClick={logout} className="text-ink-500 hover:text-white text-sm flex items-center justify-center gap-2">
+            <button onClick={logout} className="text-ink-500 hover:text-ink-50 text-sm flex items-center justify-center gap-2">
               <LogOut className="w-4 h-4" /> Sign Out / Use Different Email
             </button>
           </div>
@@ -193,7 +193,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
               <input
                 type="text"
                 placeholder="Adventurer Name"
-                className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-gold-500 focus:outline-none"
+                className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-4 text-ink-50 focus:border-gold-500 focus:outline-none"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -215,7 +215,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
             <input
               type="email"
               placeholder="Email Address"
-              className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-4 text-white focus:border-gold-500 focus:outline-none"
+              className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-4 text-ink-50 focus:border-gold-500 focus:outline-none"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -228,7 +228,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Password"
-                className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-10 text-white focus:border-gold-500 focus:outline-none"
+                className="w-full bg-ink-950 border border-ink-700 rounded-lg py-2.5 pl-10 pr-10 text-ink-50 focus:border-gold-500 focus:outline-none"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -236,7 +236,7 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3 text-ink-500 hover:text-white"
+                className="absolute right-3 top-3 text-ink-500 hover:text-ink-50"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}

@@ -7,6 +7,8 @@ import { Timestamp } from './timestamp.js';
 
 export { Timestamp };
 
+const PENDING = '__pending__';
+
 const ref = (segments) => {
   const path = segments.filter(Boolean).map(String);
   return path.length % 2 === 0
@@ -78,6 +80,8 @@ function readDoc(r) {
 const read = (r) => (r.type === 'doc' ? readDoc(r) : runQuery(r));
 
 export function onSnapshot(r, next) {
+  // Loading states: the id "__pending__" (doc id or where-value) never answers
+  if (r.id === PENDING || (r.constraints ?? []).some((c) => c.kind === 'where' && c.value === PENDING)) return () => {};
   const emit = () => { try { next(read(r)); } catch (e) { console.warn('[sample data]', e); } };
   Promise.resolve().then(emit);
   return subscribe(emit);

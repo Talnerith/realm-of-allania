@@ -349,7 +349,7 @@ export default function ModerationDashboard() {
             {/* Header */}
             <header className="bg-ink-900 border-b border-gold-900/30 p-4 sticky top-0 z-10 flex items-center justify-between shadow-md">
                 <div className="flex items-center gap-4">
-                    <Link href="/" className="p-2 text-ink-400 hover:text-white hover:bg-ink-800 rounded transition-colors" title="Back to Game">
+                    <Link href="/" className="p-2 text-ink-400 hover:text-ink-50 hover:bg-ink-800 rounded transition-colors" title="Back to Game">
                         <ChevronLeft className="w-6 h-6" />
                     </Link>
                     <div className="flex flex-col">
@@ -371,7 +371,7 @@ export default function ModerationDashboard() {
                             <button
                                 key={value}
                                 onClick={() => setContentType(value)}
-                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${contentType === value ? 'bg-indigo-900/50 text-indigo-200 shadow-sm' : 'text-ink-500 hover:text-white hover:bg-ink-700/50'}`}
+                                className={`px-3 py-1.5 rounded text-sm font-medium transition-all ${contentType === value ? 'bg-indigo-900/50 text-indigo-200 shadow-sm' : 'text-ink-500 hover:text-ink-50 hover:bg-ink-700/50'}`}
                             >
                                 {label}
                             </button>
@@ -384,7 +384,7 @@ export default function ModerationDashboard() {
                             <button
                                 key={s}
                                 onClick={() => setFilter(s)}
-                                className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === s ? 'bg-gold-900/50 text-gold-200 shadow-sm' : 'text-ink-400 hover:text-white hover:bg-ink-700'}`}
+                                className={`px-3 py-1.5 rounded text-sm font-medium capitalize transition-all ${filter === s ? 'bg-gold-900/50 text-gold-200 shadow-sm' : 'text-ink-400 hover:text-ink-50 hover:bg-ink-700'}`}
                             >
                                 {s === 'needs_review' ? 'Needs Review' : s === 'rejected' ? 'Flagged' : s}
                             </button>
@@ -536,7 +536,7 @@ export default function ModerationDashboard() {
                                         {item.status !== 'approved' && (
                                             <button
                                                 onClick={() => handleAction(item.id, 'approved', item)}
-                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-900/20 hover:bg-green-600 text-green-400 hover:text-white border border-green-900/50 rounded transition-all text-sm font-bold"
+                                                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-900/20 hover:bg-green-600 text-green-400 hover:text-ink-50 border border-green-900/50 rounded transition-all text-sm font-bold"
                                                 title="Approve"
                                             >
                                                 <Check className="w-4 h-4" /> Approve

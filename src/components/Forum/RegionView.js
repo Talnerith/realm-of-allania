@@ -262,7 +262,7 @@ function RegionView({ region, setView, setActiveThread }) {
                     autoFocus
                   />
                   <button onClick={handleSaveName} className="p-2 bg-gold-700 hover:bg-gold-600 rounded text-white"><Save className="w-5 h-5" /></button>
-                  <button onClick={() => setIsEditingName(false)} className="p-2 bg-ink-700 hover:bg-ink-600 rounded text-white"><X className="w-5 h-5" /></button>
+                  <button onClick={() => setIsEditingName(false)} className="p-2 bg-ink-700 hover:bg-ink-600 rounded text-ink-50"><X className="w-5 h-5" /></button>
                 </div>
               ) : (
                 <div className="flex items-center gap-3 group/title">
@@ -285,7 +285,7 @@ function RegionView({ region, setView, setActiveThread }) {
           <div className="max-w-4xl mx-auto space-y-2">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-sm text-gold-500 font-bold">Edit Region Banner</h4>
-              <button onClick={() => setIsEditingBanner(false)} className="text-ink-400 hover:text-white"><X className="w-4 h-4" /></button>
+              <button onClick={() => setIsEditingBanner(false)} className="text-ink-400 hover:text-ink-50"><X className="w-4 h-4" /></button>
             </div>
             <ImageUploader
               initialUrl={bannerUrl}
@@ -315,7 +315,7 @@ function RegionView({ region, setView, setActiveThread }) {
         )}
         
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => setView('map')} className="text-ink-400 hover:text-white flex items-center gap-1"><ChevronLeft className="w-5 h-5" /> Map</button>
+          <button onClick={() => setView('map')} className="text-ink-400 hover:text-ink-50 flex items-center gap-1"><ChevronLeft className="w-5 h-5" /> Map</button>
           <div className="flex-1"></div>
           <button onClick={() => setIsCreating(!isCreating)} className="px-4 py-2 bg-gold-700 hover:bg-gold-600 text-white rounded flex items-center gap-2"><Plus className="w-5 h-5" /> New Thread</button>
         </div>
@@ -356,7 +356,7 @@ function RegionView({ region, setView, setActiveThread }) {
               <label className="text-sm text-ink-400">Add this lore to the Codex?</label>
             </div>
             <div className="flex justify-end gap-2">
-              <button onClick={handleCancelCreate} className="text-ink-400 hover:text-white px-4 py-2">Cancel</button>
+              <button onClick={handleCancelCreate} className="text-ink-400 hover:text-ink-50 px-4 py-2">Cancel</button>
               <button onClick={handleCreateThread} disabled={cooldown} className="bg-gold-700 hover:bg-gold-600 disabled:opacity-50 text-white px-4 py-2 rounded">{cooldown ? 'Wait...' : 'Post Thread'}</button>
             </div>
           </div>

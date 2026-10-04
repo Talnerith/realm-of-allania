@@ -205,12 +205,12 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                 {/* Lightbox */}
                 {lightboxOpen && (
                     <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4" onClick={() => setLightboxOpen(false)}>
-                        <button className="absolute top-4 right-4 text-white hover:text-gold-500"><X className="w-8 h-8" /></button>
+                        <button className="absolute top-4 right-4 text-ink-50 hover:text-gold-500"><X className="w-8 h-8" /></button>
                         <img src={hostedImageUrl(gallery[lightboxIndex])} alt="Gallery Viewer" className="max-w-full max-h-full object-contain select-none" onClick={(e) => e.stopPropagation()} onError={(e) => { e.target.src = 'https://placehold.co/800x600/1e293b/FFF?text=Error'; }} />
                         {gallery.length > 1 && (
                             <>
-                                <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 text-white"><ChevronLeft className="w-10 h-10" /></button>
-                                <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 text-white"><ChevronRight className="w-10 h-10" /></button>
+                                <button onClick={prevImage} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-50"><ChevronLeft className="w-10 h-10" /></button>
+                                <button onClick={nextImage} className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-50"><ChevronRight className="w-10 h-10" /></button>
                             </>
                         )}
                     </div>
@@ -218,7 +218,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
 
                 {/* Header Controls */}
                 <div className="flex items-center gap-4 mb-6">
-                    <button onClick={goBack} className="text-ink-400 hover:text-white flex items-center gap-1">
+                    <button onClick={goBack} className="text-ink-400 hover:text-ink-50 flex items-center gap-1">
                         <ChevronLeft className="w-5 h-5" /> Back to Index
                     </button>
                     <div className="flex-1"></div>
@@ -258,7 +258,7 @@ export default function CodexEntry({ page, goBack, onWikiLink }) {
                         )
                     ) : (
                         <div className="flex gap-2">
-                            <button onClick={handleCancel} className="text-ink-400 hover:text-white">Cancel</button>
+                            <button onClick={handleCancel} className="text-ink-400 hover:text-ink-50">Cancel</button>
                             <button onClick={handleSave} className="flex items-center gap-2 bg-gold-700 text-white px-3 py-1 rounded hover:bg-gold-600">
                                 <Save className="w-4 h-4" /> Save Changes
                             </button>

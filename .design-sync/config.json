@@ -10,10 +10,13 @@
     ".design-sync/fonts/fonts.css"
   ],
   "provider": {
-    "component": "AllaniaProvider"
+    "component": "AllaniaProvider",
+    "props": {
+      "theme": "dark"
+    }
   },
   "componentSrcMap": {
-    "AllaniaProvider": null,
+    "AllaniaProvider": ".design-sync/general/AllaniaProvider.js",
     "Navbar": "src/components/Navbar.js",
     "LandingPage": "src/components/LandingPage.js",
     "AuthScreen": "src/components/AuthScreen.js",
@@ -35,7 +38,8 @@
     "MarkdownEditor": "src/components/MarkdownEditor.js",
     "ImageUploader": "src/components/ImageUploader.js",
     "CookieBanner": "src/components/Legal/CookieBanner.js",
-    "LegalDocs": "src/components/Legal/LegalDocs.js"
+    "LegalDocs": "src/components/Legal/LegalDocs.js",
+    "ThemeToggle": "src/components/ThemeToggle.js"
   },
   "dtsPropsFor": {
     "Navbar": "currentView?: 'landing' | 'map' | 'region' | 'thread' | 'codex' | 'codex_entry' | 'search' | 'legal' | 'login'; setView?: (view: string) => void; onSearch?: (query: string) => void; onToggleChat?: () => void; onLoginClick?: () => void; unreadCount?: number;",
@@ -59,13 +63,14 @@
     "MarkdownEditor": "value: string; onChange: (value: string) => void; placeholder?: string; className?: string; minHeight?: string; onPost?: (() => void) | null; submitLabel?: string; disabled?: boolean; isSubmitting?: boolean; isSubmitDisabled?: boolean; onWikiLink?: ((title: string) => void) | null;",
     "ImageUploader": "initialUrl?: string; initialPosition?: string; onImageChanged?: (url: string, position: string) => void; folder?: 'character_portraits' | 'codex_gallery' | 'region_banners' | 'thread_banners' | 'uploads'; shape?: 'square' | 'banner' | 'circle';",
     "CookieBanner": "",
-    "LegalDocs": "goBack?: () => void;"
+    "LegalDocs": "goBack?: () => void;",
+    "AllaniaProvider": "children?: React.ReactNode; theme?: 'dark' | 'light' | 'system'; accent?: 'ember' | 'brass' | 'verdigris'; signedIn?: boolean; role?: 'user' | 'trusted' | 'moderator' | 'admin'; user?: { uid: string; displayName?: string; email?: string; emailVerified?: boolean }; characters?: Array<{ id: string; name: string; race?: string; class?: string; description?: string; imageUrl?: string }>; activeCharId?: string; readReceipts?: Record<string, number>; data?: Record<string, unknown>;",
+    "ThemeToggle": "className?: string;"
   },
   "overrides": {
     "ThreadView": {
-      "cardMode": "single",
-      "viewport": "1280x900",
-      "primaryStory": "SignedInPlayer"
+      "cardMode": "column",
+      "viewport": "1440x900"
     },
     "RegionView": {
       "cardMode": "column",
@@ -140,7 +145,18 @@
     },
     "RichText": {
       "cardMode": "column"
+    },
+    "AllaniaProvider": {
+      "cardMode": "column"
+    },
+    "ThemeToggle": {
+      "cardMode": "column"
     }
   },
-  "readmeHeader": ".design-sync/conventions.md"
+  "readmeHeader": ".design-sync/conventions.md",
+  "docsMap": {
+    "AllaniaProvider": ".design-sync/docs/AllaniaProvider.md",
+    "ThreadView": ".design-sync/docs/ThreadView.md",
+    "ThemeToggle": ".design-sync/docs/ThemeToggle.md"
+  }
 }

@@ -228,7 +228,7 @@ export default function CharacterDrawer() {
     };
 
     return (
-        <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ink-900 border-t border-gold-700 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
+        <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ink-900 border-t border-gold-700/50 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] light:shadow-[0_-8px_30px_-12px_oklch(30%_.03_60/.25)] transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
             <div
                 onClick={() => setIsOpen(!isOpen)}
                 onKeyDown={handleToggleKey}
@@ -236,22 +236,22 @@ export default function CharacterDrawer() {
                 tabIndex={0}
                 aria-expanded={isOpen}
                 aria-label={isOpen ? "Close Character Roster" : "Open Character Roster"}
-                className="flex items-center justify-between px-6 h-14 md:h-16 shrink-0 cursor-pointer bg-ink-900 hover:bg-ink-800 transition-colors focus:outline-none focus:bg-ink-800"
+                className="flex items-center justify-between gap-3 px-6 max-[520px]:px-4 h-14 md:h-16 shrink-0 cursor-pointer bg-ink-900 hover:bg-ink-800 transition-colors focus:outline-none focus:bg-ink-800"
             >
-                <div className="flex items-center gap-3">
-                    <Shield className="w-5 h-5 text-gold-500" />
-                    <span className="font-serif font-bold text-gold-100">Character Roster</span>
-                    <span className="text-xs text-ink-500 hidden md:inline">|</span>
+                <div className="flex items-center gap-3 min-w-0">
+                    <Shield className="w-5 h-5 text-gold-500 shrink-0" aria-hidden="true" />
+                    <span className="font-serif font-bold text-gold-100 shrink-0 max-[520px]:hidden">Character Roster</span>
+                    <span className="text-xs text-ink-500 hidden md:inline" aria-hidden="true">|</span>
                     {characters.find(c => c.id === activeCharId) ? (
-                        <span className="text-sm text-gold-500 font-bold flex items-center gap-2">Playing as: {characters.find(c => c.id === activeCharId).name}</span>
+                        <span className="text-sm text-gold-500 font-bold truncate">Playing as: {characters.find(c => c.id === activeCharId).name}</span>
                     ) : (
-                        <span className="text-sm text-ink-500 italic">No character selected</span>
+                        <span className="text-sm text-ink-500 italic truncate">No character selected</span>
                     )}
-                    <span className={`text-2xs ml-2 px-2 py-0.5 rounded-full ${atLimit ? 'bg-red-900 text-red-200' : 'bg-ink-800 text-ink-400'}`}>
+                    <span className={`text-2xs ml-2 px-2 py-0.5 rounded-full shrink-0 max-[520px]:hidden ${atLimit ? 'bg-red-900 text-red-200' : 'bg-ink-800 text-ink-400'}`}>
                         {characters.length} / {CHARACTER_LIMIT}
                     </span>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 shrink-0">
                     <button onClick={(e) => openDelete(e)} className="text-ink-500 hover:text-red-500 transition-colors" title="Delete Character" aria-label="Delete Character"><Trash2 className="w-5 h-5" /></button>
                     <div className="text-ink-500 hover:text-gold-500" aria-hidden="true">{isOpen ? <ChevronDown className="w-6 h-6" /> : <ChevronUp className="w-6 h-6" />}</div>
                 </div>
@@ -319,7 +319,7 @@ export default function CharacterDrawer() {
                                     <label className="text-xs text-ink-500 uppercase font-bold mb-1 block">Description</label>
                                     <textarea className="flex-1 bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-gold-500 focus:outline-none text-sm resize-none mb-4" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
                                     {mode === 'create' && (<div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={createCodex} onChange={e => setCreateCodex(e.target.checked)} className="w-4 h-4" /><label className="text-sm text-ink-400">Create Codex Entry?</label></div>)}
-                                    <div className="flex justify-end gap-3"><button onClick={handleCancel} className="text-ink-400 hover:text-white px-3">Cancel</button><button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isSubmitting} className="bg-gold-700 hover:bg-gold-600 disabled:bg-ink-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} {mode === 'create' ? 'Summon' : 'Save Changes'}</button></div>
+                                    <div className="flex justify-end gap-3"><button onClick={handleCancel} className="text-ink-400 hover:text-ink-50 px-3">Cancel</button><button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isSubmitting} className="bg-gold-700 hover:bg-gold-600 disabled:bg-ink-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} {mode === 'create' ? 'Summon' : 'Save Changes'}</button></div>
                                 </div>
                             </div>
                             {formError && <p className="text-red-500 text-xs mt-2 absolute bottom-6 left-6 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {formError}</p>}
@@ -336,7 +336,7 @@ export default function CharacterDrawer() {
                                         <div className="flex gap-3 w-full max-w-md"><select className="flex-1 bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-red-500 focus:outline-none" value={deleteId} onChange={(e) => setDeleteId(e.target.value)}><option value="">-- Select --</option>{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><button onClick={() => setConfirmDeleteStep(true)} disabled={!deleteId} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded">Delete</button></div>
                                     </>
                                 ) : (
-                                    <><h4 className="text-red-200 font-bold text-lg mb-1">Are you sure?</h4><p className="text-ink-400 text-sm mb-4">This action cannot be undone.</p><div className="flex gap-3"><button onClick={() => setConfirmDeleteStep(false)} className="px-4 py-2 text-ink-300 hover:text-white">Cancel</button><button onClick={handleDelete} disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} Yes, Delete</button></div></>
+                                    <><h4 className="text-red-200 font-bold text-lg mb-1">Are you sure?</h4><p className="text-ink-400 text-sm mb-4">This action cannot be undone.</p><div className="flex gap-3"><button onClick={() => setConfirmDeleteStep(false)} className="px-4 py-2 text-ink-300 hover:text-ink-50">Cancel</button><button onClick={handleDelete} disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} Yes, Delete</button></div></>
                                 )}
                                 {formError && <p className="text-red-400 text-xs mt-4">{formError}</p>}
                             </div>
