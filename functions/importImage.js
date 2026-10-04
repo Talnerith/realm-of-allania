@@ -159,6 +159,34 @@ async function consumeImportQuota(db, uid) {
     });
 }
 
+// Downloads and validates the image at rawUrl: safe address, supported type,
+// size cap, and file bytes that really are that image type.
+async function fetchImage(rawUrl) {
+    if (typeof rawUrl !== 'string' || rawUrl.length > 2048) throw new HttpsError('invalid-argument', 'Invalid image URL.');
+    const url = parseImageUrl(rawUrl);
+    const { body, contentType } = await download(url);
+    const type = IMAGE_TYPES[contentType];
+    if (!type.magic(body)) {
+        throw new HttpsError('failed-precondition', 'That file is not a valid image.');
+    }
+    return { body, contentType, ext: type.ext, host: url.hostname };
+}
+
+// Saves an image into a user's public folder and returns its download URL.
+// Saving triggers moderateImage, same as a direct upload.
+async function storeImage({ body, contentType, ext, host }, folder, uid) {
+    const filePath = `artifacts/${APP_ID}/public/${folder}/${uid}/${Date.now()}_${crypto.randomBytes(3).toString('hex')}_import.${ext}`;
+    const token = crypto.randomUUID();
+    const bucket = admin.storage().bucket();
+    await bucket.file(filePath).save(body, {
+        contentType,
+        resumable: false,
+        metadata: { metadata: { firebaseStorageDownloadTokens: token, importedFrom: host } }
+    });
+    console.log(`[Image Import] ${uid}: ${host} -> ${filePath}`);
+    return `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
+}
+
 const importImageFromUrl = onCall(
     { region: "us-central1", timeoutSeconds: 30, memory: "256MiB" },
     async (request) => {
@@ -171,7 +199,7 @@ const importImageFromUrl = onCall(
         const { url: rawUrl, folder } = request.data || {};
         if (!ALLOWED_FOLDERS.includes(folder)) throw new HttpsError('invalid-argument', 'Unknown image folder.');
         if (typeof rawUrl !== 'string' || rawUrl.length > 2048) throw new HttpsError('invalid-argument', 'Invalid image URL.');
-        const url = parseImageUrl(rawUrl);
+        parseImageUrl(rawUrl);
 
         const db = admin.firestore();
         const account = await db.doc(`artifacts/${APP_ID}/users/${auth.uid}/settings/account`).get();
@@ -180,26 +208,9 @@ const importImageFromUrl = onCall(
         }
         await consumeImportQuota(db, auth.uid);
 
-        const { body, contentType } = await download(url);
-        const type = IMAGE_TYPES[contentType];
-        if (!type.magic(body)) {
-            throw new HttpsError('failed-precondition', 'That file is not a valid image.');
-        }
-
-        const filePath = `artifacts/${APP_ID}/public/${folder}/${auth.uid}/${Date.now()}_import.${type.ext}`;
-        const token = crypto.randomUUID();
-        const bucket = admin.storage().bucket();
-        // Saving triggers moderateImage, same as a direct upload
-        await bucket.file(filePath).save(body, {
-            contentType,
-            resumable: false,
-            metadata: { metadata: { firebaseStorageDownloadTokens: token, importedFrom: url.hostname } }
-        });
-
-        const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(filePath)}?alt=media&token=${token}`;
-        console.log(`[Image Import] ${auth.uid} imported ${url.hostname} -> ${filePath}`);
-        return { url: downloadUrl };
+        const image = await fetchImage(rawUrl);
+        return { url: await storeImage(image, folder, auth.uid) };
     }
 );
 
-module.exports = { importImageFromUrl, isBlockedAddress, parseImageUrl };
+module.exports = { importImageFromUrl, fetchImage, storeImage, isBlockedAddress, parseImageUrl };

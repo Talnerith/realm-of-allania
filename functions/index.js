@@ -834,3 +834,4 @@ exports.syncCharacter = require('./characterSync').syncCharacter;
 // MODERATOR TOOLS
 // ==========================================
 exports.deleteUserImage = require('./moderatorTools').deleteUserImage;
+exports.migrateExternalImages = require('./imageMigration').migrateExternalImages;

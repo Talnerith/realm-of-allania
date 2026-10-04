@@ -15,6 +15,90 @@ async function sha256Hex(text) {
     return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Admin tool: images that still point at outside hosts (pasted before links
+// were imported into Storage) are hidden on the site. Find them, then import
+// them all into Storage and update every reference (migrateExternalImages).
+function ExternalImagesTool() {
+    const [state, setState] = useState('idle'); // idle | scanning | found | importing | done | error
+    const [images, setImages] = useState([]);
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState('');
+
+    const run = async (dryRun) => {
+        setState(dryRun ? 'scanning' : 'importing');
+        setError('');
+        try {
+            const res = await httpsCallable(functions, 'migrateExternalImages', { timeout: 540000 })({ dryRun });
+            if (dryRun) {
+                setImages(res.data.images);
+                setState('found');
+            } else {
+                setResult(res.data);
+                setState('done');
+            }
+        } catch (e) {
+            setError(e.message);
+            setState('error');
+        }
+    };
+
+    return (
+        <section className="mb-6 p-4 rounded-lg border border-ink-800 bg-ink-900" aria-labelledby="external-images-title">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 id="external-images-title" className="font-bold text-ink-100 flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-gold-500" /> External images
+                    </h2>
+                    <p className="text-xs text-ink-400 mt-1">Images pasted as outside links are hidden on the site. Import them into storage to show them again.</p>
+                </div>
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => run(true)}
+                        disabled={state === 'scanning' || state === 'importing'}
+                        className="px-3 py-1.5 rounded text-sm font-bold border border-ink-700 text-ink-200 hover:bg-ink-800 disabled:opacity-50"
+                    >
+                        {state === 'scanning' ? 'Searching…' : 'Find external images'}
+                    </button>
+                    {state === 'found' && images.length > 0 && (
+                        <button
+                            onClick={() => run(false)}
+                            className="px-3 py-1.5 rounded text-sm font-bold bg-gold-700 hover:bg-gold-600 text-white"
+                        >
+                            Import {images.length} image{images.length === 1 ? '' : 's'}
+                        </button>
+                    )}
+                    {state === 'importing' && <span className="px-3 py-1.5 text-sm text-gold-400">Importing… this can take a minute</span>}
+                </div>
+            </div>
+
+            {state === 'found' && (
+                images.length === 0
+                    ? <p className="mt-3 text-sm text-emerald-400">No external images found. Everything is hosted in storage.</p>
+                    : (
+                        <ul className="mt-3 space-y-1 text-xs text-ink-400 max-h-48 overflow-y-auto custom-scrollbar">
+                            {images.map((img) => (
+                                <li key={img.url} className="truncate">
+                                    <span className="text-ink-200">{img.places.join(', ')}</span> · used {img.uses}× · {img.url}
+                                </li>
+                            ))}
+                        </ul>
+                    )
+            )}
+            {state === 'done' && result && (
+                <div className="mt-3 text-sm">
+                    <p className="text-emerald-400">Imported {result.imported} image{result.imported === 1 ? '' : 's'} and updated {result.documentsUpdated} document{result.documentsUpdated === 1 ? '' : 's'}.</p>
+                    {result.failed.length > 0 && (
+                        <ul className="mt-2 space-y-1 text-xs text-red-400">
+                            {result.failed.map((f) => <li key={f.url} className="truncate">Couldn&apos;t import {f.url}: {f.error}</li>)}
+                        </ul>
+                    )}
+                </div>
+            )}
+            {state === 'error' && <p className="mt-3 text-sm text-red-400">{error}</p>}
+        </section>
+    );
+}
+
 export default function ModerationDashboard() {
     const { user, userRole, loading: authLoading } = useGame();
     const router = useRouter();
@@ -326,6 +410,8 @@ export default function ModerationDashboard() {
 
             {/* Main Content - with scrollable area */}
             <main className="p-4 md:p-8 max-w-7xl mx-auto max-h-[calc(100vh-80px)] overflow-y-auto custom-scrollbar">
+
+                {userRole === 'admin' && <ExternalImagesTool />}
 
                 {/* Mobile Content Type Selector */}
                 <div className="md:hidden mb-4 overflow-x-auto pb-2 flex gap-2">
