@@ -3,7 +3,7 @@ if (typeof global.setImmediate === 'undefined') {
 }
 
 const { assertFails, assertSucceeds, initializeTestEnvironment } = require('@firebase/rules-unit-testing');
-const { setDoc, doc, getDoc, onSnapshot, updateDoc } = require('firebase/firestore');
+const { setDoc, doc, getDoc, onSnapshot, updateDoc, deleteDoc } = require('firebase/firestore');
 const fs = require('fs');
 
 const PROJECT_ID = 'realm-of-aethelraed';
@@ -192,4 +192,43 @@ describe('Moderation System', () => {
         expect(restored.lastEditorId).toBe('user2');
         expect(restored.moderationMethod).toBe('auto-regex');
     }, 30000);
+});
+
+describe('Character sync', () => {
+    // Reads as admin, retrying until the function has run
+    const pollAsAdmin = async (path, done) => {
+        let data;
+        for (let i = 0; i < 40; i++) {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                data = (await getDoc(doc(context.firestore(), path))).data();
+            });
+            if (done(data)) return data;
+            await new Promise((r) => setTimeout(r, 500));
+        }
+        return data;
+    };
+
+    test('Renaming then deleting a character updates every post written as it', async () => {
+        const charPath = `artifacts/${APP_ID}/users/user1/characters/charSync`;
+        const postPath = `artifacts/${APP_ID}/public/data/posts/postSync`;
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            const db = context.firestore();
+            await setDoc(doc(db, charPath), { name: 'Brynn', race: 'Elf', class: 'Ranger', imageUrl: '' });
+            await setDoc(doc(db, postPath), {
+                content: 'Brynn watches the ridge.', threadId: 'thread1', userId: 'user1',
+                characterId: 'charSync', characterName: 'Brynn', status: 'approved'
+            });
+        });
+
+        const db = testEnv.authenticatedContext('user1', { email_verified: true }).firestore();
+        await updateDoc(doc(db, charPath), { name: 'Brynn Swiftarrow', class: 'Warden' });
+        const renamed = await pollAsAdmin(postPath, (p) => p?.characterName === 'Brynn Swiftarrow');
+        expect(renamed.characterName).toBe('Brynn Swiftarrow');
+        expect(renamed.characterClass).toBe('Warden');
+        expect(renamed.status).toBe('approved'); // untouched by the sync
+
+        await testEnv.withSecurityRulesDisabled((context) => deleteDoc(doc(context.firestore(), charPath)));
+        const deleted = await pollAsAdmin(postPath, (p) => p?.characterName?.endsWith('[Deleted]'));
+        expect(deleted.characterName).toBe('Brynn Swiftarrow [Deleted]');
+    }, 40000);
 });

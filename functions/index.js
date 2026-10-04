@@ -824,3 +824,13 @@ Respond with ONLY "SAFE" or "UNSAFE: [reason]". Nothing else.`
 // IMAGE IMPORT (pasted URLs are copied into Storage, then moderated)
 // ==========================================
 exports.importImageFromUrl = require('./importImage').importImageFromUrl;
+
+// ==========================================
+// CHARACTER SYNC (renames/deletes propagate to posts and threads)
+// ==========================================
+exports.syncCharacter = require('./characterSync').syncCharacter;
+
+// ==========================================
+// MODERATOR TOOLS
+// ==========================================
+exports.deleteUserImage = require('./moderatorTools').deleteUserImage;

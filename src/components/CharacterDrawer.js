@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import {
-    collection, doc, updateDoc, deleteDoc,
-    serverTimestamp, writeBatch, getDocs, query, where, increment
+    collection, doc, updateDoc,
+    serverTimestamp, writeBatch, increment
 } from 'firebase/firestore';
+import { nameProblem, containsForbiddenText } from '@/lib/moderation/textRules';
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
@@ -15,7 +16,7 @@ import ImageUploader from '@/components/ImageUploader';
 import CharacterListItem from '@/components/CharacterListItem';
 
 export default function CharacterDrawer() {
-    const { user, characters, activeCharId, setActiveCharId } = useGame();
+    const { user, userRole, characters, activeCharId, setActiveCharId } = useGame();
 
     const [isOpen, setIsOpen] = useState(false);
     const [mode, setMode] = useState('view');
@@ -83,8 +84,22 @@ export default function CharacterDrawer() {
         setMode('delete');
     }, [characters]);
 
+    // Same checks the rules enforce, so players get a clear message
+    const profileProblem = () => {
+        const problem = nameProblem(formData.name, { allowReserved: userRole === 'admin' || userRole === 'moderator' });
+        if (problem) return problem;
+        if ([formData.race, formData.class, formData.description].some(containsForbiddenText)) {
+            return 'The profile contains a blocked word.';
+        }
+        if (formData.name.length > 60) return 'Name must be 60 characters or fewer.';
+        if ((formData.description || '').length > 5000) return 'Description must be 5000 characters or fewer.';
+        return null;
+    };
+
     const handleCreate = async () => {
         if (!formData.name) return setFormError('Name is required');
+        const problem = profileProblem();
+        if (problem) return setFormError(problem);
         if (!user) return setFormError('You must be logged in.');
         if (atLimit) return setFormError('Character limit reached.');
 
@@ -138,20 +153,15 @@ export default function CharacterDrawer() {
 
     const handleUpdate = async () => {
         if (!editingId) return;
+        const problem = profileProblem();
+        if (problem) return setFormError(problem);
         setIsSubmitting(true);
         try {
-            // Get the old character data to check for identity changes
             const oldChar = characters.find(c => c.id === editingId);
 
-            const identityChanged = oldChar && (
-                oldChar.name !== formData.name ||
-                oldChar.race !== formData.race ||
-                oldChar.class !== formData.class ||
-                oldChar.imageUrl !== formData.imageUrl ||
-                oldChar.imagePosition !== formData.imagePosition
-            );
-
-            // 1. Update the Character Profile itself
+            // 1. Update the Character Profile itself. The syncCharacter Cloud
+            // Function copies name/race/class/portrait changes onto every post
+            // and thread written as this character.
             await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
 
             // 2. IMAGE CLEANUP
@@ -162,33 +172,6 @@ export default function CharacterDrawer() {
                         await deleteObject(oldImageRef);
                     }
                 } catch (delErr) { console.warn("Failed to delete old image:", delErr); }
-            }
-
-            // 3. Conditional Bulk Update
-            if (identityChanged) {
-                const q = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', editingId));
-                const snapshot = await getDocs(q);
-
-                if (!snapshot.empty) {
-                    const chunks = [];
-                    const docs = snapshot.docs;
-
-                    for (let i = 0; i < docs.length; i += 450) chunks.push(docs.slice(i, i + 450));
-
-                    for (const chunk of chunks) {
-                        const batch = writeBatch(db);
-                        chunk.forEach(d => {
-                            batch.update(d.ref, {
-                                characterImageUrl: formData.imageUrl,
-                                characterImagePosition: formData.imagePosition || 'center',
-                                characterName: formData.name,
-                                characterRace: formData.race,
-                                characterClass: formData.class
-                            });
-                        });
-                        await batch.commit();
-                    }
-                }
             }
 
             setSessionUploads([]); // clear list so we don't delete valid images
@@ -209,33 +192,9 @@ export default function CharacterDrawer() {
         setIsSubmitting(true);
 
         try {
-            // --- STEP 1: Anonymize ALL Posts ---
-            const postsQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'), where('characterId', '==', deleteId));
-            const postsSnap = await getDocs(postsQ);
-
-            if (!postsSnap.empty) {
-                const chunks = [];
-                const docs = postsSnap.docs;
-                for (let i = 0; i < docs.length; i += 450) chunks.push(docs.slice(i, i + 450));
-
-                for (const chunk of chunks) {
-                    const batch = writeBatch(db);
-                    chunk.forEach(d => {
-                        batch.update(d.ref, { characterName: `${char.name} [Deleted]`, characterImageUrl: '' });
-                    });
-                    await batch.commit();
-                }
-            }
-
-            // --- STEP 2: Mark Codex as Archived ---
+            // Posts and threads are marked "[Deleted]" and the character's codex
+            // page archived by the syncCharacter Cloud Function, server-side.
             const finalBatch = writeBatch(db);
-            const codexQ = query(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), where('relatedId', '==', deleteId));
-            const codexSnap = await getDocs(codexQ);
-            codexSnap.forEach(d => {
-                finalBatch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', d.id), {
-                    title: `[Archived] ${char.name}`, category: 'Lore'
-                });
-            });
 
             // --- STEP 3: Delete Character & Decrement Count ---
             finalBatch.delete(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));

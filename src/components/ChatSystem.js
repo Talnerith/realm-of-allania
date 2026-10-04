@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
     collection, query, where, onSnapshot, addDoc,
-    serverTimestamp, orderBy, getDocs, doc, updateDoc, setDoc, deleteDoc, writeBatch, limitToLast
+    serverTimestamp, orderBy, getDocs, getDoc, doc, updateDoc, setDoc, deleteDoc, writeBatch, limitToLast
 } from 'firebase/firestore';
+import { containsForbiddenText } from '@/lib/moderation/textRules';
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID } from '@/lib/constants';
@@ -13,7 +14,7 @@ import ChatListItem from '@/components/Chat/ChatListItem';
 function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
     // readReceipts comes from GameContext (chat_id -> millis) — avoids a
     // second listener on the same collection
-    const { user, readReceipts } = useGame();
+    const { user, readReceipts, characters, activeCharId } = useGame();
     const [activeChatId, setActiveChatId] = useState(null);
     const [chats, setChats] = useState([]);
     const [chatsLoaded, setChatsLoaded] = useState(false);
@@ -25,17 +26,30 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
 
     // Define initiateChat before it's used in useEffect
     const initiateChat = useCallback(async (targetUser) => {
+        if (targetUser.id === user.uid) return;
         const existing = chats.find(c => c.participants.includes(targetUser.id));
         if (existing) {
             setActiveChatId(existing.id);
             return;
         }
+        // Chats are between characters: each side is shown under the real name
+        // of the character they chat as (the rules check both exist), so
+        // nobody can choose a misleading label for themselves or the other person
+        const myCharId = activeCharId || characters[0]?.id;
+        if (!myCharId) {
+            alert("Create a character before starting a chat.");
+            return;
+        }
+        if (!targetUser.characterId) {
+            alert("This player can't be messaged from here.");
+            return;
+        }
         try {
             const chatRef = await addDoc(collection(db, 'artifacts', APP_ID, 'chats'), {
                 participants: [user.uid, targetUser.id],
-                participantNames: {
-                    [user.uid]: user.displayName || 'Me',
-                    [targetUser.id]: targetUser.name || 'Unknown'
+                participantCharacters: {
+                    [user.uid]: myCharId,
+                    [targetUser.id]: targetUser.characterId
                 },
                 updatedAt: serverTimestamp(),
                 lastMessage: 'Chat started'
@@ -44,7 +58,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
         } catch (e) {
             console.error("Error starting chat:", e);
         }
-    }, [chats, user]);
+    }, [chats, user, characters, activeCharId]);
 
     // If we open with a specific user target, initiate exactly once per target.
     // Without the ref guard, every chats snapshot re-runs this effect and
@@ -80,6 +94,42 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
 
         return () => { unsub(); setChatsLoaded(false); };
     }, [user]);
+
+    // Resolve chat partners' names from their characters (cached per character)
+    const [characterNames, setCharacterNames] = useState({});
+    useEffect(() => {
+        if (!user || !db) return;
+        const missing = new Set();
+        for (const chat of chats) {
+            const otherId = chat.participants.find(p => p !== user.uid);
+            const charId = chat.participantCharacters?.[otherId];
+            if (charId && !(`${otherId}/${charId}` in characterNames)) missing.add(`${otherId}/${charId}`);
+        }
+        if (missing.size === 0) return;
+
+        let cancelled = false;
+        Promise.all([...missing].map(async (key) => {
+            const [uid, charId] = key.split('/');
+            try {
+                const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'users', uid, 'characters', charId));
+                return [key, snap.exists() ? snap.data().name : 'Departed Traveler'];
+            } catch {
+                return [key, 'Unknown Traveler'];
+            }
+        })).then((entries) => {
+            if (!cancelled) setCharacterNames(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+        });
+        return () => { cancelled = true; };
+    }, [chats, user, characterNames]);
+
+    const partnerName = useCallback((chat) => {
+        if (!chat || !user) return 'Chat';
+        const otherId = chat.participants.find(p => p !== user.uid);
+        const charId = chat.participantCharacters?.[otherId];
+        if (charId) return characterNames[`${otherId}/${charId}`] || '…';
+        // Chats started before character-linked names
+        return chat.participantNames?.[otherId] || 'Unknown Traveler';
+    }, [characterNames, user]);
 
     // Calculate Unread Count
     useEffect(() => {
@@ -163,6 +213,11 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
         e.preventDefault();
         if (!newMessage.trim() || !activeChatId) return;
         if (cooldown) return;
+        // Same word filter the rules enforce, checked here for a clear message
+        if (containsForbiddenText(newMessage)) {
+            setSendError("That message contains a blocked word.");
+            return;
+        }
 
         setIsSending(true);
         try {
@@ -264,7 +319,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                     <MessageCircle className="w-5 h-5 text-gold-500" />
                     <h3 className="font-serif font-bold text-gold-100 truncate max-w-[150px]">
                         {activeChatId
-                            ? (chats.find(c => c.id === activeChatId)?.participantNames?.[chats.find(c => c.id === activeChatId)?.participants.find(p => p !== user.uid)] || 'Chat')
+                            ? partnerName(chats.find(c => c.id === activeChatId))
                             : 'Messages'
                         }
                     </h3>
@@ -304,7 +359,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                                 <ChatListItem
                                     key={chat.id}
                                     chat={chat}
-                                    userId={user.uid}
+                                    name={partnerName(chat)}
                                     isActive={activeChatId === chat.id}
                                     isUnread={isChatUnread(chat.id)}
                                     onSelect={setActiveChatId}

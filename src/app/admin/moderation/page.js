@@ -3,8 +3,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { collection, query, where, orderBy, onSnapshot, doc, getDoc, updateDoc, deleteDoc, limit, getDocs, writeBatch } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
 import { Shield, AlertTriangle, Check, X, Trash2, Filter, ChevronLeft, RefreshCw, Image as ImageIcon, FileText, BookOpen, Trash } from 'lucide-react';
@@ -102,14 +102,15 @@ export default function ModerationDashboard() {
                     : 'Are you sure you want to permanently delete this content? This will remove both the moderation log AND the actual content.';
                     
                 if (confirm(confirmMessage)) {
-                    // For images, delete the storage file
+                    // For images, delete the storage file. Storage rules only let
+                    // owners delete, so this goes through a moderator-only function;
+                    // the log is kept if it fails, so the image isn't forgotten.
                     if (item.type === 'image' && item?.filePath) {
                         try {
-                            const fileRef = ref(storage, item.filePath);
-                            await deleteObject(fileRef);
-                            console.log(`Deleted storage file: ${item.filePath}`);
+                            await httpsCallable(functions, 'deleteUserImage')({ filePath: item.filePath });
                         } catch (e) {
-                            console.warn("Could not delete storage file:", e);
+                            alert("Could not delete the image: " + e.message);
+                            return;
                         }
                     }
                     
@@ -221,17 +222,9 @@ export default function ModerationDashboard() {
             let currentBatch = writeBatch(db);
             let operationCount = 0;
 
+            // Only the log entries: the confirmation promises content is kept
+            // (this used to delete approved images' files too)
             for (const item of posts) {
-                // For images, delete the storage file first
-                if (item.type === 'image' && item.filePath) {
-                    try {
-                        const fileRef = ref(storage, item.filePath);
-                        await deleteObject(fileRef);
-                    } catch (e) {
-                        console.warn("Could not delete storage file:", e);
-                    }
-                }
-
                 const itemRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'moderation_logs', item.id);
                 currentBatch.delete(itemRef);
                 operationCount++;

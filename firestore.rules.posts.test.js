@@ -257,6 +257,21 @@ describe('Firestore Rules: Characters', () => {
     await assertFails(updateDoc(doc(dbFor('banned1'), `artifacts/${APP_ID}/users/banned1/characters/c1`), { name: 'Slur' }));
   });
 
+  test('Character profiles are filtered for blocked words', async () => {
+    await seed(`artifacts/${APP_ID}/users/user1/characters/c1`, character);
+    const ref = doc(dbFor('user1'), `artifacts/${APP_ID}/users/user1/characters/c1`);
+    await assertFails(updateDoc(ref, { description: 'Selling cheap rolex watches' }));
+    await assertFails(updateDoc(ref, { name: 'Kys' }));
+    await assertSucceeds(updateDoc(ref, { name: 'Alkyshire Wanderer' }));
+  });
+
+  test('Only staff may use staff-looking character names', async () => {
+    await seed(`artifacts/${APP_ID}/users/user1/characters/c1`, character);
+    await seed(`artifacts/${APP_ID}/users/mod1/characters/c1`, character);
+    await assertFails(updateDoc(doc(dbFor('user1'), `artifacts/${APP_ID}/users/user1/characters/c1`), { name: 'Official Moderator' }));
+    await assertSucceeds(updateDoc(doc(dbFor('mod1'), `artifacts/${APP_ID}/users/mod1/characters/c1`), { name: 'Moderator Brynn' }));
+  });
+
   test('Character text is size-limited', async () => {
     await seed(`artifacts/${APP_ID}/users/user1/characters/c1`, character);
     const ref = doc(dbFor('user1'), `artifacts/${APP_ID}/users/user1/characters/c1`);
@@ -275,6 +290,13 @@ describe('Firestore Rules: Accounts and presence', () => {
   test('Banned users cannot write presence', async () => {
     await assertFails(setDoc(doc(dbFor('banned1'), `artifacts/${APP_ID}/presence/banned1`), { username: 'x' }));
     await assertSucceeds(setDoc(doc(dbFor('user1'), `artifacts/${APP_ID}/presence/user1`), { username: 'x' }));
+  });
+
+  test('Display names in Active Users are filtered', async () => {
+    const ref = doc(dbFor('user1'), `artifacts/${APP_ID}/presence/user1`);
+    await assertFails(setDoc(ref, { username: 'Site Admin' }));
+    await assertFails(setDoc(ref, { username: 'free money bot' }));
+    await assertSucceeds(setDoc(ref, { username: 'Wanderer' }));
   });
 });
 

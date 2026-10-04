@@ -88,7 +88,7 @@ const PostItem = memo(function PostItem({
                     <div className="flex flex-wrap gap-2 mt-2">
                         {user && user.uid !== post.userId && (
                             <button
-                                onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
+                                onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName, characterId: post.characterId })}
                                 className="text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded px-2 py-1 flex items-center gap-1 transition-colors"
                                 title="Send Message"
                             >
@@ -153,7 +153,7 @@ const PostItem = memo(function PostItem({
                     <div className="mt-1 flex flex-wrap justify-center gap-1">
                         {user && user.uid !== post.userId && (
                             <button
-                                onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName })}
+                                onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName, characterId: post.characterId })}
                                 className="text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded px-1.5 py-0.5 flex items-center gap-1 transition-colors"
                                 title="Send Message"
                             >

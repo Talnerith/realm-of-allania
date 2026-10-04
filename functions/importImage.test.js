@@ -2,6 +2,12 @@
  * Tests for the image import callable's URL and address safety checks
  * (the network fetch itself is not exercised here).
  */
+jest.mock('firebase-functions/v2/https', () => ({
+    onCall: jest.fn((options, handler) => handler),
+    HttpsError: class HttpsError extends Error {
+        constructor(code, message) { super(message); this.code = code; }
+    }
+}));
 jest.mock('firebase-admin', () => ({ firestore: jest.fn(), storage: jest.fn() }));
 jest.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: jest.fn() } }));
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useGame } from '@/context/GameContext';
 import { Crown, Mail, Lock, User, AlertCircle, CheckCircle, Loader, LogOut, Shield, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import LegalDocs from '@/components/Legal/LegalDocs';
+import { nameProblem } from '@/lib/moderation/textRules';
 
 // NOTE: added props for legal view navigation from page.js
 export default function AuthScreen({ onLegalClick, currentView, onBack }) {
@@ -56,6 +57,13 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
       } else if (isLogin) {
         await login(email, password);
       } else {
+        // Shown to other players in Active Users; the rules apply the same check
+        const problem = nameProblem(username);
+        if (problem) {
+          setError(problem);
+          setLoading(false);
+          return;
+        }
         await signup(email, password, username);
       }
     } catch (err) {

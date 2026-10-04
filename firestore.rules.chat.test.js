@@ -97,12 +97,52 @@ describe('Firestore Security Rules - Chats', () => {
         await assertFails(updateDoc(doc(dbFor('alice'), messagePath), { text: 'Edited' }));
     });
 
-    it('should allow starting a chat with a server timestamp', async () => {
-        await assertSucceeds(setDoc(doc(dbFor('alice'), 'artifacts/realm-of-allania-v2/chats/new_chat'), {
+    it('should block messages containing blocked words (logic moderation)', async () => {
+        await assertFails(sendMessage(dbFor('alice'), 'bad_1', { senderId: 'alice', text: 'get FREE ROBUX here' }));
+        await assertSucceeds(sendMessage(dbFor('alice'), 'ok_1', { senderId: 'alice', text: 'The skyship lands at dawn.' }));
+    });
+
+    describe('starting a chat', () => {
+        const NEW_CHAT = 'artifacts/realm-of-allania-v2/chats/new_chat';
+
+        beforeEach(async () => {
+            await testEnv.withSecurityRulesDisabled(async (context) => {
+                await setDoc(doc(context.firestore(), 'artifacts/realm-of-allania-v2/users/alice/characters/aliceChar'), { name: 'Alys' });
+                await setDoc(doc(context.firestore(), 'artifacts/realm-of-allania-v2/users/carol/characters/carolChar'), { name: 'Caro' });
+            });
+        });
+
+        const chat = (overrides = {}) => ({
             participants: ['alice', 'carol'],
-            participantNames: { alice: 'Alice', carol: 'Carol' },
+            participantCharacters: { alice: 'aliceChar', carol: 'carolChar' },
             lastMessage: 'Chat started',
-            updatedAt: serverTimestamp()
-        }));
+            updatedAt: serverTimestamp(),
+            ...overrides
+        });
+
+        it('allows a chat between two real characters', async () => {
+            await assertSucceeds(setDoc(doc(dbFor('alice'), NEW_CHAT), chat()));
+        });
+
+        it('rejects free-text participant names (no misleading labels)', async () => {
+            await assertFails(setDoc(doc(dbFor('alice'), NEW_CHAT), chat({
+                participantNames: { alice: 'Moderator Team', carol: 'Caro' }
+            })));
+        });
+
+        it("rejects characters that don't belong to the participant, or a missing one", async () => {
+            await assertFails(setDoc(doc(dbFor('alice'), NEW_CHAT), chat({
+                participantCharacters: { alice: 'carolChar', carol: 'carolChar' }
+            })));
+            await assertFails(setDoc(doc(dbFor('alice'), NEW_CHAT), chat({
+                participantCharacters: { alice: 'aliceChar' }
+            })));
+        });
+
+        it('rejects a chat with yourself', async () => {
+            await assertFails(setDoc(doc(dbFor('alice'), NEW_CHAT), chat({
+                participants: ['alice', 'alice'], participantCharacters: { alice: 'aliceChar' }
+            })));
+        });
     });
 });

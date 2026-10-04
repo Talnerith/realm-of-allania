@@ -164,6 +164,7 @@ export function GameProvider({ children }) {
     if (!auth) throw new Error("Authentication service unavailable.");
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
+    await cred.user.getIdToken(true);
     await sendEmailVerification(cred.user);
 
     // Create Role Entry in the PRIVATE path

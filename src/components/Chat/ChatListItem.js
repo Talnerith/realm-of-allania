@@ -1,10 +1,7 @@
 import React, { memo, useMemo } from 'react';
 
-const ChatListItem = memo(function ChatListItem({ chat, userId, isActive, isUnread, onSelect }) {
-    const name = useMemo(() => {
-        const otherId = chat.participants.find(p => p !== userId);
-        return chat.participantNames?.[otherId] || 'Unknown Traveler';
-    }, [chat, userId]);
+// name: the chat partner's character name, resolved by ChatSystem
+const ChatListItem = memo(function ChatListItem({ chat, name, isActive, isUnread, onSelect }) {
 
     const timeDisplay = useMemo(() => {
         return chat.updatedAt?.toDate ? chat.updatedAt.toDate().toLocaleDateString() : '';

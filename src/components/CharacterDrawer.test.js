@@ -207,96 +207,61 @@ describe('CharacterDrawer', () => {
     expect(updateArg.name).toBe('Char One Updated');
   });
 
-  test('updates related posts when character identity changes', async () => {
+  test('renaming only updates the character (the syncCharacter function updates posts)', async () => {
     render(<CharacterDrawer />);
     fireEvent.click(screen.getByText('Character Roster'));
 
-    // Edit Char One
     const editButtons = screen.getAllByTestId('icon-edit');
     fireEvent.click(editButtons[0].closest('button'));
-
-    // Change Name AND Image to trigger identity change logic
     fireEvent.change(screen.getByDisplayValue('Char One'), { target: { value: 'Char One Evolved' } });
     fireEvent.click(screen.getByTestId('mock-upload-btn')); // Change image
-
-    // Mock query response for posts
-    firestore.getDocs.mockResolvedValueOnce({
-      empty: false,
-      docs: [
-        { id: 'post1', ref: 'postRef1', data: () => ({}) },
-        { id: 'post2', ref: 'postRef2', data: () => ({}) },
-      ],
-    });
 
     await act(async () => {
       fireEvent.click(screen.getByText('Save Changes'));
     });
 
-    // Should query posts
-    expect(firestore.query).toHaveBeenCalled();
-    expect(firestore.getDocs).toHaveBeenCalled();
-
-    // Should batch update posts
-    const mockBatch = firestore.writeBatch();
-    expect(mockBatch.update).toHaveBeenCalledWith('postRef1', expect.objectContaining({ characterName: 'Char One Evolved' }));
-    expect(mockBatch.update).toHaveBeenCalledWith('postRef2', expect.objectContaining({ characterName: 'Char One Evolved' }));
-    expect(mockBatch.commit).toHaveBeenCalled();
+    expect(firestore.updateDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: 'Char One Evolved' }));
+    // No client-side post queries or rewrites (rules forbid them)
+    expect(firestore.getDocs).not.toHaveBeenCalled();
+    expect(firestore.writeBatch().update).not.toHaveBeenCalled();
   });
 
-  test('deletes character and performs cleanup', async () => {
+  test('blocks names with blocked or staff-impersonating words', async () => {
     render(<CharacterDrawer />);
     fireEvent.click(screen.getByText('Character Roster'));
 
-    // Open Delete Mode
+    const editButtons = screen.getAllByTestId('icon-edit');
+    fireEvent.click(editButtons[0].closest('button'));
+    fireEvent.change(screen.getByDisplayValue('Char One'), { target: { value: 'Official Moderator' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save Changes'));
+    });
+
+    expect(screen.getByText(/can't suggest site staff/)).toBeInTheDocument();
+    expect(firestore.updateDoc).not.toHaveBeenCalled();
+  });
+
+  test('deletes character, decrements the count and cleans up the image', async () => {
+    render(<CharacterDrawer />);
+    fireEvent.click(screen.getByText('Character Roster'));
+
     fireEvent.click(screen.getByTitle('Delete Character'));
-
     expect(screen.getByText('Delete Character')).toBeInTheDocument();
-
-    // Select character to delete
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'char1' } });
-
-    // Click Delete (First step)
     fireEvent.click(screen.getByText('Delete'));
-
-    // Confirm
     expect(screen.getByText('Are you sure?')).toBeInTheDocument();
-
-    // Mock cleanup query responses
-    // 1. Posts (code uses snapshot.docs)
-    firestore.getDocs.mockResolvedValueOnce({
-      empty: false,
-      docs: [{ id: 'p1', ref: 'pRef1' }],
-    });
-    // 2. Codex (code uses snapshot.forEach)
-    firestore.getDocs.mockResolvedValueOnce({
-      empty: false,
-      docs: [{ id: 'c1', ref: 'cRef1' }],
-      forEach: (callback) => [{ id: 'c1', ref: 'cRef1' }].forEach(callback)
-    });
 
     await act(async () => {
       fireEvent.click(screen.getByText('Yes, Delete'));
     });
 
     const mockBatch = firestore.writeBatch();
-
-    // Verify post anonymization
-    expect(mockBatch.update).toHaveBeenCalledWith('pRef1', expect.objectContaining({ characterName: 'Char One [Deleted]' }));
-
-    // Verify codex archiving
-    // The first batch update was for posts. The second batch (finalBatch) update is for codex.
-    // Since writeBatch returns the same mock object, we can check all calls.
-    expect(mockBatch.update).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ title: '[Archived] Char One' }));
-
-    // Verify character deletion
     expect(mockBatch.delete).toHaveBeenCalled();
-
-    // Verify user count decrement
     expect(mockBatch.update).toHaveBeenCalledWith(expect.anything(), { characterCount: firestore.increment(-1) });
-
     expect(mockBatch.commit).toHaveBeenCalled();
-
-    // Image cleanup
+    // Posts/threads/codex are handled server-side by syncCharacter
+    expect(firestore.getDocs).not.toHaveBeenCalled();
     expect(storage.deleteObject).toHaveBeenCalled();
   });
 

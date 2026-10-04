@@ -79,6 +79,13 @@ jest.mock('firebase-admin', () => ({
     }))
 }));
 
+jest.mock('firebase-functions/v2/https', () => ({
+    onCall: jest.fn((options, handler) => handler),
+    HttpsError: class HttpsError extends Error {
+        constructor(code, message) { super(message); this.code = code; }
+    }
+}));
+
 // Mock firebase-functions
 jest.mock('firebase-functions/v2/firestore', () => ({
     onDocumentWritten: jest.fn((config, handler) => handler)
