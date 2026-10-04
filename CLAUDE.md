@@ -10,7 +10,8 @@ Realm of Allania — a web-based Play-by-Post (PbP) roleplaying platform (intera
 - **Styling**: Tailwind CSS 4 (via `@tailwindcss/postcss`)
 - **Icons**: lucide-react
 - **Testing**: Jest 30 + React Testing Library (jsdom); `@firebase/rules-unit-testing` for security rules
-- **Deploy**: Vercel (frontend); Firebase (functions, rules, indexes)
+- **Deploy**: Vercel (frontend, auto-deploys on push to `main`); Firebase (functions, rules, indexes)
+- **Node**: 22 (Next.js 16 needs ≥20.9; functions `engines.node` is 22)
 
 ## Commands
 Run from repo root unless noted.
@@ -28,6 +29,8 @@ Cloud Functions (from `functions/`):
 - `npm run logs` — tail function logs
 
 Firebase emulators (firebase.json): Firestore on `:8080`, Functions on `:5001`.
+- Rules + end-to-end moderation tests: `npx firebase emulators:exec --only firestore,functions "npx jest --config jest.rules.config.js"`
+- World map: `node scripts/optimize-map.js <source.png>` (2816×1504) rebuilds `public/map.webp`, `og-image.jpg` and the sign-in backdrop.
 
 ## Environment
 Copy `.env.example` to `.env.local` and fill in:
@@ -49,7 +52,9 @@ src/
 ├── hooks/               # custom hooks (e.g. useVersionCheck)
 ├── lib/                 # firebase.js (SDK init), constants.js, utils, searchUtils, navigation, moderation/
 └── middleware.js        # security headers + CSP for all non-API routes
-functions/               # Cloud Functions (index.js), validation.js, forbiddenKeywords.js
+functions/               # Cloud Functions: index.js (moderation), importImage.js, characterSync.js, moderatorTools.js, validation.js, forbiddenKeywords.js
+scripts/                 # optimize-map.js, Firestore backfill scripts (need GOOGLE_APPLICATION_CREDENTIALS)
+.design-sync/            # Claude Design sync setup (see "Claude Design sync" below)
 firestore.rules / storage.rules / firestore.indexes.json
 ```
 
@@ -77,12 +82,16 @@ Key patterns:
 - Always clean up real-time listeners in `useEffect` return functions.
 - When approving a child doc (Post), also update the parent (Thread) so it stays visible (status propagation).
 - **Design tokens** live in `src/app/globals.css` (`@theme`): use `ink-*` (neutral) and `gold-*` (accent) colors, never raw `slate-*`/`amber-*`; `font-serif` (Cormorant Garamond) for display/prose, `font-sans` (Inter) for UI; `text-2xs` (11px) is the smallest text size. Change the look by editing tokens, not by editing hundreds of class names.
+- **Portraits/avatars**: render the `<img>` only when `hostedImageUrl(url)` returns a URL, with the character's initial as the fallback underneath. An `<img src="">` shows broken-image alt text, not the fallback.
 - `firebase.js`, `auth`, `db`, `storage` may be `null` when env vars are absent — guard with null checks (the codebase does this everywhere).
 
 ## Gotchas
 - **Name drift**: package.json is named `realm-of-aethelraed` and Cloud Function prompts say "Aethelraed"; the product is "Realm of Allania". Both names refer to the same project (it was renamed).
 - Emulator-dependent tests (root-level `firestore.rules.*.test.js` + `src/lib/moderation/moderation.test.js`) are excluded from `npm test` and run via `npx firebase emulators:exec --only firestore,functions "npx jest --config jest.rules.config.js"` (the moderation e2e test needs the functions emulator too).
 - `firestore-debug.log` is an emulator artifact, not source.
+
+## Claude Design sync
+The components, tokens and fonts are synced to the Claude Design project "Realm of Allania" (id in `.design-sync/config.json`). `.design-sync/build-dist.mjs` compiles `src/components` with the data/auth layer swapped for stand-ins (`stubs/`, sample world in `sample-data.js`, `AllaniaProvider`), plus the app's Tailwind CSS with a utility safelist (`tailwind.css`). Previews live in `.design-sync/previews/`; the design agent's guide is `.design-sync/conventions.md`. **Read `.design-sync/NOTES.md` before re-syncing.** When you add or change a component's props, also update `entry.js`, `componentSrcMap`/`dtsPropsFor` in `config.json`, and its preview, then re-sync with the `/design-sync` command.
 
 ## Testing playbook
 Condensed from the project's accumulated testing conventions.
@@ -114,8 +123,9 @@ Dated post-mortem entries (originally kept in `.Jules/`, removed in `06ef8ff` �
 - **2025-10-26 — Firestore insecure creation (identity spoofing)**: rules let any authed user create threads/posts/chats with arbitrary `creatorId`/`userId`. Fixed with `request.resource.data.creatorId == request.auth.uid` on create, and `request.auth.uid in request.resource.data.participants` for chats.
 - **2025-10-27 — Update identity spoofing**: ownership checks permit an update but don't protect the fields changed. Protect immutable identity/timestamp fields with `!request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId','creatorId','createdAt'])`.
 - **2025-10-28 — Chat message spoofing & immutability**: nested subcollections inherit parent context but still need explicit validation. Split `read, write, delete` into granular perms; enforce `senderId == request.auth.uid` on create; deny `update` entirely to keep chat history append-only.
-- **2026-10-04 — Security review fixes**: a review found moderation bypasses (unmoderated thread titles, farmable auto-trust, edit-after-flag swaps, race between edit and verdict, extension-less image uploads, hotlinked images) and rule gaps (client-set future timestamps pinning threads / blocking chats, flood control skippable, banned users editing characters). Also: `resource.data.isLocked` on a doc without that field is a rules *error* (deny) — use `resource.data.get('isLocked', false)`. `withSecurityRulesDisabled` doesn't return its callback's value.
 - **2025-12-24 — Mobile parity**: `md:hidden` mobile views duplicate desktop structure but can miss interactive handlers (`onClick`). Apply handlers to both mobile and desktop variants.
+- **2026-10-04 — Security review fixes**: a review found moderation bypasses (unmoderated thread titles, farmable auto-trust, edit-after-flag swaps, race between edit and verdict, extension-less image uploads, hotlinked images) and rule gaps (client-set future timestamps pinning threads / blocking chats, flood control skippable, banned users editing characters). Also: `resource.data.isLocked` on a doc without that field is a rules *error* (deny) — use `resource.data.get('isLocked', false)`. `withSecurityRulesDisabled` doesn't return its callback's value.
+- **2026-10-04 — Previews catch real bugs**: rendering every component with sample data for the Claude Design sync exposed broken-image avatars (`<img src="">`) and an unlabeled icon button that tests had never caught. Screenshot the component states, not just unit-test them. Also: `firebase-admin` 14 drops the namespaced API, and the emulator suite, not Jest mocks, is what catches that.
 
 
 <!-- BEGIN:nextjs-agent-rules -->
