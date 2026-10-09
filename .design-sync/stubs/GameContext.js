@@ -12,10 +12,10 @@ import { setStore } from '../store.js';
 export { useTheme } from '@/context/ThemeContext';
 
 const noop = async () => {};
-const ACTIONS = { signup: noop, login: noop, logout: noop, resendVerification: noop, resetPassword: noop };
+const ACTIONS = { signup: noop, login: noop, logout: noop, resendVerification: noop, resetPassword: noop, updateDisplayName: noop };
 const SIGNED_OUT = {
   user: null, userRole: 'user', loading: false, characters: [], activeCharId: null,
-  setActiveCharId: () => {}, hideWelcome: null, setHideWelcome: () => {}, readReceipts: {}, ...ACTIONS
+  setActiveCharId: () => {}, hideWelcome: null, setHideWelcome: () => {}, displayName: null, readReceipts: {}, ...ACTIONS
 };
 
 const GameContext = createContext(null);
@@ -43,6 +43,7 @@ export function AllaniaProvider({
   const value = useMemo(() => (signedIn ? {
     ...ACTIONS,
     user: user ?? SAMPLE_USER,
+    displayName: (user ?? SAMPLE_USER).displayName ?? null,
     userRole: role,
     loading: false,
     characters: roster,

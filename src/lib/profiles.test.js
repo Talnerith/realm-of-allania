@@ -1,4 +1,4 @@
-import { isValidDisplayName, authorName } from '@/lib/profiles';
+import { isValidDisplayName, authorName, displayNameProblem } from '@/lib/profiles';
 import { formatStat } from '@/lib/siteStats';
 import { canLikePost } from '@/lib/likes';
 
@@ -16,6 +16,19 @@ describe('isValidDisplayName', () => {
     expect(isValidDisplayName('x'.repeat(31))).toBe(false);
     expect(isValidDisplayName('Official Moderator')).toBe(false);
     expect(isValidDisplayName(undefined)).toBe(false);
+  });
+});
+
+describe('displayNameProblem', () => {
+  it('accepts ordinary names', () => {
+    expect(displayNameProblem('Emberquill')).toBeNull();
+  });
+
+  it('explains what is wrong with a bad name', () => {
+    expect(displayNameProblem(' J ')).toMatch(/at least 2/);
+    expect(displayNameProblem('x'.repeat(31))).toMatch(/at most 30/);
+    expect(displayNameProblem('Official Moderator')).toMatch(/site staff/);
+    expect(displayNameProblem('Official Moderator', { allowReserved: true })).toBeNull();
   });
 });
 

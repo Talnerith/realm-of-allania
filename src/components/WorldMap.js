@@ -10,6 +10,10 @@ import {
 // Re-exported for existing imports
 export { unnamedRegionLabel };
 
+// Active-thread marker, shared with the WorldMapPage legend
+export const THREAD_FRAME = 'border-2 border-(color:--a-300) bg-[color-mix(in_oklab,var(--a-400)_22%,transparent)] shadow-[0_0_0_1.5px_rgb(20_12_3/.85),inset_0_0_0_1.5px_rgb(20_12_3/.85),0_0_14px_2px_color-mix(in_oklab,var(--a-500)_75%,transparent)]';
+export const THREAD_DOT = 'bg-(color:--a-300) shadow-[0_0_0_1.5px_rgb(20_12_3/.9),0_0_6px_var(--a-400)]';
+
 // The painted map plus its 20x13 click grid. It fills its parent's width at
 // the map's fixed 2816x1504 aspect, so the parent decides size and scrolling.
 function WorldMap({ setView, setActiveRegion, onRegionHover }) {
@@ -108,15 +112,17 @@ function WorldMap({ setView, setActiveRegion, onRegionHover }) {
             hasUnread
               ? 'border-transparent'
               : hasThreads
-                ? 'border-gold-700/40 bg-gold-900/10'
+                ? 'border-transparent'
                 : 'border-transparent hover:border-gold-400/80 hover:bg-gold-500/10'
           }`}
         >
-          {/* Region with threads indicator (subtle golden glow) - only when no unread */}
+          {/* Region with threads: a bright gold frame, outlined dark so it reads
+              on the painted parchment (fixed --a-* colours: the map looks the
+              same in every theme). Only when no unread. */}
           {hasThreads && !hasUnread && (
             <span className="absolute inset-0 z-0 pointer-events-none">
-              <span className="absolute inset-1 border border-gold-600/30 rounded-sm" />
-              <span className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-gold-500/60 rounded-full" />
+              <span className={`absolute inset-1 rounded-sm ${THREAD_FRAME}`} />
+              <span className={`absolute bottom-1 left-1 w-2 h-2 rounded-full ${THREAD_DOT}`} />
             </span>
           )}
 

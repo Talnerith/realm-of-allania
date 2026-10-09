@@ -3,6 +3,7 @@ import { render, screen, act, waitFor } from '@testing-library/react';
 import { GameProvider, useGame } from '@/context/GameContext';
 import * as firestore from 'firebase/firestore';
 import * as fbAuth from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 jest.mock('@/lib/firebase', () => ({ auth: {}, db: {} }));
 jest.mock('firebase/auth');
@@ -95,5 +96,53 @@ describe('GameContext', () => {
       { path: 'artifacts/realm-of-allania-v2/public/data/profiles/u9' },
       { displayName: 'Emberquill', createdAt: 'now' }
     );
+  });
+
+  describe('updateDisplayName', () => {
+    beforeEach(() => {
+      auth.currentUser = { uid: 'u1', displayName: 'Wanderer' };
+      fbAuth.updateProfile.mockResolvedValue();
+    });
+    afterEach(() => { delete auth.currentUser; });
+
+    it('renames the public profile, the Auth profile and the account', async () => {
+      await renderProvider();
+      firestore.getDoc.mockResolvedValue({ exists: () => true, data: () => ({ displayName: 'Wanderer' }) });
+      expect(ctx.displayName).toBe('Wanderer');
+      await act(async () => { await ctx.updateDisplayName('  Emberquill '); });
+      expect(firestore.updateDoc).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Emberquill' });
+      expect(fbAuth.updateProfile).toHaveBeenCalledWith(auth.currentUser, { displayName: 'Emberquill' });
+      expect(firestore.updateDoc).toHaveBeenCalledWith({ path: ACCOUNT }, { username: 'Emberquill' });
+      expect(ctx.displayName).toBe('Emberquill');
+    });
+
+    it('creates the profile when it is missing', async () => {
+      await renderProvider();
+      firestore.setDoc.mockClear();
+      await act(async () => { await ctx.updateDisplayName('Emberquill'); });
+      expect(firestore.setDoc).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Emberquill', createdAt: 'now' });
+    });
+
+    it('rejects invalid names without writing', async () => {
+      await renderProvider();
+      firestore.updateDoc.mockClear();
+      await expect(ctx.updateDisplayName('J')).rejects.toThrow('at least 2 characters');
+      await expect(ctx.updateDisplayName('Official Moderator')).rejects.toThrow('site staff');
+      expect(firestore.updateDoc).not.toHaveBeenCalled();
+      expect(fbAuth.updateProfile).not.toHaveBeenCalled();
+      expect(ctx.displayName).toBe('Wanderer');
+    });
+
+    it('reports a failed save and keeps the old name', async () => {
+      await renderProvider();
+      firestore.getDoc.mockResolvedValue({ exists: () => true, data: () => ({}) });
+      const err = new Error('Missing or insufficient permissions.'); err.code = 'permission-denied';
+      firestore.updateDoc.mockRejectedValueOnce(err);
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      await expect(ctx.updateDisplayName('Emberquill')).rejects.toThrow('Could not save your name');
+      expect(fbAuth.updateProfile).not.toHaveBeenCalled();
+      expect(ctx.displayName).toBe('Wanderer');
+      console.error.mockRestore();
+    });
   });
 });

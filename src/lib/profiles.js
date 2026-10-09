@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { nameProblem } from '@/lib/moderation/textRules';
@@ -13,6 +13,13 @@ export const profileRef = (uid) => doc(db, 'artifacts', APP_ID, 'public', 'data'
 // Same limits as isValidDisplayName in firestore.rules
 export const isValidDisplayName = (name) =>
   typeof name === 'string' && name.trim().length >= 2 && name.length <= 30 && !nameProblem(name);
+
+// Why a name can't be a display name (user-facing), or null
+export function displayNameProblem(name, { allowReserved = false } = {}) {
+  if (typeof name !== 'string' || name.trim().length < 2) return 'Names need at least 2 characters.';
+  if (name.length > 30) return 'Names can be at most 30 characters.';
+  return nameProblem(name, { allowReserved });
+}
 
 export function createProfile(uid, displayName) {
   return setDoc(profileRef(uid), { displayName, createdAt: serverTimestamp() });
@@ -32,6 +39,15 @@ export async function ensureProfile(user) {
 
 // Profiles change rarely; one fetch per author per page load is plenty
 const cache = new Map();
+
+// Renames the player's public profile (created if it's missing)
+export async function saveProfileName(uid, displayName) {
+  const ref = profileRef(uid);
+  const snap = await getDoc(ref);
+  if (snap.exists()) await updateDoc(ref, { displayName });
+  else await createProfile(uid, displayName);
+  cache.delete(uid);
+}
 
 export function fetchProfile(uid) {
   if (!db || !uid) return Promise.resolve(null);

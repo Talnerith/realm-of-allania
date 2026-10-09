@@ -12,7 +12,7 @@ import {
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
-import { createProfile, ensureProfile } from '@/lib/profiles';
+import { createProfile, ensureProfile, displayNameProblem, saveProfileName } from '@/lib/profiles';
 
 const accountRef = (uid) => doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'account');
 
@@ -27,6 +27,9 @@ export function GameProvider({ children }) {
   // choice are saved on the account, so they follow the player across devices
   const [activeCharId, setActiveCharIdState] = useState(null);
   const [hideWelcome, setHideWelcomeState] = useState(null); // null until the account loads
+  // The player's author name. Kept in state because the Auth user object is
+  // mutated in place by updateProfile, which wouldn't re-render anything.
+  const [displayName, setDisplayNameState] = useState(null);
 
   // Global Read Receipts
   const [readReceipts, setReadReceipts] = useState({});
@@ -71,6 +74,7 @@ export function GameProvider({ children }) {
         // Always expose the user, even if Firestore is unconfigured —
         // returning early here would leave the app on "Loading Realm..." forever
         setUser(currentUser);
+        setDisplayNameState(currentUser.displayName || null);
 
         if (!db) {
           setLoading(false);
@@ -157,6 +161,7 @@ export function GameProvider({ children }) {
       } else {
         // Cleanup on Logout (listeners already torn down above)
         setUser(null);
+        setDisplayNameState(null);
         setUserRole('user');
         setReadReceipts({});
         setCharacters([]);
@@ -177,6 +182,7 @@ export function GameProvider({ children }) {
     if (!auth) throw new Error("Authentication service unavailable.");
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
+    setDisplayNameState(username); // the auth listener fired before the name was set
     await cred.user.getIdToken(true);
     await sendEmailVerification(cred.user);
 
@@ -235,16 +241,37 @@ export function GameProvider({ children }) {
     saveAccountSetting({ hideWelcome: !!hide });
   }, [saveAccountSetting]);
 
+  // Renames the player everywhere their name is looked up: the public
+  // profile (codex "Written by"), the Auth profile (navbar, presence) and the
+  // private account doc. Throws with a user-facing message.
+  const updateDisplayName = useCallback(async (name) => {
+    const next = typeof name === 'string' ? name.trim() : '';
+    const problem = displayNameProblem(next, { allowReserved: userRole === 'admin' || userRole === 'moderator' });
+    if (problem) throw new Error(problem);
+    if (!auth?.currentUser || !db) throw new Error('You must be signed in.');
+    try {
+      await saveProfileName(auth.currentUser.uid, next);
+      await updateProfile(auth.currentUser, { displayName: next });
+    } catch (e) {
+      console.error('Could not change the display name:', e);
+      throw new Error('Could not save your name. Please try again.');
+    }
+    setDisplayNameState(next);
+    saveAccountSetting({ username: next });
+  }, [userRole, saveAccountSetting]);
+
   // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
   // when GameProvider renders but data hasn't changed.
   const value = useMemo(() => ({
     user, userRole, loading, characters, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
+    displayName, updateDisplayName,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   }), [
     user, userRole, loading, characters, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
+    displayName, updateDisplayName,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   ]);

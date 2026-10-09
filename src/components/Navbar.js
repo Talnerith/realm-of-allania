@@ -9,6 +9,7 @@ import { useGame } from '@/context/GameContext';
 import ActiveUsers from '@/components/ActiveUsers';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
+import AccountName from '@/components/AccountName';
 
 // Main tabs. Region and thread pages live under the World Map tab.
 const NAV_ITEMS = [
@@ -21,7 +22,7 @@ const NAV_ITEMS = [
 const menuItemCls = 'text-left text-sm rounded-lg px-3 py-2 transition-colors hover:bg-ink-800';
 
 function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, unreadCount }) {
-  const { user, userRole, logout, hideWelcome, setHideWelcome } = useGame();
+  const { user, userRole, logout, hideWelcome, setHideWelcome, displayName: accountName, updateDisplayName } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -68,7 +69,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
   // link ships before the handle exists
   const kofiUrl = process.env.NEXT_PUBLIC_KOFI_URL;
   const isStaff = userRole === 'admin' || userRole === 'moderator';
-  const displayName = user?.displayName || 'Adventurer';
+  const displayName = accountName || user?.displayName || 'Adventurer';
 
   const closeAll = () => { setMobileMenuOpen(false); setUserMenuOpen(false); setSearchOpen(false); };
 
@@ -208,10 +209,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
                 </button>
                 {userMenuOpen && (
                   <div role="menu" aria-label="Account" className="absolute right-0 top-[calc(100%+.75rem)] w-60 rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow) p-2 flex flex-col gap-1">
-                    <div className="px-3 py-2 min-w-0">
-                      <div className="text-sm font-medium text-ink-50 truncate">{displayName}</div>
-                      {user.email && <div className="text-xs text-ink-400 truncate">{user.email}</div>}
-                    </div>
+                    <AccountName name={displayName} email={user.email} onSave={updateDisplayName} />
                     <div className="h-px bg-ink-800" />
                     <div className="flex items-center justify-between gap-2 px-3 py-2">
                       <span className="text-sm text-ink-300">Appearance</span>
@@ -292,10 +290,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
           ))}
           <div className="h-px bg-ink-800 my-1" />
           {user && (
-            <div className="px-3 py-2 min-w-0">
-              <div className="text-sm font-medium text-ink-50 truncate">{displayName}</div>
-              {user.email && <div className="text-xs text-ink-400 truncate">{user.email}</div>}
-            </div>
+            <AccountName name={displayName} email={user.email} onSave={updateDisplayName} />
           )}
           <div className="flex items-center justify-between gap-2 px-3 py-2">
             <span className="text-sm text-ink-300">Appearance</span>

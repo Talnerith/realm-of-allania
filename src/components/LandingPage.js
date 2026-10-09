@@ -45,7 +45,8 @@ const STAT_ROWS = [
 // The welcome page: shown first after sign-in unless the player ticked
 // "Don't show this again" (saved on their account; guests on this device)
 export default function LandingPage({ onEnter, onNavigate }) {
-  const { user, setHideWelcome } = useGame() || {};
+  const { user, setHideWelcome, displayName } = useGame() || {};
+  const welcomeName = displayName || user?.displayName;
   const stats = useSiteStats();
   const [skipFuture, setSkipFuture] = useState(readSkip);
   const go = (view) => (view === 'map' ? onEnter(skipFuture) : (onNavigate ? onNavigate(view) : onEnter(skipFuture)));
@@ -81,7 +82,7 @@ export default function LandingPage({ onEnter, onNavigate }) {
           <p className="text-base md:text-lg leading-relaxed text-white/90 text-pretty max-w-[32rem]">
             A collaborative world of imagination, where stories, characters, and cultures are built by a community of writers, for writers. Explore. Create. Contribute. Belong.
           </p>
-          {user?.displayName && <p className="font-serif italic text-xl text-(color:--a-200)">Welcome back, {user.displayName}.</p>}
+          {welcomeName && <p className="font-serif italic text-xl text-(color:--a-200)">Welcome back, {welcomeName}.</p>}
           <div className="flex flex-wrap items-center gap-3 mt-1">
             <button type="button" onClick={() => go('map')}
               className="flex items-center gap-3 rounded px-6 py-3 text-base font-bold text-white bg-(color:--a-600) hover:bg-(color:--a-500) shadow-[0_8px_24px_rgb(0_0_0/.35)] transition-colors">
