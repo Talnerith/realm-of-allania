@@ -8,6 +8,15 @@ jest.mock('firebase-functions/v2/https', () => ({
 }));
 
 const { findExternalImages, rewriteFields, isExternalImageUrl, importAndRewrite } = require('./imageMigration');
+// Captured before any clearAllMocks: the options each callable was defined with
+const callableOptions = require('firebase-functions/v2/https').onCall.mock.calls.map(([options]) => options);
+
+describe('callable options', () => {
+    it('require App Check', () => {
+        expect(callableOptions).toHaveLength(2); // imports importImage too
+        callableOptions.forEach((options) => expect(options.enforceAppCheck).toBe(true));
+    });
+});
 
 const BUCKET = 'realm.firebasestorage.app';
 const hosted = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/a.jpg?alt=media`;

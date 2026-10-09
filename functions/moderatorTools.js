@@ -40,7 +40,7 @@ const getRole = async (db, uid) => {
 };
 
 const deleteUserImage = onCall(
-    { region: "us-central1", timeoutSeconds: 30 },
+    { region: "us-central1", timeoutSeconds: 30, enforceAppCheck: true },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
 
@@ -89,7 +89,7 @@ const deleteUserImage = onCall(
 // which the site's CSP already allows for images.
 const PREVIEW_MAX_BYTES = 5 * 1024 * 1024; // the upload limit
 const previewImage = onCall(
-    { region: "us-central1", timeoutSeconds: 30, memory: "512MiB" },
+    { region: "us-central1", timeoutSeconds: 30, memory: "512MiB", enforceAppCheck: true },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
         const db = admin.firestore();

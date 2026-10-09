@@ -143,7 +143,7 @@ async function scanDocuments(db, adminUid) {
 }
 
 const migrateExternalImages = onCall(
-    { region: "us-central1", timeoutSeconds: 540, memory: "512MiB" },
+    { region: "us-central1", timeoutSeconds: 540, memory: "512MiB", enforceAppCheck: true },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
         const deadline = Date.now() + TIME_BUDGET_MS;

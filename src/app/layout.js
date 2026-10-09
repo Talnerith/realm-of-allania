@@ -2,6 +2,7 @@ import './globals.css';
 import { GameProvider } from '@/context/GameContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { themeInitScript } from '@/lib/theme';
+import { SITE_URL } from '@/lib/siteUrl';
 import VersionUpdater from '@/components/VersionUpdater';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { Inter, Cormorant_Garamond, Pinyon_Script } from 'next/font/google';
@@ -18,16 +19,9 @@ const cormorant = Cormorant_Garamond({
 // Codex drop caps only
 const pinyon = Pinyon_Script({ subsets: ['latin'], weight: '400', variable: '--font-pinyon' });
 
-// Determine Base URL for SEO
-const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-  : process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
-
 // SEO METADATA
 export const metadata = {
-  metadataBase: new URL(baseUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'Realm of Allania | Immersive RPG Forum',
     template: '%s | Realm of Allania'

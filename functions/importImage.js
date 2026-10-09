@@ -227,7 +227,7 @@ async function storeImage({ body, contentType, ext, host }, folder, uid) {
 }
 
 const importImageFromUrl = onCall(
-    { region: "us-central1", timeoutSeconds: 30, memory: "256MiB" },
+    { region: "us-central1", timeoutSeconds: 30, memory: "256MiB", enforceAppCheck: true },
     async (request) => {
         const auth = request.auth;
         if (!auth) throw new HttpsError('unauthenticated', 'Sign in to add images.');

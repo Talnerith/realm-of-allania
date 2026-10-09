@@ -22,11 +22,15 @@ if (!firebaseConfig.projectId && typeof window !== 'undefined') {
 
 const app = getApps().length === 0 && firebaseConfig.apiKey ? initializeApp(firebaseConfig) : getApps()[0];
 
-// Initialize App Check (CAPTCHA)
-// Temporarily disabled for local development to avoid console errors
-// Re-enable for production builds
-if (app && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && location.hostname !== "localhost") {
+// Initialize App Check (reCAPTCHA v3). On localhost reCAPTCHA can't attest, so
+// local dev uses the debug token from .env.local (registered in Firebase Console →
+// App Check → Apps → Manage debug tokens); without one, App Check is skipped there.
+const isLocalhost = typeof window !== 'undefined' && location.hostname === 'localhost';
+const debugToken = isLocalhost ? process.env.NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN : undefined;
+
+if (app && typeof window !== 'undefined' && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (!isLocalhost || debugToken)) {
   if (!window._firebaseAppCheck) {
+    if (debugToken) self.FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken;
     try {
       window._firebaseAppCheck = initializeAppCheck(app, {
         provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY),

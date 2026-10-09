@@ -25,6 +25,15 @@ jest.mock('firebase-functions/v2/https', () => ({
 }));
 
 const { isDeletableImagePath, imageOwner, canDeleteImage, deleteUserImage, previewImage } = require('./moderatorTools');
+// Captured before any clearAllMocks: the options each callable was defined with
+const callableOptions = require('firebase-functions/v2/https').onCall.mock.calls.map(([options]) => options);
+
+describe('callable options', () => {
+    it('require App Check', () => {
+        expect(callableOptions).toHaveLength(2);
+        callableOptions.forEach((options) => expect(options.enforceAppCheck).toBe(true));
+    });
+});
 
 const file = (folder, uid) => `artifacts/realm-of-allania-v2/public/${folder}/${uid}/pic.jpg`;
 

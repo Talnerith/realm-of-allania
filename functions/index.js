@@ -20,6 +20,9 @@ const APP_ID = 'realm-of-allania-v2';
 // The :free suffix routes through free-tier infrastructure with stricter rate limits
 const OPENROUTER_MODEL = "google/gemini-3.8-flash";
 
+// Identifies the site to OpenRouter (HTTP-Referer / X-Title headers)
+const SITE_URL = "https://www.allania.ca";
+
 // Shared settings for every moderation request. Thinking stays on (a model that
 // reasons first is harder to talk into a verdict) but at low effort, and it is
 // excluded from the response so `message.content` holds only the verdict.
@@ -45,6 +48,7 @@ const AI_QUOTA_REASON = 'Hourly AI moderation limit reached - requires manual re
 
 // Export for testing (allows verification of config values sent to third-party APIs)
 module.exports.OPENROUTER_MODEL = OPENROUTER_MODEL;
+module.exports.SITE_URL = SITE_URL;
 module.exports.MODERATION_REQUEST_OPTIONS = MODERATION_REQUEST_OPTIONS;
 module.exports.AI_TEXT_TIMEOUT_MS = AI_TEXT_TIMEOUT_MS;
 module.exports.AI_IMAGE_TIMEOUT_MS = AI_IMAGE_TIMEOUT_MS;
@@ -112,8 +116,8 @@ Respond with ONLY "SAFE" or "REJECT: [reason]". Nothing else.`
         headers: {
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://realm-of-aethelraed.vercel.app",
-            "X-Title": "Realm of Aethelraed Moderation"
+            "HTTP-Referer": SITE_URL,
+            "X-Title": "Realm of Allania Moderation"
         },
         body: JSON.stringify({
             model: OPENROUTER_MODEL,
@@ -148,8 +152,8 @@ async function callImageModeration(imageUrl, apiKey) {
         headers: {
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://realm-of-aethelraed.vercel.app",
-            "X-Title": "Realm of Aethelraed Image Moderation"
+            "HTTP-Referer": SITE_URL,
+            "X-Title": "Realm of Allania Image Moderation"
         },
         body: JSON.stringify({
             model: OPENROUTER_MODEL,

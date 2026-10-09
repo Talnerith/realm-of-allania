@@ -158,7 +158,7 @@ describe('OpenRouter API Integration', () => {
             expect(method).toBe('POST');
             expect(headers['Authorization']).toBe('Bearer sk-or-v1-testkey');
             expect(headers['Content-Type']).toBe('application/json');
-            expect(headers['HTTP-Referer']).toMatch(/^https?:\/\//);
+            expect(headers['HTTP-Referer']).toBe('https://www.allania.ca');
             expect(headers['X-Title'].length).toBeGreaterThan(0);
         });
 
