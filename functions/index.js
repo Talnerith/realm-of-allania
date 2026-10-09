@@ -835,3 +835,9 @@ exports.syncCharacter = require('./characterSync').syncCharacter;
 // ==========================================
 exports.deleteUserImage = require('./moderatorTools').deleteUserImage;
 exports.migrateExternalImages = require('./imageMigration').migrateExternalImages;
+
+// ==========================================
+// COMMUNITY COUNTERS (post likes, Landing page stats)
+// ==========================================
+exports.countPostLikes = require('./community').countPostLikes;
+exports.updateSiteStats = require('./community').updateSiteStats;

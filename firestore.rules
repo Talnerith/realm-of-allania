@@ -45,6 +45,8 @@ service cloud.firestore {
     function isReservedName(name) { return name is string && name.lower().matches('[\\s\\S]*(^|[^a-z0-9])(admin|administrator|moderator|mod|mods|staff|official|system|support|gm|gamemaster|game master|owner|developer|dev)([^a-z0-9]|$)[\\s\\S]*'); }
     // A name others will see: no blocked words, and only staff may look like staff
     function isAcceptableName(name) { return !hasForbiddenText(name) && (!isReservedName(name) || isMod()); }
+    // Public author name (2-30 characters), set at registration
+    function isValidDisplayName(name) { return name is string && name.size() >= 2 && name.size() <= 30 && isAcceptableName(name); }
 
     // --- 2. VALIDATION (Anti-Spam & Limits) ---
     function isValidContent(text) { return text is string && text.size() >= 10 && text.size() <= 10000; }
@@ -101,6 +103,12 @@ service cloud.firestore {
           allow create: if isOwner(userId) && request.resource.data.role == 'user';
           allow update: if isOwner(userId)
                         && !changedKeys().hasAny(['role', 'promotedAt', 'promotionReason'])
+                        // Player settings: the Landing "Don't show this again" choice and
+                        // the character they're playing as
+                        && (!changedKeys().hasAny(['hideWelcome']) || request.resource.data.hideWelcome is bool)
+                        && (!changedKeys().hasAny(['activeCharId'])
+                            || request.resource.data.activeCharId == null
+                            || isShortString(request.resource.data.activeCharId, 128))
                         && (!changedKeys().hasAny(['characterCount'])
                             || (request.resource.data.characterCount is int
                                 && request.resource.data.characterCount >= 0
@@ -211,6 +219,8 @@ service cloud.firestore {
                         && (request.resource.data.status == 'pending' || (request.resource.data.status == 'approved' && isMod()))
                         && (!('isLocked' in request.resource.data) || isMod())
                         && !setsModerationFields()
+                        // The like counter belongs to the countPostLikes function
+                        && !('likeCount' in request.resource.data)
                         // Posts go into a visible thread or the author's own pending one
                         // (created in the same batch), never into a rejected thread
                         && threadAfter(request.resource.data.threadId) != null
@@ -225,7 +235,7 @@ service cloud.firestore {
                                 && request.resource.data.characterName == get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/characters/$(request.resource.data.characterId)).data.name));
           allow update: if canWrite() && (request.auth.uid == resource.data.userId || isMod())
                         && isValidPostContent(request.resource.data.content)
-                        && !changedKeys().hasAny(['userId', 'createdAt', 'threadId', 'characterName', 'characterId'])
+                        && !changedKeys().hasAny(['userId', 'createdAt', 'threadId', 'characterName', 'characterId', 'likeCount'])
                         && (isMod() || !changedKeys().hasAny(['characterImageUrl', 'characterRace', 'characterClass']))
                         && (isMod() || !touchesModerationFields())
                         // Non-mods may only move a post back to 'pending', and every
@@ -237,6 +247,44 @@ service cloud.firestore {
                         && (isMod() || !changedKeys().hasAny(['isLocked']))
                         && (isMod() || resource.data.get('isLocked', false) != true);
           allow delete: if isMod();
+
+          // Likes: one per player per post (the doc id is their uid), only on
+          // approved posts and never on their own. countPostLikes keeps the
+          // post's likeCount and the author's likesReceived in step.
+          match /likes/{likerId} {
+            function likedPost() {
+              return get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/posts/$(postId));
+            }
+            allow read: if true;
+            allow create: if canWrite() && request.auth.uid == likerId
+                          && request.resource.data.keys().hasOnly(['createdAt'])
+                          && request.resource.data.createdAt == request.time
+                          && exists(/databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/posts/$(postId))
+                          && likedPost().data.get('status', 'approved') == 'approved'
+                          && likedPost().data.userId != request.auth.uid;
+            allow delete: if isOwner(likerId);
+          }
+        }
+
+        // Public player profiles: the author name shown on codex entries and
+        // posts. Written by the player at registration; likesReceived is the
+        // countPostLikes function's.
+        match /profiles/{userId} {
+          allow read: if true;
+          allow create: if isOwner(userId) && !isBanned()
+                        && request.resource.data.keys().hasOnly(['displayName', 'createdAt'])
+                        && isValidDisplayName(request.resource.data.displayName)
+                        && request.resource.data.createdAt == request.time;
+          allow update: if isOwner(userId) && !isBanned()
+                        && changedKeys().hasOnly(['displayName'])
+                        && isValidDisplayName(request.resource.data.displayName);
+          allow delete: if isAdmin();
+        }
+
+        // Site-wide counts for the Landing page, written by updateSiteStats
+        match /stats/{statId} {
+          allow read: if true;
+          allow write: if false;
         }
 
         match /codex_pages/{pageId} {
