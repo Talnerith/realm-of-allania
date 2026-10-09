@@ -36,6 +36,16 @@ describe('isHostedImageUrl', () => {
     expect(isHostedImageUrl(`${ours}artifacts%2Fapp%2Fpublic%2Fcharacter_portraits%2Fu1%2F1_a.jpg?alt=media&token=t`)).toBe(true);
   });
 
+  it('never shows inline images on the site (a bucket is configured)', () => {
+    expect(isHostedImageUrl('data:image/png;base64,AAAA')).toBe(false);
+  });
+
+  it('shows inline sample images only where no bucket is configured (design previews)', () => {
+    delete process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+    expect(isHostedImageUrl('data:image/svg+xml;utf8,%3Csvg%3E')).toBe(true);
+    expect(isHostedImageUrl('data:text/html,<script>')).toBe(false);
+  });
+
   it('hostedImageUrl blanks anything not hosted', () => {
     expect(hostedImageUrl('https://evil.example/a.png')).toBe('');
     expect(hostedImageUrl('/map.webp')).toBe('/map.webp');

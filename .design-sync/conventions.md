@@ -71,7 +71,7 @@ Thread tags come from a fixed list (Roleplay, Adventure, Lore, Investigation, Di
 
 ## Images
 
-Only images hosted in the project's Firebase Storage are displayed. Others render blank (portraits fall back to the character's initial). Don't use external image URLs; leave `imageUrl` empty for a clean initial-letter portrait.
+Only images hosted in the project's Firebase Storage are displayed. Others render blank (portraits fall back to the character's initial). Don't use external image URLs; leave `imageUrl` empty for a clean initial-letter portrait. In designs only, an inline `data:image/...` sample also renders (e.g. to show `ImageUploader`'s Preview & Focus area); the live site never shows those.
 
 ## Brand icons
 

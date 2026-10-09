@@ -18,6 +18,9 @@ export function isHostedImageUrl(url) {
   // "/\host" URLs, which browsers treat as another host)
   if (url.startsWith('/')) return !/^\/[/\\]/.test(url) && !url.includes('\\');
   const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  // No bucket configured: not the live site (design previews, tests), so
+  // inline sample images may show too. The site always has a bucket.
+  if (!bucket && url.startsWith('data:image/')) return true;
   const prefix = bucket ? `${STORAGE_PREFIX}${bucket}/o/` : STORAGE_PREFIX;
   if (!url.startsWith(prefix)) return false;
   if (!bucket) return true;
