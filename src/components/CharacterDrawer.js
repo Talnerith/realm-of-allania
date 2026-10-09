@@ -34,6 +34,8 @@ export default function CharacterDrawer() {
         imageUrl: '', imagePosition: 'center'
     });
     const [sessionUploads, setSessionUploads] = useState([]);
+    // The portrait the character already has; never one of this session's uploads
+    const [savedImageUrl, setSavedImageUrl] = useState('');
     const [createCodex, setCreateCodex] = useState(true);
     const [editingId, setEditingId] = useState(null);
     const [deleteId, setDeleteId] = useState('');
@@ -45,6 +47,7 @@ export default function CharacterDrawer() {
     const resetForm = useCallback(() => {
         setFormData({ name: '', race: RACES[0], class: CLASSES[0], description: '', imageUrl: '', imagePosition: 'center' });
         setSessionUploads([]);
+        setSavedImageUrl('');
         setCreateCodex(true);
         setFormError('');
         setIsSubmitting(false);
@@ -66,6 +69,13 @@ export default function CharacterDrawer() {
         setMode('view');
     };
 
+    // Also called when the focus point is dragged, with the current image, so
+    // only remember images this session uploaded (Cancel deletes those)
+    const handleImageChanged = useCallback((url, pos) => {
+        setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }));
+        if (url && url !== savedImageUrl) setSessionUploads(prev => prev.includes(url) ? prev : [...prev, url]);
+    }, [savedImageUrl]);
+
     const openCreator = useCallback(() => {
         if (atLimit) return;
         resetForm();
@@ -76,6 +86,7 @@ export default function CharacterDrawer() {
         e.stopPropagation();
         setFormError('');
         setSessionUploads([]);
+        setSavedImageUrl(char.imageUrl || '');
         setEditingId(char.id);
         setFormData({
             name: char.name, race: char.race, class: char.class,
@@ -175,22 +186,14 @@ export default function CharacterDrawer() {
         if (problem) return setFormError(problem);
         setIsSubmitting(true);
         try {
-            const oldChar = characters.find(c => c.id === editingId);
-
             // 1. Update the Character Profile itself. The syncCharacter Cloud
             // Function copies name/race/class/portrait changes onto every post
             // and thread written as this character.
             await updateDoc(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', editingId), formData);
 
-            // 2. IMAGE CLEANUP
-            if (oldChar && oldChar.imageUrl && oldChar.imageUrl !== formData.imageUrl) {
-                try {
-                    if (oldChar.imageUrl.includes('firebasestorage.googleapis.com')) {
-                        const oldImageRef = ref(storage, oldChar.imageUrl);
-                        await deleteObject(oldImageRef);
-                    }
-                } catch (delErr) { console.warn("Failed to delete old image:", delErr); }
-            }
+            // The old portrait isn't deleted here: the character's codex page and
+            // gallery use the same file. The weekly orphaned-image cleanup removes
+            // it once nothing mentions it.
 
             setSessionUploads([]); // clear list so we don't delete valid images
             setMode('view');
@@ -228,10 +231,8 @@ export default function CharacterDrawer() {
 
             await finalBatch.commit();
 
-            // --- STEP 4: Image Cleanup ---
-            if (char.imageUrl && char.imageUrl.includes('firebasestorage.googleapis.com')) {
-                try { await deleteObject(ref(storage, char.imageUrl)); } catch (e) { console.warn("Could not delete image:", e); }
-            }
+            // The portrait stays: the archived codex page still shows it (the
+            // weekly orphaned-image cleanup removes it once nothing does)
 
             setMode('view');
             setConfirmDeleteStep(false);
@@ -401,10 +402,7 @@ export default function CharacterDrawer() {
                                                         initialPosition={formData.imagePosition}
                                                         folder="character_portraits"
                                                         shape="circle"
-                                                        onImageChanged={(url, pos) => {
-                                                            setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }));
-                                                            setSessionUploads(prev => [...prev, url]);
-                                                        }}
+                                                        onImageChanged={handleImageChanged}
                                                     />
                                                 </div>
                                             </div>

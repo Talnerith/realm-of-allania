@@ -14,9 +14,12 @@ jest.mock('@/lib/firebase', () => ({
 jest.mock('firebase/firestore');
 jest.mock('firebase/storage');
 jest.mock('@/components/ImageUploader', () => {
-  return function MockImageUploader({ onImageChanged }) {
+  return function MockImageUploader({ onImageChanged, initialUrl }) {
     return (
       <div data-testid="image-uploader">
+        <button type="button" onClick={() => onImageChanged(initialUrl, '20% 20%')}>
+          Drag Focus
+        </button>
         <button
           type="button"
           onClick={() => onImageChanged('http://mock.url/image.jpg', '50% 50%')}
@@ -255,7 +258,7 @@ describe('CharacterDrawer', () => {
     expect(screen.getByText('Delete Character')).toBeInTheDocument();
   });
 
-  test('deletes character, decrements the count and cleans up the image', async () => {
+  test('deletes character and decrements the count, keeping the portrait for its codex page', async () => {
     render(<CharacterDrawer />);
     fireEvent.click(screen.getByRole('button', { name: 'Delete character' }));
     fireEvent.change(screen.getByLabelText('Character'), { target: { value: 'char2' } });
@@ -273,7 +276,43 @@ describe('CharacterDrawer', () => {
     expect(mockBatch.commit).toHaveBeenCalled();
     // Posts/threads/codex are handled server-side by syncCharacter
     expect(firestore.getDocs).not.toHaveBeenCalled();
-    expect(storage.deleteObject).toHaveBeenCalled();
+    expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  describe('portrait files', () => {
+    const editCharOne = () => {
+      render(<CharacterDrawer />);
+      openDrawer();
+      fireEvent.click(screen.getByRole('button', { name: 'Edit Char One' }));
+    };
+    const cancel = async () => {
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Cancel' })); });
+    };
+
+    test('cancelling after moving the focus point keeps the saved portrait', async () => {
+      editCharOne();
+      fireEvent.click(screen.getByRole('button', { name: 'Drag Focus' }));
+      await cancel();
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+    });
+
+    test('cancelling deletes only the new upload', async () => {
+      editCharOne();
+      fireEvent.click(screen.getByTestId('mock-upload-btn'));
+      fireEvent.click(screen.getByRole('button', { name: 'Drag Focus' }));
+      await cancel();
+      expect(storage.ref).toHaveBeenCalledTimes(1);
+      expect(storage.ref).toHaveBeenCalledWith(expect.anything(), 'http://mock.url/image.jpg');
+      expect(storage.deleteObject).toHaveBeenCalledTimes(1);
+    });
+
+    test('saving a new portrait keeps the old file (the codex page uses it)', async () => {
+      editCharOne();
+      fireEvent.click(screen.getByTestId('mock-upload-btn'));
+      await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save Changes' })); });
+      expect(firestore.updateDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ imageUrl: 'http://mock.url/image.jpg' }));
+      expect(storage.deleteObject).not.toHaveBeenCalled();
+    });
   });
 
   test('cancelling the confirmation goes back a step without deleting', () => {

@@ -4,7 +4,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { storage } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
-import { importImageFromUrl } from '@/lib/imageUrls';
+import { importImageFromUrl, hostedImageUrl } from '@/lib/imageUrls';
 
 const ImageUploader = React.memo(function ImageUploader({
   initialUrl = '',
@@ -32,18 +32,28 @@ const ImageUploader = React.memo(function ImageUploader({
   useEffect(() => {
     setPreviewUrl(initialUrl);
     setPosition(initialPosition || 'center');
+    // Once the parent shows something else (e.g. the image was added to a
+    // gallery and the uploader cleared), our last upload is theirs to keep
+    setLastUploadedUrl(prev => (prev === initialUrl ? prev : null));
   }, [initialUrl, initialPosition]);
 
-  // A replaced image from this session is never saved anywhere, so delete it
-  // (only once the new one is stored). Failures never block the new image.
-  const discardLastUpload = useCallback(async () => {
-    if (!lastUploadedUrl) return;
+  // Shows a freshly stored image and hands it to the parent. The upload it
+  // replaces was never saved anywhere, so it's deleted, but only after the
+  // parent has taken the new one (some parents save on change). Cleanup
+  // failures never block the new image.
+  const adoptImage = useCallback(async (url) => {
+    const replaced = lastUploadedUrl;
+    setLastUploadedUrl(url); // Mark this as the one to delete if they replace it again
+    setPreviewUrl(url);
+    setMode('preview');
+    await onImageChanged(url, position);
+    if (!replaced || replaced === url) return;
     try {
-      await deleteObject(ref(storage, lastUploadedUrl));
+      await deleteObject(ref(storage, replaced));
     } catch (delErr) {
       console.warn("Failed to clean up intermediate file (might be already gone or permission issue):", delErr);
     }
-  }, [lastUploadedUrl]);
+  }, [lastUploadedUrl, onImageChanged, position]);
 
   const handleFileSelect = useCallback(async (e) => {
     const file = e.target.files[0];
@@ -67,14 +77,8 @@ const ImageUploader = React.memo(function ImageUploader({
       await uploadBytes(storageRef, image.blob, { contentType: image.type });
       const url = await getDownloadURL(storageRef);
 
-      // 3. Intermediate Cleanup: the image this one replaces was never saved
-      await discardLastUpload();
-
-      // 4. Update State
-      setLastUploadedUrl(url); // Mark this as the one to delete if they replace it again
-      setPreviewUrl(url);
-      onImageChanged(url, position); // Use current position
-      setMode('preview');
+      // 3. Show it, hand it over, and clean up the upload it replaces
+      await adoptImage(url);
     } catch (err) {
       if (err.code === UNSUPPORTED_IMAGE) {
         alert(unsupportedFormatMessage(file));
@@ -89,7 +93,7 @@ const ImageUploader = React.memo(function ImageUploader({
     } finally {
       setIsUploading(false);
     }
-  }, [user, discardLastUpload, folder, position, onImageChanged]);
+  }, [user, adoptImage, folder]);
 
   // Pasted links are copied into the user's Storage folder by a Cloud
   // Function (and moderated like an upload); the site only shows hosted images
@@ -103,18 +107,14 @@ const ImageUploader = React.memo(function ImageUploader({
     setIsUploading(true);
     try {
       const url = await importImageFromUrl(urlInput.trim(), folder);
-      await discardLastUpload();
-      setLastUploadedUrl(url);
-      setPreviewUrl(url);
-      onImageChanged(url, position);
       setUrlInput('');
-      setMode('preview');
+      await adoptImage(url);
     } catch (err) {
       alert(err.message);
     } finally {
       setIsUploading(false);
     }
-  }, [urlInput, user, discardLastUpload, folder, position, onImageChanged]);
+  }, [urlInput, user, adoptImage, folder]);
 
   // --- Drag Logic (Unified Mouse & Touch) ---
   const handleStart = useCallback((clientX, clientY) => {
@@ -186,14 +186,18 @@ const ImageUploader = React.memo(function ImageUploader({
 
       <div className="min-h-[60px]">
         {mode === 'upload' && (
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-ink-700 hover:border-gold-500 hover:bg-ink-900 rounded-lg p-4 cursor-pointer flex flex-col items-center justify-center text-ink-500 gap-2 transition-colors"
-          >
-            {isUploading ? <Loader className="w-5 h-5 animate-spin text-gold-500" /> : <Upload className="w-5 h-5" />}
-            <span className="text-xs">{isUploading ? 'Compressing & Uploading...' : 'Click to select image (Max 1600px)'}</span>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} disabled={isUploading} />
-          </div>
+          <>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="w-full border-2 border-dashed border-ink-700 hover:border-gold-500 hover:bg-ink-900 focus-visible:border-gold-500 focus:outline-none rounded-lg p-4 cursor-pointer flex flex-col items-center justify-center text-ink-500 gap-2 transition-colors"
+            >
+              {isUploading ? <Loader className="w-5 h-5 animate-spin text-gold-500" /> : <Upload className="w-5 h-5" />}
+              <span className="text-xs">{isUploading ? 'Compressing & Uploading...' : 'Click to select image (Max 1600px)'}</span>
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} disabled={isUploading} tabIndex={-1} />
+          </>
         )}
         {mode === 'url' && (
           <div className="flex gap-2 items-center">
@@ -219,7 +223,7 @@ const ImageUploader = React.memo(function ImageUploader({
         )}
       </div>
 
-      {previewUrl && (
+      {hostedImageUrl(previewUrl) && (
         <div className="space-y-2 animate-in fade-in">
           <div className="flex justify-between items-center text-xs text-gold-500 font-bold uppercase tracking-wider">
             <span>Preview & Focus</span>
@@ -237,7 +241,7 @@ const ImageUploader = React.memo(function ImageUploader({
             onTouchEnd={onTouchEnd}
           >
             <img
-              src={previewUrl}
+              src={hostedImageUrl(previewUrl)}
               className="w-full h-full object-cover pointer-events-none select-none transition-none"
               style={{ objectPosition: position }}
               alt="Preview"

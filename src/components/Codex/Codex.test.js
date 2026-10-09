@@ -155,9 +155,9 @@ describe('CodexEntry', () => {
   });
 
   it('validates the title and text', async () => {
-    await renderEntry({ isNew: true, title: 'Lo', category: 'Characters' });
+    await renderEntry({ isNew: true, title: '  ', category: 'Characters' });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save page' })); });
-    expect(screen.getByRole('alert')).toHaveTextContent('Title must be at least 3 characters.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Title is required.');
     expect(firestore.addDoc).not.toHaveBeenCalled();
   });
 });

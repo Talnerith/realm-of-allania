@@ -200,12 +200,12 @@ function RegionView({ region, setView, setActiveThread, onRequireAuth }) {
   const handleSaveBanner = async (url, position) => {
     if (!region) return;
     try {
-      // CLEANUP: If there was an old banner, delete it
       const oldBannerUrl = regionMetadata?.bannerUrl;
+      await setDoc(metaRef(), { bannerUrl: url, bannerPosition: position }, { merge: true });
+      // CLEANUP: the old banner, once the new one is saved
       if (oldBannerUrl && oldBannerUrl !== url && oldBannerUrl.includes('firebasestorage')) {
         try { await deleteObject(ref(storage, oldBannerUrl)); } catch (e) { console.warn("Cleanup failed:", e); }
       }
-      await setDoc(metaRef(), { bannerUrl: url, bannerPosition: position }, { merge: true });
     } catch (e) { console.error(e); }
   };
 

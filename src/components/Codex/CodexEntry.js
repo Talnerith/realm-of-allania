@@ -95,8 +95,8 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
     const [stagedUrl, setStagedUrl] = useState('');
     // Uploads made during this edit, deleted if it's cancelled
     const [sessionUploads, setSessionUploads] = useState([]);
-    // Images removed during this edit, deleted from Storage only on save
-    const [pendingRemovals, setPendingRemovals] = useState([]);
+    // A double click must not add the page twice
+    const [saving, setSaving] = useState(false);
 
     // Local copy to prevent flicker when saving
     const [localPage, setLocalPage] = useState(page);
@@ -133,9 +133,10 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
     const viewGallery = (localPage.gallery || []).map(hostedImageUrl).filter(Boolean);
 
     const handleSave = async () => {
+        if (saving) return;
         setError('');
         if (!user) return setError("You must be signed in to save.");
-        if (!title.trim() || title.trim().length < 3) return setError("Title must be at least 3 characters.");
+        if (!title.trim()) return setError("Title is required.");
         const text = stripEmptyFacts(content);
         if (!text.trim() || text.length < 10) return setError("Content must be at least 10 characters.");
         if (gallery.length > 5) return setError("Gallery cannot exceed 5 images.");
@@ -153,6 +154,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
             lastEditorId: user.uid
         };
 
+        setSaving(true);
         try {
             if (localPage.isNew) {
                 const docRef = await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages'), {
@@ -175,16 +177,22 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                 setLocalPage(prev => ({ ...prev, ...pageData, updatedAt: { toDate: () => new Date(), toMillis: () => Date.now() } }));
             }
 
-            // Now that the save committed, delete images removed during this edit
-            for (const url of pendingRemovals) {
+            // Now that the save committed, delete this edit's uploads that didn't
+            // make it onto the page. Saved images that were removed stay: the
+            // portrait and gallery may share a file with the character, so the
+            // weekly orphaned-image cleanup removes them once nothing uses them.
+            const kept = new Set([pageData.imageUrl, ...(pageData.gallery || [])]);
+            for (const url of sessionUploads) {
+                if (kept.has(url)) continue;
                 try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Cleanup failed:", e); }
             }
-            setPendingRemovals([]);
             setSessionUploads([]);
             setIsEditing(false);
         } catch (e) {
             console.error(e);
             setError("Save failed: " + e.message);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -194,10 +202,9 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
         }
         setSessionUploads([]);
         setStagedUrl('');
-        // Discard staged edits (removed files were never deleted)
+        // Discard staged edits (removed images were never deleted)
         setGallery(localPage.gallery || []);
         setPortrait({ url: localPage.imageUrl || '', position: localPage.imagePosition || 'center' });
-        setPendingRemovals([]);
         if (localPage.isNew) goBack(); else setIsEditing(false);
     };
 
@@ -205,12 +212,8 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
         if (!isAdminOrMod) return;
         if (!window.confirm("Are you sure you want to delete this Codex Entry? This cannot be undone.")) return;
         try {
-            // Gallery images only (the portrait may be the character's own)
-            for (const url of localPage.gallery || []) {
-                if (url.includes('firebasestorage')) {
-                    try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Cleanup failed:", e); }
-                }
-            }
+            // Images stay (a gallery image may be a character's portrait); the
+            // weekly orphaned-image cleanup removes the ones nothing uses
             await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'codex_pages', localPage.id));
             goBack();
         } catch (e) {
@@ -255,7 +258,6 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
     };
     const removeImage = (url) => {
         setGallery(gallery.filter(u => u !== url));
-        if (url.includes('firebasestorage')) setPendingRemovals(prev => prev.includes(url) ? prev : [...prev, url]);
     };
     // The old portrait is never deleted here: character entries share the
     // character's own portrait file
@@ -275,7 +277,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                     <div className="flex items-center gap-3">
                         <button type="button" onClick={handleCancel} className="text-ink-400 hover:text-ink-50 flex items-center gap-1 text-sm"><ChevronLeft className="w-4 h-4" aria-hidden="true" /> Cancel</button>
                         <h1 className="flex-1 font-serif text-2xl text-gold-100 text-center">{localPage.isNew ? 'New codex page' : 'Edit codex page'}</h1>
-                        <button type="button" onClick={handleSave} className="bg-gold-700 hover:bg-gold-600 text-white rounded px-4 py-2 text-sm font-bold transition-colors">Save page</button>
+                        <button type="button" onClick={handleSave} disabled={saving} className="bg-gold-700 hover:bg-gold-600 disabled:opacity-60 text-white rounded px-4 py-2 text-sm font-bold transition-colors">{saving ? 'Saving…' : 'Save page'}</button>
                     </div>
                     {error && <p role="alert" className="flex items-center gap-2 text-sm text-red-400 bg-red-950 border border-red-900 rounded px-3 py-2"><AlertCircle className="w-4 h-4" aria-hidden="true" />{error}</p>}
 

@@ -287,6 +287,43 @@ describe('ImageUploader', () => {
     });
   });
 
+  it('keeps an upload the parent has taken over (e.g. added to a gallery)', async () => {
+    setupFileMocks();
+    getDownloadURL.mockResolvedValueOnce('staged1').mockResolvedValueOnce('staged2');
+    const { container, rerender } = render(<ImageUploader initialUrl="" onImageChanged={mockOnImageChanged} />);
+    await act(async () => {
+      fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [new File(['c'], 'a.png', { type: 'image/png' })] } });
+    });
+    await waitFor(() => expect(uploadBytes).toHaveBeenCalledTimes(1));
+    // The parent shows it, then "Add to Gallery" clears the staging uploader
+    rerender(<ImageUploader initialUrl="staged1" onImageChanged={mockOnImageChanged} />);
+    rerender(<ImageUploader initialUrl="" onImageChanged={mockOnImageChanged} />);
+
+    await act(async () => { fireEvent.click(screen.getByText('Upload File')); });
+    await act(async () => {
+      fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [new File(['c'], 'b.png', { type: 'image/png' })] } });
+    });
+    await waitFor(() => expect(uploadBytes).toHaveBeenCalledTimes(2));
+    expect(deleteObject).not.toHaveBeenCalled();
+  });
+
+  it('hands the new image over before deleting the one it replaces', async () => {
+    setupFileMocks();
+    const order = [];
+    getDownloadURL.mockResolvedValueOnce('banner1').mockResolvedValueOnce('banner2');
+    deleteObject.mockImplementation(async () => { order.push('delete'); });
+    const saveBanner = jest.fn(async (url) => { order.push(`save ${url}`); });
+    const { container } = render(<ImageUploader onImageChanged={saveBanner} />);
+    for (const [i, name] of ['a.png', 'b.png'].entries()) {
+      await act(async () => { fireEvent.click(screen.getByText('Upload File')); });
+      await act(async () => {
+        fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [new File(['c'], name, { type: 'image/png' })] } });
+      });
+      await waitFor(() => expect(saveBanner).toHaveBeenCalledTimes(i + 1));
+    }
+    await waitFor(() => expect(order).toEqual(['save banner1', 'save banner2', 'delete']));
+  });
+
   describe('imports by link', () => {
     const importLink = async (link) => {
       await act(async () => { fireEvent.click(screen.getByText('Image URL')); });
@@ -315,7 +352,7 @@ describe('ImageUploader', () => {
       await act(async () => {
         fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [new File(['c'], 'a.png', { type: 'image/png' })] } });
       });
-      await waitFor(() => expect(uploadBytes).toHaveBeenCalled());
+      await waitFor(() => expect(mockOnImageChanged).toHaveBeenCalledWith('upload1', 'center'));
       await importLink('https://example.com/b.jpg');
       expect(ref).toHaveBeenCalledWith(storage, 'upload1');
       expect(deleteObject).toHaveBeenCalledTimes(1);

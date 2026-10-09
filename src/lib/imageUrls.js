@@ -7,12 +7,22 @@ import { functions } from '@/lib/firebase';
 // third-party host. Pasted links are imported into Storage first.
 const STORAGE_PREFIX = 'https://firebasestorage.googleapis.com/v0/b/';
 
+// A Storage object name is a single URL-encoded path segment: no "/", no
+// backslash, no dot segments. Browsers resolve "/o/../../other-bucket/o/x",
+// so a plain prefix check would let any bucket's images through.
+const OBJECT_NAME = /^[^/\\?#]+$/;
+
 export function isHostedImageUrl(url) {
   if (typeof url !== 'string' || url.length === 0) return false;
-  // The site's own static assets (but not protocol-relative "//host" URLs)
-  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  // The site's own static assets (but not protocol-relative "//host" or
+  // "/\host" URLs, which browsers treat as another host)
+  if (url.startsWith('/')) return !/^\/[/\\]/.test(url) && !url.includes('\\');
   const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  return bucket ? url.startsWith(`${STORAGE_PREFIX}${bucket}/o/`) : url.startsWith(STORAGE_PREFIX);
+  const prefix = bucket ? `${STORAGE_PREFIX}${bucket}/o/` : STORAGE_PREFIX;
+  if (!url.startsWith(prefix)) return false;
+  if (!bucket) return true;
+  const objectName = url.slice(prefix.length).split(/[?#]/)[0];
+  return OBJECT_NAME.test(objectName) && !/^(\.|%2e){1,2}$/i.test(objectName);
 }
 
 // The URL if it may be displayed, otherwise '' (render a placeholder instead)

@@ -415,10 +415,12 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
 
     const handleBannerUpdate = useCallback(async (url, position) => {
         try {
-            if (liveThread.bannerUrl && liveThread.bannerUrl !== url && liveThread.bannerUrl.includes('firebasestorage')) {
-                try { await deleteObject(ref(storage, liveThread.bannerUrl)); } catch (e) { console.warn("Cleanup failed (might not be owner):", e); }
-            }
+            const oldBannerUrl = liveThread.bannerUrl;
             await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), { bannerUrl: url, bannerPosition: position });
+            // The old banner, once the new one is saved
+            if (oldBannerUrl && oldBannerUrl !== url && oldBannerUrl.includes('firebasestorage')) {
+                try { await deleteObject(ref(storage, oldBannerUrl)); } catch (e) { console.warn("Cleanup failed (might not be owner):", e); }
+            }
         } catch (e) { console.error(e); }
     }, [liveThread, thread]);
 

@@ -25,6 +25,17 @@ describe('isHostedImageUrl', () => {
     expect(isHostedImageUrl(undefined)).toBe(false);
   });
 
+  it('rejects paths that browsers resolve into another bucket or host', () => {
+    const ours = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/`;
+    expect(isHostedImageUrl(`${ours}../../evil.appspot.com/o/x.png?alt=media`)).toBe(false);
+    expect(isHostedImageUrl(`${ours}%2e%2e/%2E%2E/evil.appspot.com/o/x.png`)).toBe(false);
+    expect(isHostedImageUrl(`${ours}..`)).toBe(false);
+    expect(isHostedImageUrl(`${ours}a\\..\\..\\x.png`)).toBe(false);
+    expect(isHostedImageUrl('/\\evil.example/x.png')).toBe(false);
+    // Real object names are encoded into one segment
+    expect(isHostedImageUrl(`${ours}artifacts%2Fapp%2Fpublic%2Fcharacter_portraits%2Fu1%2F1_a.jpg?alt=media&token=t`)).toBe(true);
+  });
+
   it('hostedImageUrl blanks anything not hosted', () => {
     expect(hostedImageUrl('https://evil.example/a.png')).toBe('');
     expect(hostedImageUrl('/map.webp')).toBe('/map.webp');
