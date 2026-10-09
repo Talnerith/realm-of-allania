@@ -10,8 +10,8 @@ interface AllaniaProviderProps {
   children?: React.ReactNode;
   /** 'dark' | 'light' | 'system' (follow the OS). Default: the enclosing AllaniaProvider's theme, else the saved choice, else 'system'. */
   theme?: 'dark' | 'light' | 'system';
-  /** Accent palette mapped onto every gold-* class. Default: the enclosing provider's, else 'ember'. */
-  accent?: 'ember' | 'brass' | 'verdigris';
+  /** Accent palette mapped onto every gold-* class. Default: the enclosing provider's, else 'gold'. */
+  accent?: 'gold' | 'ember' | 'brass' | 'verdigris';
   /** false = guest experience (no reply box, sign-in prompts). Default true. */
   signedIn?: boolean;
   /** Mod tools appear for 'moderator' and 'admin'. Default 'user'. */
@@ -27,7 +27,7 @@ interface AllaniaProviderProps {
 
 ## Theme
 
-- `theme` and `accent` set `data-theme` / `data-accent` on the provider's subtree. The `ink-*` and `gold-*` classes are re-mapped, so every component follows without any change: dark = warm charcoal ink with light text; light = the ink ramp inverted (`ink-950` is the paper, `ink-50` the darkest text) and gold shifted darker so `text-gold-500` links keep contrast on paper.
+- `theme` and `accent` set `data-theme` / `data-accent` on the provider's subtree. The `ink-*` and `gold-*` classes are re-mapped, so every component follows without any change: dark = midnight-navy ink with light text and an antique-gold accent; light = the ink ramp inverted (`ink-950` is the paper, `ink-50` the darkest text) and gold shifted darker so `text-gold-500` links keep contrast on paper.
 - Switching eases colors over 350ms. The choice is saved in localStorage (`allania-theme`) and synced across tabs.
 - `useTheme()` (`window.Allania.useTheme`), inside the provider, returns `{ theme, setTheme, accent, preference }`: `theme` is the resolved `'dark' | 'light'`, `preference` may also be `'system'`, `setTheme('dark' | 'light' | 'system')` switches. `ThemeToggle` is a ready-made switch.
 - Semantic tokens for surfaces that differ per theme: `--card-bg`, `--card-border`, `--card-shadow`, `--story` (long-form text color), `--page-glow`. Use them as `bg-(color:--card-bg)`, `border-(color:--card-border)`, `shadow-(--card-shadow)`, `text-(color:--story)`.

@@ -15,7 +15,7 @@ const noop = async () => {};
 const ACTIONS = { signup: noop, login: noop, logout: noop, resendVerification: noop, resetPassword: noop };
 const SIGNED_OUT = {
   user: null, userRole: 'user', loading: false, characters: [], activeCharId: null,
-  setActiveCharId: () => {}, readReceipts: {}, ...ACTIONS
+  setActiveCharId: () => {}, hideWelcome: null, setHideWelcome: () => {}, readReceipts: {}, ...ACTIONS
 };
 
 const GameContext = createContext(null);
@@ -48,6 +48,8 @@ export function AllaniaProvider({
     characters: roster,
     activeCharId: active,
     setActiveCharId: setActive,
+    hideWelcome: false,
+    setHideWelcome: () => {},
     readReceipts: readReceipts ?? SAMPLE_READ_RECEIPTS
   } : SIGNED_OUT), [signedIn, user, role, roster, active, readReceipts]);
 

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
     collection, doc, updateDoc,
     serverTimestamp, writeBatch, increment
@@ -8,12 +8,19 @@ import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import { APP_ID, RACES, CLASSES } from '@/lib/constants';
-import {
-    Shield, ChevronDown, ChevronUp, Edit3, Plus,
-    X, Trash2, AlertCircle, AlertTriangle, Loader
-} from 'lucide-react';
+import { ChevronUp, Plus, X, Trash2, AlertTriangle, Loader } from 'lucide-react';
 import ImageUploader from '@/components/ImageUploader';
 import CharacterListItem from '@/components/CharacterListItem';
+import { Gem, GoldRule } from '@/components/Ornaments';
+import { ROSTER_BANNER_IMG, EDIT_PEN_IMG } from '@/lib/artAssets';
+
+const CHARACTER_LIMIT = 10;
+
+const labelCls = 'text-xs uppercase tracking-widest font-bold text-ink-400';
+const fieldCls = 'w-full bg-ink-950 border border-ink-700 rounded px-3 py-2 text-base text-ink-50 focus:border-gold-500 focus:outline-none';
+const cancelBtnCls = 'rounded border border-ink-700 px-4 py-2 text-ink-200 hover:border-gold-700 hover:text-gold-300 transition-colors';
+const closeBtnCls = 'p-2 rounded-full text-ink-400 hover:text-ink-50 hover:bg-ink-800 transition-colors';
+const errorCls = 'text-sm text-red-400 bg-red-950 border border-red-900 rounded px-3 py-2';
 
 export default function CharacterDrawer() {
     const { user, userRole, characters, activeCharId, setActiveCharId } = useGame();
@@ -33,7 +40,6 @@ export default function CharacterDrawer() {
     const [confirmDeleteStep, setConfirmDeleteStep] = useState(false);
     const [formError, setFormError] = useState('');
 
-    const CHARACTER_LIMIT = 10;
     const atLimit = characters.length >= CHARACTER_LIMIT;
 
     const resetForm = useCallback(() => {
@@ -56,17 +62,20 @@ export default function CharacterDrawer() {
             }
         }
         resetForm();
+        setEditingId(null);
         setMode('view');
     };
 
     const openCreator = useCallback(() => {
-        if (atLimit) return alert(`You have reached the maximum of ${CHARACTER_LIMIT} characters.`);
+        if (atLimit) return;
         resetForm();
         setMode('create');
     }, [atLimit, resetForm]);
 
     const openEditor = useCallback((e, char) => {
         e.stopPropagation();
+        setFormError('');
+        setSessionUploads([]);
         setEditingId(char.id);
         setFormData({
             name: char.name, race: char.race, class: char.class,
@@ -77,12 +86,21 @@ export default function CharacterDrawer() {
         setMode('edit');
     }, []);
 
+    // The bar's trash button opens the drawer straight into the delete flow
     const openDelete = useCallback((e) => {
         e.stopPropagation();
         setDeleteId(characters.length > 0 ? characters[0].id : '');
         setConfirmDeleteStep(false);
+        setFormError('');
         setMode('delete');
+        setIsOpen(true);
     }, [characters]);
+
+    const backToRoster = () => {
+        setConfirmDeleteStep(false);
+        setFormError('');
+        setMode('view');
+    };
 
     // Same checks the rules enforce, so players get a clear message
     const profileProblem = () => {
@@ -97,7 +115,7 @@ export default function CharacterDrawer() {
     };
 
     const handleCreate = async () => {
-        if (!formData.name) return setFormError('Name is required');
+        if (!formData.name.trim()) return setFormError('Name is required.');
         const problem = profileProblem();
         if (problem) return setFormError(problem);
         if (!user) return setFormError('You must be logged in.');
@@ -185,6 +203,13 @@ export default function CharacterDrawer() {
         }
     };
 
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        if (mode === 'create') handleCreate();
+        else handleUpdate();
+    };
+
     const handleDelete = async () => {
         if (!deleteId) return;
         const char = characters.find(c => c.id === deleteId);
@@ -209,6 +234,7 @@ export default function CharacterDrawer() {
             }
 
             setMode('view');
+            setConfirmDeleteStep(false);
             if (activeCharId === deleteId) setActiveCharId(null);
 
         } catch (e) {
@@ -219,6 +245,14 @@ export default function CharacterDrawer() {
         }
     };
 
+    // Escape closes the open drawer
+    useEffect(() => {
+        if (!isOpen) return;
+        const onKey = (e) => { if (e.key === 'Escape') setIsOpen(false); };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [isOpen]);
+
     const handleToggleKey = (e) => {
         if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
@@ -227,123 +261,227 @@ export default function CharacterDrawer() {
         }
     };
 
+    const activeChar = characters.find(c => c.id === activeCharId);
+    const deleteChar = characters.find(c => c.id === deleteId);
+    const isForm = mode === 'create' || mode === 'edit';
+
     return (
-        <div className={`fixed bottom-0 left-0 right-0 z-50 bg-ink-900 border-t border-gold-700/50 shadow-[0_-5px_30px_rgba(0,0,0,0.5)] light:shadow-[0_-8px_30px_-12px_oklch(30%_.03_60/.25)] transition-all duration-300 ease-in-out flex flex-col ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
-            <div
-                onClick={() => setIsOpen(!isOpen)}
-                onKeyDown={handleToggleKey}
-                role="button"
-                tabIndex={0}
-                aria-expanded={isOpen}
-                aria-label={isOpen ? "Close Character Roster" : "Open Character Roster"}
-                className="flex items-center justify-between gap-3 px-6 max-[520px]:px-4 h-14 md:h-16 shrink-0 cursor-pointer bg-ink-900 hover:bg-ink-800 transition-colors focus:outline-none focus:bg-ink-800"
-            >
-                <div className="flex items-center gap-3 min-w-0">
-                    <Shield className="w-5 h-5 text-gold-500 shrink-0" aria-hidden="true" />
-                    <span className="font-serif font-bold text-gold-100 shrink-0 max-[520px]:hidden">Character Roster</span>
-                    <span className="text-xs text-ink-500 hidden md:inline" aria-hidden="true">|</span>
-                    {characters.find(c => c.id === activeCharId) ? (
-                        <span className="text-sm text-gold-500 font-bold truncate">Playing as: {characters.find(c => c.id === activeCharId).name}</span>
-                    ) : (
-                        <span className="text-sm text-ink-500 italic truncate">No character selected</span>
-                    )}
-                    <span className={`text-2xs ml-2 px-2 py-0.5 rounded-full shrink-0 max-[520px]:hidden ${atLimit ? 'bg-red-900 text-red-200' : 'bg-ink-800 text-ink-400'}`}>
-                        {characters.length} / {CHARACTER_LIMIT}
-                    </span>
-                </div>
-                <div className="flex items-center gap-4 shrink-0">
-                    <button onClick={(e) => openDelete(e)} className="text-ink-500 hover:text-red-500 transition-colors" title="Delete Character" aria-label="Delete Character"><Trash2 className="w-5 h-5" /></button>
-                    <div className="text-ink-500 hover:text-gold-500" aria-hidden="true">{isOpen ? <ChevronDown className="w-6 h-6" /> : <ChevronUp className="w-6 h-6" />}</div>
-                </div>
-            </div>
+        <>
+            {isOpen && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setIsOpen(false)} aria-hidden="true" />}
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-ink-950/50">
-                <div className="max-w-5xl mx-auto">
-                    {mode === 'view' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {characters.map(char => (
-                                <CharacterListItem
-                                    key={char.id}
-                                    char={char}
-                                    isActive={activeCharId === char.id}
-                                    onSelect={setActiveCharId}
-                                    onEdit={openEditor}
-                                />
-                            ))}
+            <div className={`fixed bottom-0 inset-x-0 z-50 flex flex-col bg-ink-950 shadow-2xl transition-[height] duration-300 ease-in-out ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
+                {/* Top edge: double gold rule with a centre gem */}
+                <div className="absolute inset-x-0 top-0 border-t border-gold-600 pointer-events-none" />
+                <div className="absolute inset-x-0 top-1 border-t border-gold-900 pointer-events-none" />
+                <Gem size={22} style={{ left: 'calc(50% - 11px)', top: -11 }} />
 
-                            {/* Create Button (Disabled if Limit Reached) */}
-                            <button
-                                onClick={openCreator}
-                                disabled={atLimit}
-                                className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 border-dashed transition-all gap-2 h-24 ${atLimit ? 'border-ink-800 text-ink-600 cursor-not-allowed bg-ink-950/50' : 'border-ink-700 text-ink-500 hover:text-gold-500 hover:border-gold-500 hover:bg-ink-900/50'}`}
-                            >
-                                {atLimit ? (
-                                    <><AlertTriangle className="w-6 h-6" /><span className="text-xs font-bold uppercase tracking-wide">Limit Reached</span></>
-                                ) : (
-                                    <><Plus className="w-6 h-6" /><span className="text-xs font-bold uppercase tracking-wide">New Character</span></>
+                {/* Emblem: vertically centred on the bar, so it overhangs it equally above and below */}
+                <img
+                    src={ROSTER_BANNER_IMG.src}
+                    srcSet={ROSTER_BANNER_IMG.srcSet}
+                    alt=""
+                    className="absolute z-[3] w-auto pointer-events-none left-[clamp(.5rem,1.5vw,1.25rem)] h-(--roster-emblem-h) top-[calc((60px-var(--roster-emblem-h))/2)] md:top-[calc((68px-var(--roster-emblem-h))/2)] drop-shadow-[0_4px_6px_rgb(0_0_0/.5)]"
+                    style={{ '--roster-emblem-h': 'clamp(76px, calc(68px + .9vw), 94px)' }}
+                />
+
+                <div
+                    onClick={() => setIsOpen(!isOpen)}
+                    onKeyDown={handleToggleKey}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? "Close Character Roster" : "Open Character Roster"}
+                    className="shrink-0 h-14 md:h-16 pt-1 pl-[6.5rem] md:pl-32 pr-3 md:pr-6 flex items-center gap-3 cursor-pointer hover:bg-ink-900 focus:bg-ink-900 focus:outline-none transition-colors"
+                >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="font-serif font-bold text-gold-100 text-xl shrink-0 hidden md:inline">Character Roster</span>
+                        <span className="text-ink-500 hidden md:inline" aria-hidden="true">|</span>
+                        {activeChar ? (
+                            <span className="text-sm truncate min-w-0">
+                                <span className="text-ink-400">Playing as: </span>
+                                <span className="font-serif font-bold text-gold-500 text-lg">{activeChar.name}</span>
+                            </span>
+                        ) : (
+                            <span className="text-sm italic text-ink-400 truncate">No character selected</span>
+                        )}
+                        <span className={`shrink-0 rounded-full border text-2xs font-bold px-2 py-0.5 ${atLimit ? 'bg-red-950 border-red-900 text-red-400' : 'bg-ink-800 border-ink-700 text-ink-300'}`}>
+                            {characters.length} / {CHARACTER_LIMIT}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-1 md:gap-2 shrink-0">
+                        <button type="button" onClick={openDelete} className="p-2 rounded-full text-ink-400 hover:text-red-400 hover:bg-ink-800 transition-colors" title="Delete character" aria-label="Delete character">
+                            <Trash2 className="w-5 h-5" aria-hidden="true" />
+                        </button>
+                        <span className={`p-1 flex text-gold-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true">
+                            <ChevronUp className="w-6 h-6" />
+                        </span>
+                    </div>
+                </div>
+
+                {isOpen && (
+                    <>
+                        <GoldRule gap={3} />
+
+                        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar px-3 md:px-6 py-5 md:py-6">
+                            <div className="max-w-6xl mx-auto">
+                                {mode === 'view' && (
+                                    <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+                                        {characters.map(char => (
+                                            <li key={char.id}>
+                                                <CharacterListItem
+                                                    char={char}
+                                                    isActive={activeCharId === char.id}
+                                                    onSelect={setActiveCharId}
+                                                    onEdit={openEditor}
+                                                />
+                                            </li>
+                                        ))}
+                                        <li className="aspect-[2.2/1]">
+                                            {atLimit ? (
+                                                <button type="button" disabled className="w-full h-full flex flex-col items-center justify-center gap-2 rounded-lg text-ink-400 bg-ink-900/50 cursor-not-allowed border-[1.5px] border-dashed border-ink-700">
+                                                    <AlertTriangle className="w-7 h-7" strokeWidth={1.8} aria-hidden="true" />
+                                                    <span className="font-serif uppercase text-base md:text-lg tracking-[.18em]">Limit Reached</span>
+                                                    <span className="text-xs text-ink-400">{CHARACTER_LIMIT} of {CHARACTER_LIMIT} characters</span>
+                                                </button>
+                                            ) : (
+                                                <button type="button" onClick={openCreator} className="w-full h-full flex flex-col items-center justify-center gap-3 rounded-lg text-gold-500 hover:text-gold-300 hover:bg-ink-900 transition-colors border-[1.5px] border-dashed border-gold-700">
+                                                    <span className="flex items-center gap-4 w-full justify-center" aria-hidden="true">
+                                                        <span className="h-px w-[28%] bg-linear-to-r from-transparent to-gold-700" />
+                                                        <Plus className="w-9 h-9" strokeWidth={2} strokeLinecap="square" />
+                                                        <span className="h-px w-[28%] bg-linear-to-r from-gold-700 to-transparent" />
+                                                    </span>
+                                                    <span className="font-serif uppercase text-base md:text-lg tracking-[.18em]">New Character</span>
+                                                </button>
+                                            )}
+                                        </li>
+                                    </ul>
                                 )}
-                            </button>
-                        </div>
-                    )}
-                    {(mode === 'create' || mode === 'edit') && (
-                        <div className="bg-ink-900 border border-ink-700 rounded-xl p-6 relative">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-gold-100 font-bold flex items-center gap-2">{mode === 'create' ? <><Plus className="w-4 h-4" /> Create Identity</> : <><Edit3 className="w-4 h-4" /> Edit Identity</>}</h3>
-                                <button onClick={() => setMode('view')}><X className="w-5 h-5 text-ink-500" /></button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-4">
-                                    <div><label className="text-xs text-ink-500 uppercase font-bold mb-1 block">Name</label><input className="w-full bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-gold-500 focus:outline-none" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} /></div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className="text-xs text-ink-500 uppercase font-bold mb-1 block">Race</label><select className="w-full bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-gold-500 focus:outline-none" value={formData.race} onChange={e => setFormData({ ...formData, race: e.target.value })}>{RACES.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
-                                        <div><label className="text-xs text-ink-500 uppercase font-bold mb-1 block">Class</label><select className="w-full bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-gold-500 focus:outline-none" value={formData.class} onChange={e => setFormData({ ...formData, class: e.target.value })}>{CLASSES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
-                                    </div>
 
-                                    {/* Image Uploader */}
-                                    <div className="p-4 bg-ink-950 rounded border border-ink-800">
-                                        <label className="text-xs text-ink-500 uppercase font-bold mb-2 block">Portrait</label>
-                                        <ImageUploader
-                                            initialUrl={formData.imageUrl}
-                                            initialPosition={formData.imagePosition}
-                                            folder="character_portraits"
-                                            shape="circle"
-                                            onImageChanged={(url, pos) => {
-                                                setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }));
-                                                setSessionUploads(prev => [...prev, url]);
-                                            }}
-                                        />
-                                    </div>
+                                {isForm && (
+                                    <form onSubmit={handleSubmit} noValidate className="relative bg-ink-900 border border-gold-900 rounded-xl p-5 md:p-7 flex flex-col gap-5">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <h3 className="font-serif font-bold text-gold-100 text-2xl flex items-center gap-3">
+                                                {mode === 'create'
+                                                    ? <Plus className="w-5 h-5 text-gold-500" aria-hidden="true" />
+                                                    : <img src={EDIT_PEN_IMG.src} srcSet={EDIT_PEN_IMG.srcSet} alt="" className="w-7 h-auto block" />}
+                                                {mode === 'create' ? 'Create Identity' : 'Edit Identity'}
+                                            </h3>
+                                            <button type="button" onClick={handleCancel} aria-label="Close form" className={closeBtnCls}>
+                                                <X className="w-5 h-5" aria-hidden="true" />
+                                            </button>
+                                        </div>
 
-                                </div>
-                                <div className="flex flex-col h-full">
-                                    <label className="text-xs text-ink-500 uppercase font-bold mb-1 block">Description</label>
-                                    <textarea className="flex-1 bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-gold-500 focus:outline-none text-sm resize-none mb-4" value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
-                                    {mode === 'create' && (<div className="flex items-center gap-2 mb-4"><input type="checkbox" checked={createCodex} onChange={e => setCreateCodex(e.target.checked)} className="w-4 h-4" /><label className="text-sm text-ink-400">Create Codex Entry?</label></div>)}
-                                    <div className="flex justify-end gap-3"><button onClick={handleCancel} className="text-ink-400 hover:text-ink-50 px-3">Cancel</button><button onClick={mode === 'create' ? handleCreate : handleUpdate} disabled={isSubmitting} className="bg-gold-700 hover:bg-gold-600 disabled:bg-ink-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} {mode === 'create' ? 'Summon' : 'Save Changes'}</button></div>
-                                </div>
-                            </div>
-                            {formError && <p className="text-red-500 text-xs mt-2 absolute bottom-6 left-6 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {formError}</p>}
-                        </div>
-                    )}
-                    {mode === 'delete' && (
-                        <div className="bg-ink-900 border border-red-900/50 rounded-xl p-6">
-                            <div className="flex justify-between items-center mb-6"><h3 className="text-red-400 font-bold flex items-center gap-2"><Trash2 className="w-5 h-5" /> Delete Character</h3><button onClick={() => setMode('view')}><X className="w-5 h-5 text-ink-500" /></button></div>
-                            <div className="bg-red-950/30 border border-red-900 rounded p-4 flex flex-col items-center text-center">
-                                <AlertTriangle className="w-12 h-12 text-red-500 mb-2" />
-                                {!confirmDeleteStep ? (
-                                    <>
-                                        <p className="text-ink-300 text-sm mb-4">Select a character to permanently delete.</p>
-                                        <div className="flex gap-3 w-full max-w-md"><select className="flex-1 bg-ink-950 border border-ink-700 rounded p-2 text-ink-100 focus:border-red-500 focus:outline-none" value={deleteId} onChange={(e) => setDeleteId(e.target.value)}><option value="">-- Select --</option>{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><button onClick={() => setConfirmDeleteStep(true)} disabled={!deleteId} className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-4 py-2 rounded">Delete</button></div>
-                                    </>
-                                ) : (
-                                    <><h4 className="text-red-200 font-bold text-lg mb-1">Are you sure?</h4><p className="text-ink-400 text-sm mb-4">This action cannot be undone.</p><div className="flex gap-3"><button onClick={() => setConfirmDeleteStep(false)} className="px-4 py-2 text-ink-300 hover:text-ink-50">Cancel</button><button onClick={handleDelete} disabled={isSubmitting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin" />} Yes, Delete</button></div></>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-7">
+                                            <div className="flex flex-col gap-4">
+                                                <label className="flex flex-col gap-1">
+                                                    <span className={labelCls}>Name</span>
+                                                    <input type="text" maxLength={60} className={fieldCls} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                                </label>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <label className="flex flex-col gap-1 min-w-0">
+                                                        <span className={labelCls}>Race</span>
+                                                        <select className={fieldCls} value={formData.race} onChange={e => setFormData({ ...formData, race: e.target.value })}>
+                                                            {RACES.map(r => <option key={r} value={r}>{r}</option>)}
+                                                        </select>
+                                                    </label>
+                                                    <label className="flex flex-col gap-1 min-w-0">
+                                                        <span className={labelCls}>Class</span>
+                                                        <select className={fieldCls} value={formData.class} onChange={e => setFormData({ ...formData, class: e.target.value })}>
+                                                            {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                                <div className="flex flex-col gap-3 p-4 bg-ink-950 border border-ink-800 rounded">
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className={labelCls}>Portrait</span>
+                                                        <span className="text-sm text-ink-300">Upload an image or paste its link, then drag it to set the focus point.</span>
+                                                    </div>
+                                                    <ImageUploader
+                                                        initialUrl={formData.imageUrl}
+                                                        initialPosition={formData.imagePosition}
+                                                        folder="character_portraits"
+                                                        shape="circle"
+                                                        onImageChanged={(url, pos) => {
+                                                            setFormData(prev => ({ ...prev, imageUrl: url, imagePosition: pos }));
+                                                            setSessionUploads(prev => [...prev, url]);
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-4">
+                                                <label className="flex flex-col gap-1 flex-1">
+                                                    <span className={labelCls}>Description</span>
+                                                    <textarea rows={7} maxLength={5000} className={`${fieldCls} flex-1 resize-y min-h-36`} value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} />
+                                                </label>
+                                                {mode === 'create' && (
+                                                    <label className="flex items-center gap-3 cursor-pointer">
+                                                        <input type="checkbox" checked={createCodex} onChange={e => setCreateCodex(e.target.checked)} className="w-[1.125rem] h-[1.125rem] accent-gold-600" />
+                                                        <span className="text-sm text-ink-200">Create Codex Entry?</span>
+                                                    </label>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {formError && <p role="alert" className={errorCls}>{formError}</p>}
+
+                                        <div className="flex items-center justify-end gap-3">
+                                            <button type="button" onClick={handleCancel} className={cancelBtnCls}>Cancel</button>
+                                            <button type="submit" disabled={isSubmitting} className="rounded bg-gold-700 hover:bg-gold-600 disabled:opacity-60 text-white font-bold px-5 py-2 flex items-center gap-2 transition-colors">
+                                                {isSubmitting && <Loader className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                                                {mode === 'create' ? 'Summon' : 'Save Changes'}
+                                            </button>
+                                        </div>
+                                    </form>
                                 )}
-                                {formError && <p className="text-red-400 text-xs mt-4">{formError}</p>}
+
+                                {mode === 'delete' && (
+                                    <div className="max-w-lg mx-auto bg-ink-900 border border-red-900 rounded-xl p-5 md:p-7 flex flex-col gap-5">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <h3 className="font-serif font-bold text-red-400 text-2xl flex items-center gap-3">
+                                                <Trash2 className="w-[22px] h-[22px]" strokeWidth={1.8} aria-hidden="true" />
+                                                Delete Character
+                                            </h3>
+                                            <button type="button" onClick={backToRoster} aria-label="Close" className={closeBtnCls}>
+                                                <X className="w-5 h-5" aria-hidden="true" />
+                                            </button>
+                                        </div>
+                                        {!confirmDeleteStep ? (
+                                            <div className="flex flex-col gap-4">
+                                                <label className="flex flex-col gap-1">
+                                                    <span className={labelCls}>Character</span>
+                                                    <select className={fieldCls} value={deleteId} onChange={(e) => setDeleteId(e.target.value)} disabled={characters.length === 0}>
+                                                        {characters.length === 0 && <option value="">No characters</option>}
+                                                        {characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                    </select>
+                                                </label>
+                                                <div className="flex justify-end gap-3">
+                                                    <button type="button" onClick={backToRoster} className={cancelBtnCls}>Cancel</button>
+                                                    <button type="button" onClick={() => setConfirmDeleteStep(true)} disabled={!deleteChar} className="rounded bg-red-950 border border-red-900 text-red-400 hover:text-red-300 font-bold px-5 py-2 transition-colors disabled:opacity-50">Delete</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-4">
+                                                <p className="text-ink-200">
+                                                    <span className="font-bold text-red-400">Are you sure?</span> This action cannot be undone.{' '}
+                                                    <span className="font-serif font-bold text-ink-50 text-lg">{deleteChar?.name}</span> will be removed from your roster.
+                                                </p>
+                                                <div className="flex justify-end gap-3">
+                                                    <button type="button" onClick={() => setConfirmDeleteStep(false)} className={cancelBtnCls}>Cancel</button>
+                                                    <button type="button" onClick={handleDelete} disabled={isSubmitting} className="rounded bg-red-700 hover:bg-red-600 disabled:opacity-60 text-white font-bold px-5 py-2 flex items-center gap-2 transition-colors">
+                                                        {isSubmitting && <Loader className="w-4 h-4 animate-spin" aria-hidden="true" />}
+                                                        Yes, Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {formError && <p role="alert" className={errorCls}>{formError}</p>}
+                                    </div>
+                                )}
                             </div>
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
             </div>
-        </div>
+        </>
     );
 }

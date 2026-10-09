@@ -5,6 +5,7 @@ import {
 import MarkdownEditor from '@/components/MarkdownEditor';
 import RichText from '@/components/RichText';
 import { hostedImageUrl } from '@/lib/imageUrls';
+import LikeButton from '@/components/Forum/LikeButton';
 
 const PostItem = memo(function PostItem({
     post,
@@ -41,7 +42,7 @@ const PostItem = memo(function PostItem({
 
     // Small action buttons under the name (DM / copy ID / manage role)
     const actionClass = 'text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded flex items-center gap-1 transition-colors';
-    const initialFill = 'bg-[color-mix(in_oklab,var(--color-gold-900)_40%,var(--color-ink-800))] text-gold-300';
+    const initialFill = 'bg-[color-mix(in_oklab,var(--color-gold-900)_22%,var(--color-ink-800))] text-gold-300';
 
     const actions = (pad) => (
         <>
@@ -188,6 +189,9 @@ const PostItem = memo(function PostItem({
                             className="font-serif text-[1.1875rem] md:text-[1.3125rem] leading-[1.7] text-(color:--story) max-w-[40rem]"
                             onWikiLink={onWikiLink}
                         />
+                        <div className="mt-4 flex justify-end">
+                            <LikeButton post={post} user={user} />
+                        </div>
                         <div className="absolute top-3.5 right-5 hidden md:flex gap-2 items-center tabular-nums">
                             {post.isEdited && <span className="text-2xs text-ink-400 italic">(Edited)</span>}
                             <span className="text-2xs text-ink-400">{formatTimestamp(post.createdAt)}</span>

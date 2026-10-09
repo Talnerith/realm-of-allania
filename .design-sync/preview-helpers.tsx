@@ -20,6 +20,23 @@ export const ClickOnMount = ({ label, children }: { label: string; children: Rea
   return <div ref={ref}>{children}</div>;
 };
 
+// Clicks a sequence of controls once mounted, each found by aria-label or
+// by its exact text (e.g. open the drawer, then "New Character").
+export const ClickSequence = ({ steps, children }: { steps: string[]; children: React.ReactNode }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const timers = steps.map((label, i) => setTimeout(() => {
+      const root = ref.current;
+      if (!root) return;
+      const el = root.querySelector<HTMLElement>(`[aria-label="${label}"]`)
+        ?? Array.from(root.querySelectorAll<HTMLElement>('button')).find(b => b.textContent?.trim() === label);
+      el?.click();
+    }, i * 30));
+    return () => timers.forEach(clearTimeout);
+  }, [steps]);
+  return <div ref={ref}>{children}</div>;
+};
+
 export const at = (minutesAgo: number) => ({ toDate: () => new Date(Date.now() - minutesAgo * 60000) });
 
 export const noop = () => {};

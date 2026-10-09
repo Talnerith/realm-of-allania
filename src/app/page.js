@@ -9,7 +9,7 @@ import { Loader } from 'lucide-react';
 
 // Core components - loaded immediately
 import Navbar from '@/components/Navbar';
-import WorldMap from '@/components/WorldMap';
+import WorldMapPage from '@/components/WorldMapPage';
 import LandingPage from '@/components/LandingPage';
 
 // Heavy components - lazy loaded for better performance
@@ -65,6 +65,7 @@ export default function Home() {
   const [activeRegion, setActiveRegion] = useState(null);
   const [activeThread, setActiveThread] = useState(null);
   const [activeCodexPage, setActiveCodexPage] = useState(null);
+  const [legalTab, setLegalTab] = useState('tos');
 
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -133,6 +134,8 @@ export default function Home() {
             .catch(() => setView('codex'));
           return null;
         });
+      } else if (state.view === 'legal') {
+        setLegalTab(state.tab || 'tos');
       } else if (state.view === 'search' && state.query) {
         setSearchQuery(state.query);
         setSearchKey(prev => prev + 1);
@@ -153,7 +156,17 @@ export default function Home() {
     window.history.pushState({ view: newView, ...extraState }, '');
   }, [view]);
 
-  const { user, loading } = gameContext || {};
+  const { user, loading, hideWelcome, setHideWelcome } = gameContext || {};
+
+  // Players who ticked "Don't show this again" (saved on their account) go
+  // straight to the map, on any device
+  useEffect(() => {
+    if (view === 'landing' && user && hideWelcome) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView('map');
+      window.history.replaceState({ view: 'map' }, '');
+    }
+  }, [view, user, hideWelcome]);
 
   // 2. Search (used by WikiLink)
   const handleSearch = useCallback((query) => {
@@ -257,6 +270,12 @@ export default function Home() {
 
   const handleLoginClick = useCallback(() => setShowLoginModal(true), []);
 
+  // 9. Legal pages (footer links open a specific tab)
+  const handleOpenLegal = useCallback((tab = 'tos') => {
+    setLegalTab(tab);
+    navigateTo('legal', { tab });
+  }, [navigateTo]);
+
   if (!gameContext) return null;
   if (loading) return <div className="h-screen w-screen bg-ink-950 flex items-center justify-center text-gold-500 font-serif">Loading Realm...</div>;
 
@@ -277,13 +296,17 @@ export default function Home() {
       <div className="flex-1 relative overflow-hidden">
 
         {view === 'landing' && (
-          <LandingPage onEnter={() => navigateTo('map')} />
+          <LandingPage onEnter={(skipFuture) => {
+            if (skipFuture && user) setHideWelcome(true);
+            navigateTo('map');
+          }} />
         )}
 
         {view === 'map' && (
-          <WorldMap
+          <WorldMapPage
             setView={navigateTo}
             setActiveRegion={handleRegionSelect}
+            onOpenLegal={handleOpenLegal}
           />
         )}
 
@@ -339,7 +362,7 @@ export default function Home() {
         )}
 
         {view === 'legal' && (
-          <LegalDocs goBack={() => navigateTo('map')} />
+          <LegalDocs key={legalTab} initialTab={legalTab} goBack={() => navigateTo('map')} />
         )}
 
       </div>
@@ -372,7 +395,7 @@ export default function Home() {
               </button>
             )}
             <AuthScreen
-              onLegalClick={() => { setShowLoginModal(false); navigateTo('legal'); }}
+              onLegalClick={() => { setShowLoginModal(false); handleOpenLegal('tos'); }}
               currentView={view}
               onBack={() => { setShowLoginModal(false); navigateTo('map'); }}
             />

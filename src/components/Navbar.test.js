@@ -1,9 +1,8 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import Navbar from '@/components/Navbar';
 import { useGame } from '@/context/GameContext';
 
-// Mock the dependencies
 jest.mock('@/context/GameContext', () => ({
   useGame: jest.fn(),
 }));
@@ -12,8 +11,8 @@ jest.mock('@/lib/firebase', () => ({
   auth: {},
 }));
 
-jest.mock('firebase/auth', () => ({
-  signOut: jest.fn(),
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(), query: jest.fn(), onSnapshot: jest.fn(() => jest.fn()), orderBy: jest.fn(), limit: jest.fn(),
 }));
 
 // Mock ActiveUsers component since we just want to verify it's toggled
@@ -23,152 +22,147 @@ jest.mock('@/components/ActiveUsers', () => {
   };
 });
 
-// Mock NotificationBell component
 jest.mock('@/components/NotificationBell', () => {
   return function MockNotificationBell() {
     return <div data-testid="notification-bell">Notifications</div>;
   };
 });
 
-describe('Navbar Component', () => {
-  const mockSetView = jest.fn();
-  const mockOnSearch = jest.fn();
-  const mockOnToggleChat = jest.fn();
-  const mockOnLoginClick = jest.fn();
+describe('Navbar', () => {
+  const props = {
+    currentView: 'map',
+    setView: jest.fn(),
+    onSearch: jest.fn(),
+    onToggleChat: jest.fn(),
+    onLoginClick: jest.fn(),
+  };
+  const signedIn = (extra = {}) => useGame.mockReturnValue({
+    user: { uid: 'u1', displayName: 'Wanderer', email: 'wanderer@example.com' },
+    userRole: 'user',
+    logout: jest.fn().mockResolvedValue(),
+    ...extra,
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
+    signedIn();
   });
 
-  it('renders login button and hides users button when user is not logged in', () => {
-    useGame.mockReturnValue({
-      user: null,
-      userRole: null,
-      logout: jest.fn(),
-    });
+  const tabs = () => within(screen.getByRole('navigation', { name: 'Main' }));
 
-    render(
-      <Navbar
-        currentView="map"
-        setView={mockSetView}
-        onSearch={mockOnSearch}
-        onToggleChat={mockOnToggleChat}
-        onLoginClick={mockOnLoginClick}
-      />
-    );
-
-    // Check for Login button
-    expect(screen.getByText(/Login/i)).toBeInTheDocument();
-
-    // Check that Active Users button is NOT present
-    const usersButton = screen.queryByLabelText('Active Users');
-    expect(usersButton).not.toBeInTheDocument();
+  it('shows the brand and the four main tabs', () => {
+    render(<Navbar {...props} />);
+    expect(screen.getByRole('button', { name: 'Realm of Allania, go to World Map' })).toBeInTheDocument();
+    for (const label of ['World Map', 'Codex', 'Members', 'Search']) {
+      expect(tabs().getByRole('button', { name: label })).toBeInTheDocument();
+    }
+    expect(tabs().queryByRole('button', { name: /Forums/ })).not.toBeInTheDocument();
   });
 
-  it('renders users button and hides login button when user is logged in', () => {
-    useGame.mockReturnValue({
-      user: { uid: '123', displayName: 'Test User' },
-      userRole: 'user',
-      logout: jest.fn(),
-    });
-
-    render(
-      <Navbar
-        currentView="map"
-        setView={mockSetView}
-        onSearch={mockOnSearch}
-        onToggleChat={mockOnToggleChat}
-        onLoginClick={mockOnLoginClick}
-      />
-    );
-
-    // Check that Login button is NOT present
-    expect(screen.queryByText(/Login/i)).not.toBeInTheDocument();
-
-    // Check for Active Users button
-    const usersButton = screen.getByLabelText('Active Users');
-    expect(usersButton).toBeInTheDocument();
+  it('marks World Map active on map, region and thread pages', () => {
+    const { rerender } = render(<Navbar {...props} currentView="region" />);
+    expect(tabs().getByRole('button', { name: 'World Map' })).toHaveAttribute('aria-current', 'page');
+    rerender(<Navbar {...props} currentView="codex_entry" />);
+    expect(tabs().getByRole('button', { name: 'Codex' })).toHaveAttribute('aria-current', 'page');
+    expect(tabs().getByRole('button', { name: 'World Map' })).not.toHaveAttribute('aria-current');
   });
 
-  it('opens ActiveUsers modal when the button is clicked', () => {
-    useGame.mockReturnValue({
-      user: { uid: '123', displayName: 'Test User' },
-      userRole: 'user',
-      logout: jest.fn(),
-    });
+  it('tabs navigate', () => {
+    render(<Navbar {...props} />);
+    fireEvent.click(tabs().getByRole('button', { name: 'Codex' }));
+    expect(props.setView).toHaveBeenCalledWith('codex');
+    fireEvent.click(screen.getByRole('button', { name: 'Realm of Allania, go to World Map' }));
+    expect(props.setView).toHaveBeenCalledWith('map');
+  });
 
-    render(
-      <Navbar
-        currentView="map"
-        setView={mockSetView}
-        onSearch={mockOnSearch}
-        onToggleChat={mockOnToggleChat}
-        onLoginClick={mockOnLoginClick}
-      />
-    );
-
-    // Initial state: Modal should not be visible
+  it('Members opens the active users panel', () => {
+    render(<Navbar {...props} />);
     expect(screen.queryByTestId('active-users-modal')).not.toBeInTheDocument();
-
-    // Click the button
-    const usersButton = screen.getByLabelText('Active Users');
-    fireEvent.click(usersButton);
-
-    // Modal should now be visible
+    fireEvent.click(tabs().getByRole('button', { name: 'Members' }));
     expect(screen.getByTestId('active-users-modal')).toBeInTheDocument();
   });
 
-  describe('Navbar Notification Badge', () => {
-    const mockUser = { uid: 'u1', email: 'test@example.com' };
-    const defaultProps = {
-      currentView: 'map',
-      setView: jest.fn(),
-      onSearch: jest.fn(),
-      onToggleChat: jest.fn(),
-      onLoginClick: jest.fn(),
-    };
+  it('Search opens the site search panel and submits the query', () => {
+    render(<Navbar {...props} />);
+    fireEvent.click(tabs().getByRole('button', { name: 'Search' }));
+    const input = screen.getByRole('searchbox', { name: 'Search the whole site' });
+    expect(input).toHaveFocus();
+    fireEvent.change(input, { target: { value: 'Ember Oath' } });
+    fireEvent.submit(screen.getByRole('search'));
+    expect(props.onSearch).toHaveBeenCalledWith('Ember Oath');
+    expect(screen.queryByRole('search')).not.toBeInTheDocument();
+  });
 
-    beforeEach(() => {
-      useGame.mockReturnValue({
-        user: mockUser,
-        userRole: 'user',
-        logout: jest.fn(),
-      });
+  it('Escape closes the search panel', () => {
+    render(<Navbar {...props} />);
+    fireEvent.click(tabs().getByRole('button', { name: 'Search' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('search')).not.toBeInTheDocument();
+  });
+
+  it('account menu shows the player, appearance, legal and sign out', () => {
+    const logout = jest.fn().mockResolvedValue();
+    signedIn({ logout });
+    render(<Navbar {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    const menu = within(screen.getByRole('menu', { name: 'Account' }));
+    expect(menu.getByText('Wanderer')).toBeInTheDocument();
+    expect(menu.getByText('wanderer@example.com')).toBeInTheDocument();
+    expect(menu.getByRole('button', { name: /mode/ })).toBeInTheDocument(); // ThemeToggle
+    expect(menu.queryByRole('menuitem', { name: /Moderation/ })).not.toBeInTheDocument();
+
+    fireEvent.click(menu.getByRole('menuitem', { name: 'Legal and Terms' }));
+    expect(props.setView).toHaveBeenCalledWith('legal');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+    expect(logout).toHaveBeenCalled();
+  });
+
+  it('staff get a Moderation link', () => {
+    signedIn({ userRole: 'moderator' });
+    render(<Navbar {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    expect(screen.getByRole('menuitem', { name: /Moderation/ })).toHaveAttribute('href', '/admin/moderation');
+  });
+
+  it('the hamburger menu holds the same items', () => {
+    render(<Navbar {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(screen.getByRole('button', { name: 'Close menu' })).toHaveAttribute('aria-expanded', 'true');
+    // Tabs appear twice: in the lg+ nav and the menu
+    expect(screen.getAllByRole('button', { name: 'Codex' })).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: 'Sign out' })).toHaveLength(1);
+  });
+
+  it('messages button shows the unread count and toggles chat', () => {
+    const { rerender } = render(<Navbar {...props} unreadCount={5} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Messages, 5 unread' }));
+    expect(props.onToggleChat).toHaveBeenCalled();
+    rerender(<Navbar {...props} unreadCount={12} />);
+    expect(screen.getByText('9+')).toBeInTheDocument();
+    rerender(<Navbar {...props} unreadCount={0} />);
+    expect(screen.getByRole('button', { name: 'Messages' })).toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
+  });
+
+  describe('signed out', () => {
+    beforeEach(() => useGame.mockReturnValue({ user: null, userRole: null, logout: jest.fn() }));
+
+    it('shows Login instead of messages, bell and account menu', () => {
+      render(<Navbar {...props} unreadCount={5} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Login' }));
+      expect(props.onLoginClick).toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: /Messages/ })).not.toBeInTheDocument();
+      expect(screen.queryByTestId('notification-bell')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Account menu' })).not.toBeInTheDocument();
     });
 
-    it('shows badge with count when unreadCount > 0', () => {
-      render(<Navbar {...defaultProps} unreadCount={5} />);
-
-      // Check for badge text (desktop + mobile)
-      const badges = screen.getAllByText('5');
-      expect(badges.length).toBeGreaterThan(0);
-    });
-
-    it('hides badge when unreadCount is 0', () => {
-      render(<Navbar {...defaultProps} unreadCount={0} />);
-
-      // Should NOT be in the document
-      const badge = screen.queryByText('0');
-      expect(badge).not.toBeInTheDocument();
-    });
-
-    it('shows "9+" when unreadCount > 9', () => {
-      render(<Navbar {...defaultProps} unreadCount={12} />);
-
-      const badges = screen.getAllByText('9+');
-      expect(badges.length).toBeGreaterThan(0);
-    });
-
-    it('does not show badge if user is not logged in', () => {
-      useGame.mockReturnValue({ user: null, userRole: null, logout: jest.fn() }); // Logout
-
-      render(<Navbar {...defaultProps} unreadCount={5} />);
-
-      // Chat button should mark not be present or different layout
-      // The code: {user ? (...) : (Login Button)}
-      // So chat toggle button should not exist.
-      expect(screen.queryByLabelText('Toggle Chat')).not.toBeInTheDocument();
-      expect(screen.queryByText('5')).not.toBeInTheDocument();
+    it('Members asks guests to sign in', () => {
+      render(<Navbar {...props} />);
+      fireEvent.click(tabs().getByRole('button', { name: 'Members' }));
+      expect(props.onLoginClick).toHaveBeenCalled();
+      expect(screen.queryByTestId('active-users-modal')).not.toBeInTheDocument();
     });
   });
 });

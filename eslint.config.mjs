@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     "ds-bundle/**",
     ".ds-sync/**",
     ".design-sync/.cache/**",
+    "design_handoff_*/**",
   ]),
 ]);
 

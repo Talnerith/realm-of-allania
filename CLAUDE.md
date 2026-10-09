@@ -37,6 +37,7 @@ Copy `.env.example` to `.env.local` and fill in:
 - `NEXT_PUBLIC_FIREBASE_*` — client web app config (shipped to browser by design; secured by Firestore rules + App Check)
 - `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` — App Check (optional; App Check is skipped on `localhost`)
 - `NEXT_PUBLIC_KOFI_URL` — optional; navbar "Support" button renders only when set
+- `NEXT_PUBLIC_PATREON_URL` — optional; the world map footer's "Support us on Patreon" button renders only when set
 Functions secret: `OPENROUTER_API_KEY` (Firebase secret, not in `.env`).
 
 ## Architecture / layout
@@ -52,8 +53,8 @@ src/
 ├── hooks/               # custom hooks (e.g. useVersionCheck)
 ├── lib/                 # firebase.js (SDK init), constants.js, utils, searchUtils, navigation, moderation/
 └── middleware.js        # security headers + CSP for all non-API routes
-functions/               # Cloud Functions: index.js (moderation), importImage.js, characterSync.js, moderatorTools.js, validation.js, forbiddenKeywords.js
-scripts/                 # optimize-map.js, Firestore backfill scripts (need GOOGLE_APPLICATION_CREDENTIALS)
+functions/               # Cloud Functions: index.js (moderation), importImage.js, characterSync.js, moderatorTools.js, community.js (likes, site stats), validation.js, forbiddenKeywords.js
+scripts/                 # optimize-map.js, Firestore backfill scripts incl. backfill-profiles.js (need GOOGLE_APPLICATION_CREDENTIALS)
 .design-sync/            # Claude Design sync setup (see "Claude Design sync" below)
 firestore.rules / storage.rules / firestore.indexes.json
 ```
@@ -70,6 +71,10 @@ Key patterns:
 - **Logic moderation (no AI)**: chat messages, character profiles and display names use the keyword + reserved-name filters in `src/lib/moderation/textRules.js`, enforced by `hasForbiddenText`/`isReservedName` in firestore.rules. After changing `forbiddenKeywords.js` (keep the `functions/` copy identical) or `RESERVED_NAME_WORDS`, regenerate the two rules lines — `textRules.test.js` fails until they match.
 - **Chats** store `participantCharacters: {uid: characterId}` (rules check both characters exist); names are resolved from the character docs, never typed in. Legacy chats may still have free-text `participantNames`.
 - **Characters**: the `syncCharacter` function copies name/race/class/portrait changes to the user's posts and threads, marks them `[Deleted]` on delete and archives the character's codex page; the client only writes the character doc. Moderators delete players' images via the `deleteUserImage` callable (storage rules are owner-only). Admins can import images that still point at outside hosts (hidden on the site) from the moderation dashboard: the `migrateExternalImages` callable (`functions/imageMigration.js`, dry run first) copies each into the owner's Storage folder and rewrites banners, portraits, codex galleries and markdown images.
+- **Player settings** (`activeCharId`, `hideWelcome` for the Landing "Don't show this again") live on `settings/account` and load with the role listener; `setActiveCharId` / `setHideWelcome` from `useGame()` save them (rules check the types).
+- **Public profiles** (`public/data/profiles/{uid}`: `displayName`, `createdAt`) hold the author name others see (codex entries, posts). Created at signup and self-healed on sign-in (`src/lib/profiles.js`); `likesReceived` (reputation) is function-only. Run `node scripts/backfill-profiles.js --write` once for players who haven't signed in since.
+- **Likes**: `posts/{postId}/likes/{uid}` (one per player, approved posts only, never your own; rules enforce it). `countPostLikes` keeps `post.likeCount` and the author's `likesReceived`; clients can't write either. UI: `Forum/LikeButton.js`.
+- **Site stats**: `updateSiteStats` (every 6 hours) counts members (profiles), characters (collection group scoped to this APP_ID by document path), approved posts and named regions into `public/data/stats/site`; read with `useSiteStats()` (`src/lib/siteStats.js`) on the Landing page.
 - **firebase-admin** stays on 13.x: v14 removed the namespaced `admin.firestore()`/`admin.storage()`/`admin.auth()` API used throughout `functions/`; upgrading means migrating to `getFirestore()` etc. from `firebase-admin/firestore` and friends. Patched transitive deps are pinned with `overrides` (`@grpc/grpc-js` at the root, `uuid` in functions).
 - **Write requirements**: content writes require `request.auth.token.email_verified` (`canWrite()` in rules) and server timestamps (`updatedAt == request.time`) on threads and chats.
 

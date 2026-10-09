@@ -20,13 +20,23 @@ export const SAMPLE_CHARACTERS = [
   { id: 'c-lyra', name: 'Lyra Moonwhisper', race: 'Elf', class: 'Ranger / Hunter', description: 'Tracker of the Silverwood, quiet as falling snow.', imageUrl: '', imagePosition: 'center' }
 ];
 
+// Like counts (kept by the countPostLikes function in the app)
+const LIKES = { 'p-1': 3, 'p-2': 1, 'p-3': 5 };
+
 const post = (id, threadId, minutesAgo, userId, characterId, characterName, characterRace, characterClass, content, extra = {}) => [id, {
   threadId, userId, characterId, characterName, characterRace, characterClass,
   characterImageUrl: '', characterImagePosition: 'center',
-  content, status: 'approved', createdAt: ago(minutesAgo), ...extra
+  content, status: 'approved', createdAt: ago(minutesAgo), likeCount: LIKES[id] ?? 0, ...extra
 }];
 
 export const SAMPLE_DATA = {
+  // Public author names (profiles) and the Landing page counts
+  [`${DATA}/profiles`]: {
+    'u-aldric': { displayName: 'Wanderer', likesReceived: 6, createdAt: ago(60 * 24 * 90) },
+    'u-seraphine': { displayName: 'Emberquill', likesReceived: 3, createdAt: ago(60 * 24 * 200) },
+    'u-brannock': { displayName: 'Stonefist', likesReceived: 5, createdAt: ago(60 * 24 * 30) }
+  },
+  [`${DATA}/stats`]: { site: { members: 1243, characters: 312, posts: 15382, regions: 12 } },
   [`${DATA}/region_metadata`]: {
     '125': { name: 'Thornwatch Ridge', description: 'Wind-scoured cliffs above the old border road.' },
     '130': { name: 'The Saltmarsh Reach' },

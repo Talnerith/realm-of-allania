@@ -1,20 +1,36 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import Link from 'next/link';
 import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
-import { Search, Map, Book, MessageCircle, LogOut, Menu, X, Shield, Crown, LogIn, Users, Heart } from 'lucide-react';
+import { LocateFixed, BookOpen, Users, Search, Mail, Menu, X, ChevronDown, LogIn, Shield, Heart } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
+import { CREST_IMG } from '@/lib/artAssets';
 import { useGame } from '@/context/GameContext';
 import ActiveUsers from '@/components/ActiveUsers';
 import NotificationBell from '@/components/NotificationBell';
+import ThemeToggle from '@/components/ThemeToggle';
+
+// Main tabs. Region and thread pages live under the World Map tab.
+const NAV_ITEMS = [
+  { id: 'map', label: 'World Map', icon: LocateFixed, views: ['map', 'region', 'thread'] },
+  { id: 'codex', label: 'Codex', icon: BookOpen, views: ['codex', 'codex_entry'] },
+  { id: 'members', label: 'Members', icon: Users, views: [] },
+  { id: 'search', label: 'Search', icon: Search, views: ['search'] },
+];
+
+const menuItemCls = 'text-left text-sm rounded-lg px-3 py-2 transition-colors hover:bg-ink-800';
 
 function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, unreadCount }) {
   const { user, userRole, logout } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [showActiveUsers, setShowActiveUsers] = useState(false);
+  const headerRef = useRef(null);
+  const searchRef = useRef(null);
 
-  // Single notifications listener shared by both (desktop + mobile) bells
+  // Single notifications listener for the bell
   const [notifications, setNotifications] = useState([]);
   useEffect(() => {
     if (!user || !db) return;
@@ -29,12 +45,35 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
     return () => { unsub(); setNotifications([]); };
   }, [user]);
 
-  // Single donation surface: one Ko-fi link (PayPal/Stripe are configured
-  // inside Ko-fi, not as separate buttons). Env-gated — the button is omitted
-  // entirely until the handle exists, so no dead link ships.
+  // Menus and the search panel close on Escape or a click outside the header
+  const anyOpen = mobileMenuOpen || userMenuOpen || searchOpen;
+  useEffect(() => {
+    if (!anyOpen) return;
+    const close = () => { setMobileMenuOpen(false); setUserMenuOpen(false); setSearchOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    const onPointer = (e) => { if (headerRef.current && !headerRef.current.contains(e.target)) close(); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onPointer);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('mousedown', onPointer);
+    };
+  }, [anyOpen]);
+
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
+
+  // Single donation surface in the navbar: a Ko-fi link, env-gated so no dead
+  // link ships before the handle exists
   const kofiUrl = process.env.NEXT_PUBLIC_KOFI_URL;
+  const isStaff = userRole === 'admin' || userRole === 'moderator';
+  const displayName = user?.displayName || 'Adventurer';
+
+  const closeAll = () => { setMobileMenuOpen(false); setUserMenuOpen(false); setSearchOpen(false); };
 
   const handleLogout = async () => {
+    closeAll();
     try {
       await logout();
     } catch (error) {
@@ -46,186 +85,224 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
     e.preventDefault();
     if (searchInput.trim()) {
       onSearch(searchInput);
-      setMobileMenuOpen(false);
       setSearchInput('');
+      closeAll();
     }
   };
 
-  const navItems = [
-    { id: 'map', label: 'World Map', icon: Map },
-    { id: 'codex', label: 'Codex', icon: Book },
-  ];
+  const handleNav = (id) => {
+    if (id === 'search') {
+      setMobileMenuOpen(false);
+      setUserMenuOpen(false);
+      setSearchOpen(open => !open);
+      return;
+    }
+    closeAll();
+    if (id === 'members') {
+      if (user) setShowActiveUsers(true);
+      else onLoginClick();
+      return;
+    }
+    setView(id);
+  };
+
+  const isActive = (item) => {
+    if (item.id === 'search') return searchOpen || (currentView === 'search');
+    if (item.id === 'members') return showActiveUsers;
+    return !searchOpen && item.views.includes(currentView);
+  };
+
+  const openLegal = () => { closeAll(); setView('legal'); };
 
   return (
-    <nav className="h-16 bg-ink-950 border-b border-gold-900/50 flex items-center justify-between px-4 md:px-8 z-40 relative shadow-lg">
-
-      {/* 1. Logo / Brand */}
-      <button
-        className="flex items-center gap-3 cursor-pointer group bg-transparent border-none p-0 text-left"
-        onClick={() => setView('map')}
-        aria-label="Go to World Map"
-      >
-        <div className="relative w-10 h-10 flex items-center justify-center">
-          <Shield className="w-10 h-10 text-gold-900 fill-gold-950 absolute inset-0 drop-shadow-md group-hover:text-gold-800 transition-colors" />
-          <Crown className="w-5 h-5 text-gold-500 relative z-10 drop-shadow-sm" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-serif font-bold text-lg text-gold-100 leading-none tracking-wide group-hover:text-gold-50 transition-colors">Realm of Allania</span>
-          <span className="text-2xs text-gold-500/80 uppercase tracking-[0.2em] leading-none">Chronicles</span>
-        </div>
-      </button>
-
-      {/* 2. Desktop Navigation */}
-      <div className="hidden md:flex items-center gap-6">
-        <form onSubmit={handleSubmitSearch} className="relative group">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-500 group-focus-within:text-gold-500 transition-colors" />
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search lore..."
-            aria-label="Search lore"
-            className="bg-ink-900 border border-ink-700 rounded-full py-1.5 pl-9 pr-4 text-sm text-ink-200 focus:border-gold-500 focus:outline-none w-48 transition-all focus:w-64"
-          />
-        </form>
-
-        <div className="h-6 w-px bg-ink-800 mx-2"></div>
-
-        {navItems.map(item => (
+    <header ref={headerRef} className="relative z-40 h-20 shrink-0 bg-ink-950 border-b border-gold-900/50">
+      <div className="h-full flex items-center gap-3 px-4 md:px-6">
+        {/* 1. Brand */}
+        <div className="h-full flex flex-1 basis-0 items-center min-w-0">
           <button
-            key={item.id}
-            onClick={() => setView(item.id)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded transition-all ${currentView === item.id ? 'bg-gold-900/30 text-gold-500' : 'text-ink-400 hover:text-gold-200 hover:bg-ink-900'}`}
+            type="button"
+            onClick={() => { closeAll(); setView('map'); }}
+            aria-label="Realm of Allania, go to World Map"
+            className="h-full flex items-center gap-3 min-w-0 text-left"
           >
-            <item.icon className="w-4 h-4" />
-            <span className="font-bold text-sm uppercase tracking-wider">{item.label}</span>
+            <img src={CREST_IMG.src} srcSet={CREST_IMG.srcSet} alt="" className="h-12 w-auto shrink-0 block" />
+            <span className="flex flex-col min-w-0">
+              <span className="font-serif font-bold text-gold-100 leading-none text-xl md:text-3xl whitespace-nowrap">Realm of Allania</span>
+              <span className="text-gold-500 uppercase leading-none text-[clamp(.625rem,.4rem+.5vw,.8125rem)] tracking-[.32em] mt-[.4rem]">Chronicles</span>
+            </span>
           </button>
-        ))}
+        </div>
 
-        {user ? (
-          <>
-            <button onClick={() => setShowActiveUsers(true)} className="relative p-2 text-ink-400 hover:text-ink-50 transition-colors" aria-label="Active Users" title="Active Users">
-              <Users className="w-5 h-5" />
-            </button>
-            <NotificationBell notifications={notifications} />
-            <button onClick={onToggleChat} className="relative p-2 text-ink-400 hover:text-ink-50 transition-colors" aria-label="Toggle Chat" title="Chat">
-              <MessageCircle className="w-5 h-5" />
-              {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 bg-red-600 text-2xs font-bold text-white flex items-center justify-center rounded-full shadow-lg border border-ink-950 animate-in zoom-in-50">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-            <button onClick={handleLogout} className="p-2 text-ink-500 hover:text-red-400 transition-colors" title="Sign Out" aria-label="Sign Out">
-              <LogOut className="w-5 h-5" />
-            </button>
-          </>
-        ) : (
-          <button onClick={onLoginClick} className="flex items-center gap-2 bg-gold-700 hover:bg-gold-600 text-white px-4 py-1.5 rounded text-sm font-bold transition-colors">
-            <LogIn className="w-4 h-4" /> Login
-          </button>
-        )}
+        {/* 2. Main tabs (lg and up) */}
+        <nav aria-label="Main" className="hidden lg:flex h-full items-stretch gap-1">
+          {NAV_ITEMS.map(item => {
+            const on = isActive(item);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleNav(item.id)}
+                aria-current={on && item.id !== 'search' && item.id !== 'members' ? 'page' : undefined}
+                aria-expanded={item.id === 'search' ? searchOpen : undefined}
+                className={`h-full flex items-center gap-2 px-4 text-base border-y-2 border-t-transparent transition-colors ${on ? 'text-gold-500 border-b-gold-500' : 'text-ink-200 hover:text-gold-300 border-b-transparent'}`}
+              >
+                <item.icon className="w-[18px] h-[18px]" strokeWidth={1.8} aria-hidden="true" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
 
-        {kofiUrl && (
-          <a href={kofiUrl} target="_blank" rel="noopener noreferrer" className="p-2 text-ink-500 hover:text-gold-500 transition-colors cursor-pointer" title="Support the Realm" aria-label="Support the Realm">
-            <Heart className="w-5 h-5" />
-          </a>
-        )}
-
-        <button onClick={() => setView('legal')} className="p-2 text-ink-500 hover:text-gold-500 transition-colors" title="Legal & Terms" aria-label="Legal & Terms">
-          <Shield className="w-5 h-5" />
-        </button>
-
-        {(userRole === 'admin' || userRole === 'moderator') && (
-          <Link href="/admin/moderation" className="ml-2 flex items-center gap-2 bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50 px-3 py-1.5 rounded text-sm font-bold transition-colors">
-            <Shield className="w-4 h-4" /> Mod
-          </Link>
-        )}
-      </div>
-
-      {/* 3. Mobile Menu Toggle */}
-      <div className="flex md:hidden items-center gap-4">
-        {user && (
-          <>
-            <NotificationBell notifications={notifications} />
-            <button onClick={onToggleChat} className="relative text-ink-400 hover:text-ink-50" aria-label="Toggle Chat">
-              <MessageCircle className="w-6 h-6" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-2xs font-bold text-white flex items-center justify-center rounded-full shadow-lg border border-ink-950">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </button>
-          </>
-        )}
-        <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-ink-200" aria-label={mobileMenuOpen ? "Close Menu" : "Open Menu"}>
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </div>
-
-      {/* 4. Mobile Menu Dropdown */}
-      {mobileMenuOpen && (
-        <div className="absolute top-16 left-0 right-0 bg-ink-900 border-b border-gold-900/50 p-4 flex flex-col gap-4 md:hidden shadow-2xl animate-in slide-in-from-top-5">
-          <form onSubmit={handleSubmitSearch} className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
-            <input
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search lore..."
-              aria-label="Search lore"
-              className="w-full bg-ink-950 border border-ink-700 rounded p-3 pl-10 text-ink-200 focus:border-gold-500 focus:outline-none"
-            />
-          </form>
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => { setView(item.id); setMobileMenuOpen(false); }}
-              className={`flex items-center gap-3 p-3 rounded ${currentView === item.id ? 'bg-gold-900/30 text-gold-500 border border-gold-900/50' : 'text-ink-300 hover:bg-ink-800'}`}
-            >
-              <item.icon className="w-5 h-5" />
-              <span className="font-bold">{item.label}</span>
-            </button>
-          ))}
-
+        {/* 3. Account area */}
+        <div className="flex flex-1 basis-0 items-center justify-end gap-1 md:gap-2">
           {user ? (
             <>
-              <button onClick={() => { setShowActiveUsers(true); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-ink-300 hover:bg-ink-800 rounded">
-                <Users className="w-5 h-5" />
-                <span>Active Users</span>
+              <button
+                type="button"
+                onClick={() => { closeAll(); onToggleChat(); }}
+                aria-label={unreadCount > 0 ? `Messages, ${unreadCount} unread` : 'Messages'}
+                title="Messages"
+                className="relative p-2 rounded-full text-ink-300 hover:text-gold-300 hover:bg-ink-900 transition-colors"
+              >
+                <Mail className="w-[22px] h-[22px]" strokeWidth={1.8} aria-hidden="true" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 w-4 h-4 rounded-full bg-red-600 text-white text-2xs font-bold flex items-center justify-center border border-ink-950">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
-              <button onClick={handleLogout} className="flex items-center gap-3 p-3 text-red-400 hover:bg-red-900/20 rounded">
-                <LogOut className="w-5 h-5" />
-                <span>Sign Out</span>
-              </button>
+              <NotificationBell notifications={notifications} />
+              <div className="relative hidden lg:block">
+                <button
+                  type="button"
+                  onClick={() => { setMobileMenuOpen(false); setSearchOpen(false); setUserMenuOpen(open => !open); }}
+                  aria-haspopup="menu"
+                  aria-expanded={userMenuOpen}
+                  aria-label="Account menu"
+                  className="flex items-center gap-2 rounded-full p-1 pr-2 hover:bg-ink-900 transition-colors"
+                >
+                  <span className="w-10 h-10 rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif text-lg font-bold text-gold-300" aria-hidden="true">
+                    {displayName.charAt(0).toUpperCase()}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-ink-400" strokeWidth={2.4} aria-hidden="true" />
+                </button>
+                {userMenuOpen && (
+                  <div role="menu" aria-label="Account" className="absolute right-0 top-[calc(100%+.75rem)] w-60 rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow) p-2 flex flex-col gap-1">
+                    <div className="px-3 py-2 min-w-0">
+                      <div className="text-sm font-medium text-ink-50 truncate">{displayName}</div>
+                      {user.email && <div className="text-xs text-ink-400 truncate">{user.email}</div>}
+                    </div>
+                    <div className="h-px bg-ink-800" />
+                    <div className="flex items-center justify-between gap-2 px-3 py-2">
+                      <span className="text-sm text-ink-300">Appearance</span>
+                      <ThemeToggle />
+                    </div>
+                    {isStaff && (
+                      <Link href="/admin/moderation" role="menuitem" onClick={closeAll} className={`${menuItemCls} flex items-center gap-2 text-red-400 light:text-red-700`}>
+                        <Shield className="w-4 h-4" aria-hidden="true" /> Moderation
+                      </Link>
+                    )}
+                    {kofiUrl && (
+                      <a href={kofiUrl} target="_blank" rel="noopener noreferrer" role="menuitem" onClick={closeAll} className={`${menuItemCls} flex items-center gap-2 text-ink-200`}>
+                        <Heart className="w-4 h-4 text-gold-600" aria-hidden="true" /> Support the Realm
+                      </a>
+                    )}
+                    <button type="button" role="menuitem" onClick={openLegal} className={`${menuItemCls} text-ink-200`}>Legal and Terms</button>
+                    <button type="button" role="menuitem" onClick={handleLogout} className={`${menuItemCls} text-red-400 light:text-red-700`}>Sign out</button>
+                  </div>
+                )}
+              </div>
             </>
           ) : (
-            <button onClick={() => { onLoginClick(); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-gold-500 hover:bg-ink-800 rounded">
-              <LogIn className="w-5 h-5" />
-              <span>Login / Join</span>
+            <button
+              type="button"
+              onClick={() => { closeAll(); onLoginClick(); }}
+              className="hidden lg:flex items-center gap-2 rounded bg-gold-700 hover:bg-gold-600 text-white text-sm font-bold px-4 py-2 transition-colors"
+            >
+              <LogIn className="w-4 h-4" aria-hidden="true" /> Login
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => { setUserMenuOpen(false); setSearchOpen(false); setMobileMenuOpen(open => !open); }}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
+            className="lg:hidden p-2 rounded-full text-ink-200 hover:bg-ink-900 transition-colors"
+          >
+            {mobileMenuOpen ? <X className="w-[22px] h-[22px]" aria-hidden="true" /> : <Menu className="w-[22px] h-[22px]" aria-hidden="true" />}
+          </button>
+        </div>
+      </div>
 
+      {/* 4. Site search panel */}
+      {searchOpen && (
+        <div className="absolute inset-x-0 top-full bg-ink-950 border-b border-gold-900/50 shadow-(--card-shadow) px-4 md:px-6 py-4">
+          <form onSubmit={handleSubmitSearch} role="search" className="max-w-3xl mx-auto flex items-center gap-3">
+            <label className="relative flex items-center flex-1 min-w-0">
+              <Search className="absolute left-4 w-[18px] h-[18px] text-ink-400 pointer-events-none" aria-hidden="true" />
+              <input
+                ref={searchRef}
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search the realm: threads, characters, codex…"
+                aria-label="Search the whole site"
+                className="w-full bg-ink-800 border border-ink-700 rounded-full py-3 pr-4 pl-11 text-base text-ink-50 focus:border-gold-500 focus:outline-none transition-colors"
+              />
+            </label>
+            <button type="button" onClick={() => setSearchOpen(false)} className="text-sm text-ink-400 hover:text-ink-50 transition-colors">Close</button>
+          </form>
+        </div>
+      )}
+
+      {/* 5. Menu below lg: the same items as the tabs and the account menu */}
+      {mobileMenuOpen && (
+        <div className="lg:hidden absolute inset-x-0 top-full bg-ink-950 border-b border-gold-900/50 shadow-(--card-shadow) p-3 flex flex-col gap-1">
+          {NAV_ITEMS.map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleNav(item.id)}
+              className={`flex items-center gap-3 text-left rounded-lg px-3 py-3 text-base transition-colors ${isActive(item) ? 'bg-gold-900/30 text-gold-300' : 'text-ink-100 hover:bg-ink-800'}`}
+            >
+              <item.icon className="w-5 h-5" strokeWidth={1.8} aria-hidden="true" />
+              {item.label}
+            </button>
+          ))}
+          <div className="h-px bg-ink-800 my-1" />
+          {user && (
+            <div className="px-3 py-2 min-w-0">
+              <div className="text-sm font-medium text-ink-50 truncate">{displayName}</div>
+              {user.email && <div className="text-xs text-ink-400 truncate">{user.email}</div>}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <span className="text-sm text-ink-300">Appearance</span>
+            <ThemeToggle />
+          </div>
+          {isStaff && (
+            <Link href="/admin/moderation" onClick={closeAll} className="flex items-center gap-2 text-sm text-red-400 light:text-red-700 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">
+              <Shield className="w-4 h-4" aria-hidden="true" /> Moderation
+            </Link>
+          )}
           {kofiUrl && (
-            <a href={kofiUrl} target="_blank" rel="noopener noreferrer" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 p-3 text-ink-300 hover:bg-ink-800 rounded">
-              <Heart className="w-5 h-5 text-gold-600" />
-              <span>Support the Realm</span>
+            <a href={kofiUrl} target="_blank" rel="noopener noreferrer" onClick={closeAll} className="flex items-center gap-2 text-sm text-ink-200 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">
+              <Heart className="w-4 h-4 text-gold-600" aria-hidden="true" /> Support the Realm
             </a>
           )}
-
-          <button onClick={() => { setView('legal'); setMobileMenuOpen(false); }} className="flex items-center gap-3 p-3 text-ink-400 hover:bg-ink-800 rounded">
-            <Shield className="w-5 h-5 text-gold-600" />
-            <span>Legal & Copyright</span>
-          </button>
-
-          {(userRole === 'admin' || userRole === 'moderator') && (
-            <Link href="/admin/moderation" className="flex items-center gap-3 p-3 bg-red-900/30 text-red-400 border border-red-900/50 hover:bg-red-900/50 rounded" onClick={() => setMobileMenuOpen(false)}>
-              <Shield className="w-5 h-5" />
-              <span>Moderation</span>
-            </Link>
+          <button type="button" onClick={openLegal} className="text-left text-sm text-ink-200 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">Legal and Terms</button>
+          {user ? (
+            <button type="button" onClick={handleLogout} className="text-left text-sm text-red-400 light:text-red-700 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">Sign out</button>
+          ) : (
+            <button type="button" onClick={() => { closeAll(); onLoginClick(); }} className="flex items-center gap-2 text-left text-sm text-gold-500 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">
+              <LogIn className="w-4 h-4" aria-hidden="true" /> Login / Join
+            </button>
           )}
         </div>
       )}
+
       <ActiveUsers isOpen={showActiveUsers} onClose={() => setShowActiveUsers(false)} />
-    </nav>
+    </header>
   );
 }
 

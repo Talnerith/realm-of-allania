@@ -16,7 +16,6 @@ import MarkdownEditor from '@/components/MarkdownEditor';
 import PostItem from '@/components/Forum/PostItem';
 import { memo } from 'react';
 import { hostedImageUrl } from '@/lib/imageUrls';
-import ThemeToggle from '@/components/ThemeToggle';
 
 // Placeholder post while the thread loads
 const PostSkeleton = () => (
@@ -413,7 +412,6 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                     </div>
                     <div className={`mt-2 flex items-center gap-2 text-xs uppercase tracking-[.14em] ${threadBanner ? 'text-gold-200/80' : 'text-gold-500'}`}><MapIcon className="w-3 h-3" aria-hidden="true" /> {region ? region.name : 'Unknown Region'}</div>
                 </div>
-                <ThemeToggle />
               </div>
             </div>
 
@@ -488,7 +486,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
             <div className="fixed bottom-14 md:bottom-16 left-0 right-0 p-2 md:p-4 z-30">
                 {user ? (
                     <div className="max-w-4xl mx-auto flex gap-4 items-end bg-(color:--card-bg)/90 backdrop-blur-md border border-(color:--card-border) focus-within:border-gold-700/60 p-3 rounded-xl shadow-[inset_0_-2px_0_0_oklch(100%_0_0/.02),0_24px_60px_-20px_oklch(0%_0_0/.6)] transition-colors duration-200">
-                        <div className="hidden md:block w-12 h-12 rounded-[10px] border border-gold-800 shrink-0 overflow-hidden relative bg-[color-mix(in_oklab,var(--color-gold-900)_40%,var(--color-ink-800))]">
+                        <div className="hidden md:block w-12 h-12 rounded-[10px] border border-gold-800 shrink-0 overflow-hidden relative bg-[color-mix(in_oklab,var(--color-gold-900)_22%,var(--color-ink-800))]">
                             {activeChar ? (
                                 <>
                                     <div className="absolute inset-0 flex items-center justify-center font-serif font-bold text-lg text-gold-300" aria-hidden="true">{activeChar.name.substring(0, 1)}</div>

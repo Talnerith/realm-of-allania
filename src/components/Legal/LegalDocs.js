@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Shield, Lock, Cookie, FileText, ChevronLeft } from 'lucide-react';
 
-export default function LegalDocs({ goBack }) {
-  const [activeTab, setActiveTab] = useState('tos');
+const tabs = [
+  { id: 'tos', label: 'Terms of Service', icon: FileText },
+  { id: 'privacy', label: 'Privacy Policy', icon: Lock },
+  { id: 'cookies', label: 'Cookie Policy', icon: Cookie },
+];
 
-  const tabs = [
-    { id: 'tos', label: 'Terms of Service', icon: FileText },
-    { id: 'privacy', label: 'Privacy Policy', icon: Lock },
-    { id: 'cookies', label: 'Cookie Policy', icon: Cookie },
-  ];
+// initialTab: 'tos' | 'privacy' | 'cookies' (unknown values fall back to 'tos')
+export default function LegalDocs({ goBack, initialTab = 'tos' }) {
+  const [activeTab, setActiveTab] = useState(() => tabs.some(t => t.id === initialTab) ? initialTab : 'tos');
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-ink-950 pb-24">

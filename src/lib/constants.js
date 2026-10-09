@@ -1,5 +1,12 @@
 // Full-resolution world map (2816x1504 WebP) in /public
 export const MAP_IMAGE_URL = "/map.webp";
+// The painted map's frame. The 20x13 region grid is laid over the whole
+// image, so it must keep exactly this aspect (never crop or pad it).
+export const MAP_WIDTH = 2816;
+export const MAP_HEIGHT = 1504;
+
+// Footer contact address (placeholder until the real one is set up)
+export const CONTACT_EMAIL = "hello@realmofallania.com";
 
 // 20 Cols to preserve alignment. 13 Rows for height.
 export const GRID_ROWS = 13; 

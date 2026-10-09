@@ -11,9 +11,11 @@ const Screen = ({ children, ...provider }: { children: React.ReactNode; [key: st
   </AllaniaProvider>
 );
 
+export const DarkGold = () => <Screen theme="dark" accent="gold"><ThreadView thread={thread} region={region} /></Screen>;
 export const DarkEmber = () => <Screen theme="dark" accent="ember"><ThreadView thread={thread} region={region} /></Screen>;
 export const DarkBrass = () => <Screen theme="dark" accent="brass"><ThreadView thread={thread} region={region} /></Screen>;
 export const DarkVerdigris = () => <Screen theme="dark" accent="verdigris"><ThreadView thread={thread} region={region} /></Screen>;
+export const LightGold = () => <Screen theme="light" accent="gold"><ThreadView thread={thread} region={region} /></Screen>;
 export const LightEmber = () => <Screen theme="light" accent="ember"><ThreadView thread={thread} region={region} /></Screen>;
 export const LightBrass = () => <Screen theme="light" accent="brass"><ThreadView thread={thread} region={region} /></Screen>;
 export const LightVerdigris = () => <Screen theme="light" accent="verdigris"><ThreadView thread={thread} region={region} /></Screen>;

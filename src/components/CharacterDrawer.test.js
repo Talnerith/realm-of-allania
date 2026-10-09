@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import CharacterDrawer from '@/components/CharacterDrawer';
 import { useGame } from '@/context/GameContext';
 import * as firestore from 'firebase/firestore';
@@ -18,6 +18,7 @@ jest.mock('@/components/ImageUploader', () => {
     return (
       <div data-testid="image-uploader">
         <button
+          type="button"
           onClick={() => onImageChanged('http://mock.url/image.jpg', '50% 50%')}
           data-testid="mock-upload-btn"
         >
@@ -28,17 +29,12 @@ jest.mock('@/components/ImageUploader', () => {
   };
 });
 jest.mock('lucide-react', () => ({
-  Shield: () => <div data-testid="icon-shield" />,
-  ChevronDown: () => <div data-testid="icon-chevron-down" />,
   ChevronUp: () => <div data-testid="icon-chevron-up" />,
-  Edit3: () => <div data-testid="icon-edit" />,
   Plus: () => <div data-testid="icon-plus" />,
   X: () => <div data-testid="icon-x" />,
   Trash2: () => <div data-testid="icon-trash" />,
-  AlertCircle: () => <div data-testid="icon-alert-circle" />,
   AlertTriangle: () => <div data-testid="icon-alert-triangle" />,
   Loader: () => <div data-testid="icon-loader" />,
-  Move: () => <div data-testid="icon-move" />,
 }));
 
 describe('CharacterDrawer', () => {
@@ -74,100 +70,86 @@ describe('CharacterDrawer', () => {
     firestore.serverTimestamp.mockReturnValue('timestamp');
   });
 
-  test('renders character roster button', () => {
+  const openDrawer = () => fireEvent.click(screen.getByRole('button', { name: 'Open Character Roster' }));
+
+  test('renders the roster bar with the active character and count', () => {
     render(<CharacterDrawer />);
     expect(screen.getByText('Character Roster')).toBeInTheDocument();
-    expect(screen.getByText('Playing as: Char One')).toBeInTheDocument();
-  });
-
-  test('opens and closes drawer', () => {
-    render(<CharacterDrawer />);
-    const toggleButton = screen.getByText('Character Roster').closest('div').parentElement;
-
-    // Check initial state (closed)
-    expect(toggleButton.className).toContain('h-14'); // or h-16 based on responsive logic
-
-    // Open
-    fireEvent.click(screen.getByText('Character Roster'));
-    // Since we can't easily check class change driven by state without inspecting the DOM structure deeply or checking styles,
-    // we can assume the state change triggers a re-render.
-    // However, the component maps characters, so if it's open, we should see the character list items if they are rendered always but hidden?
-    // Let's check if "New Character" button is visible. It is rendered only when mode === 'view' and open/close just changes height.
-    // Wait, the content is always rendered in the DOM but possibly hidden by overflow?
-    // The code says: `isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'`
-    // And `flex-1 overflow-y-auto`
-    // So the content IS there.
-
-    // Let's verify character list is present.
+    expect(screen.getByText('Playing as:')).toBeInTheDocument();
     expect(screen.getByText('Char One')).toBeInTheDocument();
-    expect(screen.getByText('Char Two')).toBeInTheDocument();
+    expect(screen.getByText('2 / 10')).toBeInTheDocument();
   });
 
-  test('switches active character', () => {
+  test('shows "No character selected" without an active character', () => {
+    useGame.mockReturnValue({ user: mockUser, characters: mockCharacters, activeCharId: null, setActiveCharId: mockSetActiveCharId });
     render(<CharacterDrawer />);
+    expect(screen.getByText('No character selected')).toBeInTheDocument();
+  });
 
-    // Open drawer to see the list clearly (conceptually)
-    fireEvent.click(screen.getByText('Character Roster'));
+  test('opens and closes the drawer (bar, backdrop and Escape)', () => {
+    const { container } = render(<CharacterDrawer />);
+    const bar = screen.getByRole('button', { name: 'Open Character Roster' });
+    expect(bar).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Char Two')).not.toBeInTheDocument();
 
-    // Click on the second character (Char Two)
-    const charTwo = screen.getByText('Char Two').closest('div'); // Get the parent container
-    fireEvent.click(charTwo);
+    fireEvent.click(bar);
+    expect(bar).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Char Two')).toBeInTheDocument();
 
+    // Backdrop
+    fireEvent.click(container.querySelector('.bg-black\\/50'));
+    expect(bar).toHaveAttribute('aria-expanded', 'false');
+
+    // Escape
+    fireEvent.click(bar);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(bar).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  test('switches active character by clicking the card', () => {
+    render(<CharacterDrawer />);
+    openDrawer();
+    fireEvent.click(screen.getByText('Elf · Mage'));
     expect(mockSetActiveCharId).toHaveBeenCalledWith('char2');
+  });
+
+  test('marks the active card', () => {
+    render(<CharacterDrawer />);
+    openDrawer();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Char One/, pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Char Two/, pressed: false })).toBeInTheDocument();
+  });
+
+  test('shows the initial when a character has no portrait', () => {
+    useGame.mockReturnValue({
+      user: mockUser,
+      characters: [{ id: 'c3', name: 'Wren Hollow', race: 'Elf', class: 'Druid' }],
+      activeCharId: null,
+      setActiveCharId: mockSetActiveCharId,
+    });
+    const { container } = render(<CharacterDrawer />);
+    openDrawer();
+    expect(screen.getByText('W')).toBeInTheDocument();
+    expect(container.querySelectorAll('img[src=""]')).toHaveLength(0);
   });
 
   test('opens creator and submits new character', async () => {
     render(<CharacterDrawer />);
-    fireEvent.click(screen.getByText('Character Roster'));
-
-    // Click "New Character"
-    fireEvent.click(screen.getByText('New Character'));
-
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: /New Character/ }));
     expect(screen.getByText('Create Identity')).toBeInTheDocument();
 
-    // Fill form
-    // The inputs have no labels linked with htmlFor, so getByLabelText won't work easily unless we fix the component.
-    // For now, we select by display value (empty) but there are multiple inputs.
-    // Name input is the first input of type text (or implicitly text).
-    // Let's use getByDisplayValue for unique values or querySelector.
-    // However, since we are in a test environment, let's try to be more specific.
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New Hero' } });
+    fireEvent.change(screen.getByLabelText('Race'), { target: { value: 'Human' } });
+    fireEvent.change(screen.getByLabelText('Class'), { target: { value: 'Warrior / Fighter' } });
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'A brave hero.' } });
+    expect(screen.getByLabelText('Create Codex Entry?')).toBeChecked();
 
-    // Name input
-    const nameInput = screen.getAllByRole('textbox')[0]; // First textbox is likely name? No, name is input, description is textarea.
-    // input type="text" usually has role="textbox" ONLY if it has a datalist or similar, otherwise it is just an input.
-    // But testing-library treats inputs as textbox role often.
-    // Actually, `input` without `type` or `type="text"` matches role `textbox`. `textarea` also matches role `textbox`.
-
-    // Let's look at the component structure.
-    // Name input: <input value={formData.name} ... />
-    // Race select
-    // Class select
-    // Description textarea
-
-    const inputs = screen.getAllByRole('textbox');
-    // Usually Name (input) and Description (textarea).
-    // Let's assume order.
-
-    // Wait, `screen.getByDisplayValue('')` failed because multiple elements have empty value (Name and Description).
-
-    // Let's target by placeholder if available (none) or siblings.
-    // Or we can just grab all empty inputs.
-
-    const nameInputBox = inputs.find(el => el.tagName === 'INPUT');
-    fireEvent.change(nameInputBox, { target: { value: 'New Hero' } });
-
-    fireEvent.change(screen.getAllByRole('combobox')[0], { target: { value: 'Human' } }); // Race
-    fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: 'Warrior / Fighter' } }); // Class - Use exact value from options
-
-    const descInputBox = inputs.find(el => el.tagName === 'TEXTAREA');
-    fireEvent.change(descInputBox, { target: { value: 'A brave hero.' } });
-
-    // Trigger Image Upload Mock
     fireEvent.click(screen.getByTestId('mock-upload-btn'));
 
-    // Submit
     await act(async () => {
-      fireEvent.click(screen.getByText('Summon'));
+      fireEvent.click(screen.getByRole('button', { name: 'Summon' }));
     });
 
     const mockBatch = firestore.writeBatch();
@@ -175,31 +157,59 @@ describe('CharacterDrawer', () => {
     expect(mockBatch.update).toHaveBeenCalledTimes(1); // User character count
     expect(mockBatch.commit).toHaveBeenCalled();
 
-    // Check arguments for character creation
     const charArg = mockBatch.set.mock.calls[0][1];
     expect(charArg.name).toBe('New Hero');
     expect(charArg.imageUrl).toBe('http://mock.url/image.jpg');
 
-    expect(mockSetActiveCharId).toHaveBeenCalled(); // Should set active char to new char
+    expect(mockSetActiveCharId).toHaveBeenCalled(); // the new character becomes active
+  });
+
+  test('requires a name before creating', async () => {
+    render(<CharacterDrawer />);
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: /New Character/ }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Summon' }));
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent('Name is required.');
+    expect(firestore.writeBatch().commit).not.toHaveBeenCalled();
+  });
+
+  test('cancelling the creator deletes uploads made in the form', async () => {
+    render(<CharacterDrawer />);
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: /New Character/ }));
+    fireEvent.click(screen.getByTestId('mock-upload-btn'));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    });
+    expect(storage.deleteObject).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: /New Character/ })).toBeInTheDocument();
+  });
+
+  test('shows Limit Reached at 10 characters', () => {
+    const ten = Array.from({ length: 10 }, (_, i) => ({ id: `c${i}`, name: `Hero ${i}`, race: 'Human', class: 'Bard' }));
+    useGame.mockReturnValue({ user: mockUser, characters: ten, activeCharId: 'c0', setActiveCharId: mockSetActiveCharId });
+    render(<CharacterDrawer />);
+    expect(screen.getByText('10 / 10')).toHaveClass('text-red-400');
+    openDrawer();
+    expect(screen.getByRole('button', { name: /Limit Reached/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /New Character/ })).not.toBeInTheDocument();
   });
 
   test('opens editor and updates character', async () => {
     render(<CharacterDrawer />);
-    fireEvent.click(screen.getByText('Character Roster'));
-
-    // Find edit button for Char One
-    const editButtons = screen.getAllByTestId('icon-edit');
-    fireEvent.click(editButtons[0].closest('button')); // Edit Char One
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Char One' }));
 
     expect(screen.getByText('Edit Identity')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Char One')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Create Codex Entry?')).not.toBeInTheDocument();
+    expect(mockSetActiveCharId).not.toHaveBeenCalled(); // the pen doesn't also select the card
 
-    // Change Name
-    fireEvent.change(screen.getByDisplayValue('Char One'), { target: { value: 'Char One Updated' } });
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Char One Updated' } });
 
-    // Submit
     await act(async () => {
-      fireEvent.click(screen.getByText('Save Changes'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     });
 
     expect(firestore.updateDoc).toHaveBeenCalled();
@@ -209,15 +219,13 @@ describe('CharacterDrawer', () => {
 
   test('renaming only updates the character (the syncCharacter function updates posts)', async () => {
     render(<CharacterDrawer />);
-    fireEvent.click(screen.getByText('Character Roster'));
-
-    const editButtons = screen.getAllByTestId('icon-edit');
-    fireEvent.click(editButtons[0].closest('button'));
-    fireEvent.change(screen.getByDisplayValue('Char One'), { target: { value: 'Char One Evolved' } });
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Char One' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Char One Evolved' } });
     fireEvent.click(screen.getByTestId('mock-upload-btn')); // Change image
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Save Changes'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     });
 
     expect(firestore.updateDoc).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: 'Char One Evolved' }));
@@ -228,36 +236,39 @@ describe('CharacterDrawer', () => {
 
   test('blocks names with blocked or staff-impersonating words', async () => {
     render(<CharacterDrawer />);
-    fireEvent.click(screen.getByText('Character Roster'));
-
-    const editButtons = screen.getAllByTestId('icon-edit');
-    fireEvent.click(editButtons[0].closest('button'));
-    fireEvent.change(screen.getByDisplayValue('Char One'), { target: { value: 'Official Moderator' } });
+    openDrawer();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Char One' }));
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Official Moderator' } });
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Save Changes'));
+      fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
     });
 
-    expect(screen.getByText(/can't suggest site staff/)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/can't suggest site staff/);
     expect(firestore.updateDoc).not.toHaveBeenCalled();
+  });
+
+  test('the bar trash button opens the drawer into the delete flow', () => {
+    render(<CharacterDrawer />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete character' }));
+    expect(screen.getByRole('button', { name: 'Close Character Roster' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Delete Character')).toBeInTheDocument();
   });
 
   test('deletes character, decrements the count and cleans up the image', async () => {
     render(<CharacterDrawer />);
-    fireEvent.click(screen.getByText('Character Roster'));
-
-    fireEvent.click(screen.getByTitle('Delete Character'));
-    expect(screen.getByText('Delete Character')).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('combobox'), { target: { value: 'char1' } });
-    fireEvent.click(screen.getByText('Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete character' }));
+    fireEvent.change(screen.getByLabelText('Character'), { target: { value: 'char2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(screen.getByText('Are you sure?')).toBeInTheDocument();
+    expect(screen.getByText(/will be removed from your roster/)).toHaveTextContent('Char Two');
 
     await act(async () => {
-      fireEvent.click(screen.getByText('Yes, Delete'));
+      fireEvent.click(screen.getByRole('button', { name: 'Yes, Delete' }));
     });
 
     const mockBatch = firestore.writeBatch();
-    expect(mockBatch.delete).toHaveBeenCalled();
+    expect(mockBatch.delete).toHaveBeenCalledWith({ path: 'artifacts/realm-of-allania-v2/users/user123/characters/char2' });
     expect(mockBatch.update).toHaveBeenCalledWith(expect.anything(), { characterCount: firestore.increment(-1) });
     expect(mockBatch.commit).toHaveBeenCalled();
     // Posts/threads/codex are handled server-side by syncCharacter
@@ -265,19 +276,25 @@ describe('CharacterDrawer', () => {
     expect(storage.deleteObject).toHaveBeenCalled();
   });
 
+  test('cancelling the confirmation goes back a step without deleting', () => {
+    render(<CharacterDrawer />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete character' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByLabelText('Character')).toBeInTheDocument();
+    expect(firestore.writeBatch().commit).not.toHaveBeenCalled();
+  });
+
   describe('CharacterDrawer Accessibility', () => {
-    const mockUser = { uid: 'u1' };
-    const mockCharacters = [
+    const heroes = [
       { id: 'c1', name: 'Hero 1', race: 'Human', class: 'Fighter' },
       { id: 'c2', name: 'Hero 2', race: 'Elf', class: 'Mage' }
     ];
-    const mockSetActiveCharId = jest.fn();
 
     beforeEach(() => {
-      // Reuse parent setup for firestore mocks if strictly needed, but define own game state
       useGame.mockReturnValue({
-        user: mockUser,
-        characters: mockCharacters,
+        user: { uid: 'u1' },
+        characters: heroes,
         activeCharId: 'c1',
         setActiveCharId: mockSetActiveCharId,
       });
@@ -287,42 +304,30 @@ describe('CharacterDrawer', () => {
       render(<CharacterDrawer />);
       const toggleBtn = screen.getByRole('button', { name: /Open Character Roster|Close Character Roster/i });
 
-      // Check attributes
       expect(toggleBtn).toHaveAttribute('tabIndex', '0');
       expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
 
-      // Test Enter key
       fireEvent.keyDown(toggleBtn, { key: 'Enter', code: 'Enter' });
       expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
 
-      // Test Space key
       fireEvent.keyDown(toggleBtn, { key: ' ', code: 'Space' });
       expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
     });
 
-    test('Character list items are keyboard accessible', () => {
-      // Render opened drawer
+    test('Character cards are selected through a real button', () => {
       render(<CharacterDrawer />);
-      // Just force open logic if possible, or trigger it
-      fireEvent.click(screen.getByText('Character Roster'));
-
-      const charItem = screen.getByText('Hero 2').closest('div[role="button"]');
-
-      expect(charItem).toHaveAttribute('tabIndex', '0');
-
-      // Press Enter to select
-      fireEvent.keyDown(charItem, { key: 'Enter' });
+      openDrawer();
+      const select = screen.getByRole('button', { name: /Hero 2/, pressed: false });
+      expect(select.tagName).toBe('BUTTON');
+      fireEvent.click(select);
       expect(mockSetActiveCharId).toHaveBeenCalledWith('c2');
+      expect(mockSetActiveCharId).toHaveBeenCalledTimes(1);
     });
 
     test('Interactive elements have appropriate aria-labels', () => {
       render(<CharacterDrawer />);
-      fireEvent.click(screen.getByText('Character Roster'));
-
-      // Delete button
-      expect(screen.getByLabelText('Delete Character')).toBeInTheDocument();
-
-      // Edit buttons on items
+      openDrawer();
+      expect(screen.getByLabelText('Delete character')).toBeInTheDocument();
       expect(screen.getByLabelText('Edit Hero 1')).toBeInTheDocument();
       expect(screen.getByLabelText('Edit Hero 2')).toBeInTheDocument();
     });

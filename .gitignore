@@ -54,3 +54,12 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
+
+# Claude Design handoff exports (local reference only)
+design_handoff_*/
+
+# Full-resolution art sources for Claude Design uploads (already stored in the
+# design project; the site serves its own copies from public/images)
+.design-sync/assets/icons/
+.design-sync/assets/banners/
+.design-sync/assets/maps/

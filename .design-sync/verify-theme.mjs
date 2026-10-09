@@ -109,7 +109,7 @@ let failures = 0;
 for (const width of [390, 1440]) {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   for (const theme of ['dark', 'light']) {
-    for (const accent of ['ember', 'brass', 'verdigris']) {
+    for (const accent of ['gold', 'ember', 'brass', 'verdigris']) {
       await page.goto(`http://127.0.0.1:${port}/_verify.html?theme=${theme}&accent=${accent}`, { waitUntil: 'networkidle' });
       await page.waitForFunction(() => document.querySelectorAll('textarea').length && document.body.textContent.includes('Lyra dropped'), null, { timeout: 10000 });
       await page.waitForTimeout(800); // entrance animations settle

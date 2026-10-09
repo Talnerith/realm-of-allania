@@ -26,7 +26,7 @@ const systemTheme = () =>
 /**
  * @param theme   'dark' | 'light' | 'system'. When given, it is used instead of the saved choice
  *                (until setTheme is called); otherwise the saved choice, else 'system'.
- * @param accent  'ember' (default) | 'brass' | 'verdigris'
+ * @param accent  'gold' (default) | 'ember' | 'brass' | 'verdigris'
  *                Nested providers without theme/accent inherit them from the parent provider.
  * @param scope   'document' (default) sets the attributes on <html>; 'local' on a wrapper
  *                element (several themes on one page). Either way the choice is saved.
@@ -67,7 +67,7 @@ export function ThemeProvider({ children, theme: themeProp, accent, scope = 'doc
 
   const effective = inherits ? parent.preference : preference;
   const resolved = effective === 'system' ? system : effective;
-  const safeAccent = ACCENTS.includes(accent) ? accent : (parent?.accent ?? 'ember');
+  const safeAccent = ACCENTS.includes(accent) ? accent : (parent?.accent ?? 'gold');
 
   // Apply the attributes; ease colors only when switching (not on first paint)
   useEffect(() => {
@@ -101,7 +101,7 @@ export function ThemeProvider({ children, theme: themeProp, accent, scope = 'doc
   );
 }
 
-const FALLBACK = { theme: 'dark', preference: 'dark', setTheme: () => {}, accent: 'ember' };
+const FALLBACK = { theme: 'dark', preference: 'dark', setTheme: () => {}, accent: 'gold' };
 
 /** { theme: 'dark' | 'light' (resolved), preference, setTheme(next), accent } */
 export const useTheme = () => useContext(ThemeContext) ?? FALLBACK;

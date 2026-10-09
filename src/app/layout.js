@@ -76,7 +76,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} data-theme="dark" data-accent="ember" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} data-theme="dark" data-accent="gold" suppressHydrationWarning>
       <head>
         {/* Apply the saved/system theme before first paint (no dark flash in light mode) */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />

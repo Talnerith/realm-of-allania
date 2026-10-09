@@ -15,7 +15,7 @@
 /* Ink and gold are role names: ink = the neutral ramp (backgrounds, surfaces,
    borders, text), gold = the accent ramp (headings, links, primary actions).
    Their values come from the theme below, so components never change when
-   the theme or accent does. Defaults (no attributes) = dark + ember. */
+   the theme or accent does. Defaults (no attributes) = dark + gold. */
 @theme {
   --color-ink-50: var(--n-50);
   --color-ink-100: var(--n-100);
@@ -68,20 +68,27 @@
 @custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 
 /* ==========================================================================
-   Theme: data-theme="dark|light" and data-accent="ember|brass|verdigris"
+   Theme: data-theme="dark|light" and data-accent="gold|ember|brass|verdigris"
    (set on <html> by ThemeProvider). The palettes are fixed ramps; the theme
    maps them onto ink/gold and sets the semantic tokens.
    ========================================================================== */
 
-/* Neutral warm-charcoal ramp */
+/* Neutral midnight-navy ramp: blue-black at the dark end, near-neutral at
+   the light end so light-mode paper stays clean */
 :root, [data-theme] {
-  --n-50: oklch(98.2% .004 80); --n-100: oklch(96% .006 80); --n-200: oklch(92% .008 78); --n-300: oklch(85% .01 75);
-  --n-400: oklch(71% .012 72); --n-500: oklch(57% .012 68); --n-600: oklch(45% .011 65); --n-700: oklch(35.5% .01 62);
-  --n-800: oklch(27% .009 60); --n-900: oklch(20.5% .008 58); --n-950: oklch(14.5% .007 58);
+  --n-50: oklch(98.3% .004 250); --n-100: oklch(95.8% .008 250); --n-200: oklch(91.5% .013 252); --n-300: oklch(84.5% .02 253);
+  --n-400: oklch(71% .03 255); --n-500: oklch(57% .038 257); --n-600: oklch(45% .042 258); --n-700: oklch(35% .043 259);
+  --n-800: oklch(26.5% .04 260); --n-900: oklch(20% .035 261); --n-950: oklch(14.5% .028 262);
 }
 
-/* Accent ramps */
-:root, [data-accent="ember"] {
+/* Accent ramps. Gold (default) is a warm antique gold; ember, brass and
+   verdigris are alternates. */
+:root, [data-accent="gold"] {
+  --a-50: oklch(97.5% .02 88); --a-100: oklch(94.5% .045 86); --a-200: oklch(90% .08 83); --a-300: oklch(85% .11 80);
+  --a-400: oklch(80.5% .13 76); --a-500: oklch(76% .14 72); --a-600: oklch(66.5% .14 65); --a-700: oklch(52.5% .125 57);
+  --a-800: oklch(44.5% .1 55); --a-900: oklch(36% .08 52); --a-950: oklch(25.5% .055 50);
+}
+[data-accent="ember"] {
   --a-50: oklch(97% .02 60); --a-100: oklch(93.5% .045 56); --a-200: oklch(88% .08 52); --a-300: oklch(81% .12 49);
   --a-400: oklch(75% .15 46); --a-500: oklch(70% .165 43); --a-600: oklch(62% .17 40); --a-700: oklch(53% .16 37);
   --a-800: oklch(45% .135 35); --a-900: oklch(36% .105 34); --a-950: oklch(25% .07 34);
@@ -97,7 +104,7 @@
   --a-800: oklch(43% .085 186); --a-900: oklch(35% .065 188); --a-950: oklch(24% .04 190);
 }
 
-/* Dark (default). The ramps are re-mapped on every themed element so a
+/* Dark (default): midnight navy + gold. The ramps are re-mapped on every themed element so a
    nested data-accent/data-theme resolves against its own ramp. */
 :root, [data-theme="dark"], [data-accent]:not([data-theme="light"]) {
   --color-ink-50: var(--n-50); --color-ink-100: var(--n-100); --color-ink-200: var(--n-200); --color-ink-300: var(--n-300);
@@ -107,10 +114,10 @@
   --color-gold-400: var(--a-400); --color-gold-500: var(--a-500); --color-gold-600: var(--a-600); --color-gold-700: var(--a-700);
   --color-gold-800: var(--a-800); --color-gold-900: var(--a-900); --color-gold-950: var(--a-950);
   --card-bg: var(--n-900);
-  --card-border: color-mix(in oklab, var(--n-700) 70%, transparent);
-  --card-shadow: inset 0 1px 0 0 oklch(100% 0 0 / .04), 0 2px 6px -2px oklch(0% 0 0 / .45), 0 18px 40px -20px oklch(0% 0 0 / .7);
+  --card-border: color-mix(in oklab, var(--n-700) 75%, transparent);
+  --card-shadow: inset 0 1px 0 0 oklch(100% 0 0 / .045), 0 2px 6px -2px oklch(5% .02 262 / .5), 0 18px 40px -20px oklch(5% .03 262 / .75);
   --story: var(--n-100);
-  --page-glow: color-mix(in oklab, var(--a-900) 22%, transparent);
+  --page-glow: color-mix(in oklab, var(--a-900) 20%, color-mix(in oklab, var(--n-700) 30%, transparent));
   color-scheme: dark;
 }
 
@@ -125,7 +132,7 @@
   --color-gold-800: var(--a-500); --color-gold-900: var(--a-200); --color-gold-950: var(--a-100);
   --card-bg: oklch(100% 0 0);
   --card-border: var(--n-200);
-  --card-shadow: 0 1px 2px oklch(30% .03 60 / .06), 0 14px 34px -18px oklch(30% .03 60 / .22);
+  --card-shadow: 0 1px 2px oklch(30% .04 260 / .07), 0 14px 34px -18px oklch(30% .04 260 / .22);
   --story: var(--n-900);
   --page-glow: color-mix(in oklab, var(--a-200) 35%, transparent);
   color-scheme: light;
@@ -156,7 +163,8 @@
   /* Primary buttons (bg-gold-700): a little depth when enabled, pressed on
      click; disabled buttons stay flat */
   :where(button, a, [role="button"]).bg-gold-700:not(:disabled) {
-    box-shadow: inset 0 1px 0 oklch(100% 0 0 / .14), 0 6px 16px -8px var(--color-gold-700);
+    background-image: linear-gradient(to bottom, oklch(100% 0 0 / .1), transparent 60%);
+    box-shadow: inset 0 1px 0 oklch(100% 0 0 / .16), inset 0 0 0 1px color-mix(in oklab, var(--color-gold-500) 35%, transparent), 0 6px 16px -8px var(--color-gold-700);
     transition: background-color .15s, transform .1s, box-shadow .15s;
   }
   :where(button, a, [role="button"]).bg-gold-700:not(:disabled):active {

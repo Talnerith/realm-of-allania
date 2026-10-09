@@ -7,6 +7,8 @@ export { default as Navbar } from '@/components/Navbar';
 export { default as LandingPage } from '@/components/LandingPage';
 export { default as AuthScreen } from '@/components/AuthScreen';
 export { default as WorldMap } from '@/components/WorldMap';
+export { default as WorldMapPage } from '@/components/WorldMapPage';
+export { default as SiteFooter } from '@/components/SiteFooter';
 export { default as RegionView } from '@/components/Forum/RegionView';
 export { default as ThreadView } from '@/components/Forum/ThreadView';
 export { default as PostItem } from '@/components/Forum/PostItem';

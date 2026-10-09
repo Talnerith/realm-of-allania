@@ -3,10 +3,15 @@ import { collection, onSnapshot, query, orderBy, limit, where } from 'firebase/f
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import {
-  MAP_IMAGE_URL, GRID_ROWS, GRID_COLS, TOTAL_REGIONS, getRegionName, isRegionPlayable, APP_ID
+  MAP_IMAGE_URL, MAP_WIDTH, MAP_HEIGHT, GRID_ROWS, GRID_COLS, TOTAL_REGIONS, getRegionName, isRegionPlayable, APP_ID
 } from '@/lib/constants';
 
-function WorldMap({ setView, setActiveRegion }) {
+// Shown for regions without a custom name; n is the 1-based grid index
+export const unnamedRegionLabel = (i) => `Unnamed region ${i + 1}`;
+
+// The painted map plus its 20x13 click grid. It fills its parent's width at
+// the map's fixed 2816x1504 aspect, so the parent decides size and scrolling.
+function WorldMap({ setView, setActiveRegion, onRegionHover }) {
   const { user, readReceipts } = useGame();
 
   const [regionLastActivity, setRegionLastActivity] = useState({});
@@ -87,61 +92,73 @@ function WorldMap({ setView, setActiveRegion }) {
 
       if (!playable) return <div key={i} className="pointer-events-none" />;
 
+      const label = regionName || unnamedRegionLabel(i);
+      const hover = onRegionHover ? () => onRegionHover({ id: i, name: label, threadCount, hasUnread }) : undefined;
+
       return (
-        <div
+        <button
+          type="button"
           key={i}
           onClick={() => handleRegionClick(i)}
-          className={`relative border cursor-pointer transition-all duration-300 group ${
-            hasUnread 
-              ? 'border-transparent' 
-              : hasThreads 
-                ? 'border-gold-700/40 bg-gold-900/10' 
+          onMouseEnter={hover}
+          onFocus={hover}
+          aria-label={`${label}${hasUnread ? ', unread posts' : hasThreads ? `, ${threadCount} active thread${threadCount === 1 ? '' : 's'}` : ''}`}
+          className={`relative border cursor-pointer transition-all duration-300 group focus:outline-none focus-visible:border-gold-300 ${
+            hasUnread
+              ? 'border-transparent'
+              : hasThreads
+                ? 'border-gold-700/40 bg-gold-900/10'
                 : 'border-transparent hover:border-gold-400/80 hover:bg-gold-500/10'
           }`}
         >
           {/* Region with threads indicator (subtle golden glow) - only when no unread */}
           {hasThreads && !hasUnread && (
-            <div className="absolute inset-0 z-0 pointer-events-none">
-              <div className="absolute inset-1 border border-gold-600/30 rounded-sm" />
-              <div className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-gold-500/60 rounded-full" />
-            </div>
+            <span className="absolute inset-0 z-0 pointer-events-none">
+              <span className="absolute inset-1 border border-gold-600/30 rounded-sm" />
+              <span className="absolute bottom-1 left-1 w-1.5 h-1.5 bg-gold-500/60 rounded-full" />
+            </span>
           )}
 
           {/* Unread notification (cyan glow - takes priority over threads indicator) */}
           {hasUnread && (
-            <div className="absolute inset-0 z-0">
-              <div className="absolute inset-1 border-2 border-cyan-400/80 rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.6)] animate-pulse" />
-              <div className="absolute top-1 right-1 w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(34,211,238,1)]" />
-            </div>
+            <span className="absolute inset-0 z-0 pointer-events-none">
+              <span className="absolute inset-1 border-2 border-cyan-400/80 rounded-sm shadow-[0_0_15px_rgba(34,211,238,0.6)] animate-pulse" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-cyan-400 rounded-full shadow-[0_0_8px_rgba(34,211,238,1)]" />
+            </span>
           )}
 
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <span className="bg-black/90 text-gold-100 text-xs font-semibold leading-tight px-1.5 py-1 rounded border border-gold-900 font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[140px] truncate">
-              {regionName}
-              {hasThreads && !hasUnread && <span className="text-gold-400/80 ml-1">({threadCount})</span>}
+          <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity pointer-events-none" aria-hidden="true">
+            <span className="bg-black/90 text-(color:--a-100) text-xs font-semibold leading-tight px-1.5 py-1 rounded border border-(color:--a-900) font-serif whitespace-nowrap z-20 shadow-xl mx-0.5 max-w-[140px] truncate">
+              {label}
+              {hasThreads && !hasUnread && <span className="text-(color:--a-400) ml-1">({threadCount})</span>}
               {hasUnread && <span className="text-cyan-400 ml-1">●</span>}
             </span>
-          </div>
-        </div>
+          </span>
+        </button>
       );
     });
-  }, [customNames, regionThreads, readReceipts, user, handleRegionClick]);
+  }, [customNames, regionThreads, readReceipts, user, handleRegionClick, onRegionHover]);
 
   return (
-    <div className="relative w-full h-full overflow-auto bg-ink-950 custom-scrollbar p-4 pb-48 flex justify-start lg:justify-center">
-      <div className="relative m-auto inline-block shadow-2xl shadow-black rounded-lg border border-gold-900/50 select-none shrink-0">
-        <img
-          src={MAP_IMAGE_URL}
-          alt="World Map of Allania"
-          className="max-w-[1400px] w-full h-auto block min-w-[800px] bg-ink-800"
-          onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
-        />
-        <div
-          className="absolute inset-0 grid"
-          style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)` }}
-        >
-          {regionGrid}
-        </div>
+    <div
+      className="relative w-full select-none bg-ink-900"
+      style={{ aspectRatio: `${MAP_WIDTH} / ${MAP_HEIGHT}` }}
+      onMouseLeave={onRegionHover ? () => onRegionHover(null) : undefined}
+    >
+      <img
+        src={MAP_IMAGE_URL}
+        alt="World Map of Allania"
+        width={MAP_WIDTH}
+        height={MAP_HEIGHT}
+        className="absolute inset-0 w-full h-full block"
+        draggable={false}
+        onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
+      />
+      <div
+        className="absolute inset-0 grid"
+        style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)` }}
+      >
+        {regionGrid}
       </div>
     </div>
   );

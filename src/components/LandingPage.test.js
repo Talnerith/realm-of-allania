@@ -48,7 +48,8 @@ describe('LandingPage', () => {
         fireEvent.click(enterBtn);
 
         expect(window.localStorage.setItem).toHaveBeenCalledWith('skipLanding', 'true');
-        expect(onEnter).toHaveBeenCalled();
+        // The page saves the choice on the player's account
+        expect(onEnter).toHaveBeenCalledWith(true);
     });
 
     it('does not set localStorage if checkbox is unchecked', () => {
@@ -59,6 +60,6 @@ describe('LandingPage', () => {
         fireEvent.click(enterBtn);
 
         expect(window.localStorage.setItem).not.toHaveBeenCalled();
-        expect(onEnter).toHaveBeenCalled();
+        expect(onEnter).toHaveBeenCalledWith(false);
     });
 });

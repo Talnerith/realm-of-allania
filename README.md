@@ -40,7 +40,7 @@
 | **💬 Private Messages** | Character-to-character chat, shown under each character's real name. |
 | **⚡ Real-Time Interactions** | Powered by Firestore for instant updates, read receipts, live thread activity and an "Active Users" list. |
 | **🧹 Content Moderation** | New posts, threads, codex edits and images are checked by an AI moderator (with a keyword filter) before they go public. Chat, character profiles and display names use fast word filters. Moderators review anything flagged from a dashboard. |
-| **🌗 Dark & Light Themes** | A warm-charcoal dark theme and a parchment light theme, switchable from any thread. Follows your system setting until you choose, and remembers your choice across tabs. |
+| **🌗 Dark & Light Themes** | A midnight-navy and gold dark theme and a clean paper light theme, switchable from any thread. Follows your system setting until you choose, and remembers your choice across tabs. |
 | **🎲 Role-Based Permissions** | Players, trusted players, moderators and admins, managed from the forum interface. |
 
 ## 🛠️ Tech Stack
@@ -89,6 +89,8 @@ Follow these steps to set up the Realm locally on your machine.
     NEXT_PUBLIC_RECAPTCHA_SITE_KEY=optional_recaptcha_key
     # Optional: shows a "Support" button in the navbar
     NEXT_PUBLIC_KOFI_URL=
+    # Optional: shows the "Support us on Patreon" button in the map footer
+    NEXT_PUBLIC_PATREON_URL=
     ```
 
 4.  **Run the development server**

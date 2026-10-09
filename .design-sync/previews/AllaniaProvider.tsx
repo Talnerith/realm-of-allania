@@ -4,7 +4,7 @@ import { noop } from '../preview-helpers';
 const aldric = { id: 'c-aldric', name: 'Aldric Vane', race: 'Human', class: 'Paladin', imageUrl: '' };
 
 // The same composition under each theme × accent: everything re-colors from the provider
-const Sample = ({ theme, accent }: { theme: 'dark' | 'light'; accent: 'ember' | 'brass' | 'verdigris' }) => (
+const Sample = ({ theme, accent }: { theme: 'dark' | 'light'; accent: 'gold' | 'ember' | 'brass' | 'verdigris' }) => (
   <AllaniaProvider theme={theme} accent={accent}>
     <div className="w-[420px] p-6 rounded-[14px] bg-ink-950 border border-(color:--card-border) space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -28,9 +28,11 @@ const Sample = ({ theme, accent }: { theme: 'dark' | 'light'; accent: 'ember' | 
   </AllaniaProvider>
 );
 
+export const DarkGold = () => <Sample theme="dark" accent="gold" />;
 export const DarkEmber = () => <Sample theme="dark" accent="ember" />;
 export const DarkBrass = () => <Sample theme="dark" accent="brass" />;
 export const DarkVerdigris = () => <Sample theme="dark" accent="verdigris" />;
+export const LightGold = () => <Sample theme="light" accent="gold" />;
 export const LightEmber = () => <Sample theme="light" accent="ember" />;
 export const LightBrass = () => <Sample theme="light" accent="brass" />;
 export const LightVerdigris = () => <Sample theme="light" accent="verdigris" />;

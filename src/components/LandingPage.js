@@ -11,7 +11,8 @@ export default function LandingPage({ onEnter }) {
         localStorage.setItem('skipLanding', 'true');
       }
     }
-    onEnter();
+    // Signed-in players also get it saved on their account
+    onEnter(skipFuture);
   };
 
   return (

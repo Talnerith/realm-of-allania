@@ -9,9 +9,12 @@ import {
   updateProfile,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
+import { createProfile, ensureProfile } from '@/lib/profiles';
+
+const accountRef = (uid) => doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'account');
 
 const GameContext = createContext();
 
@@ -20,7 +23,10 @@ export function GameProvider({ children }) {
   const [userRole, setUserRole] = useState('user');
   const [loading, setLoading] = useState(true);
   const [characters, setCharacters] = useState([]);
-  const [activeCharId, setActiveCharId] = useState(null);
+  // The character being played and the Landing "Don't show this again"
+  // choice are saved on the account, so they follow the player across devices
+  const [activeCharId, setActiveCharIdState] = useState(null);
+  const [hideWelcome, setHideWelcomeState] = useState(null); // null until the account loads
 
   // Global Read Receipts
   const [readReceipts, setReadReceipts] = useState({});
@@ -79,6 +85,8 @@ export function GameProvider({ children }) {
           if (snapshot.exists()) {
             const data = snapshot.data();
             const role = data.role || 'user';
+            if ('activeCharId' in data) setActiveCharIdState(data.activeCharId ?? null);
+            setHideWelcomeState(data.hideWelcome === true);
 
             if (role === 'banned') {
               await signOut(auth);
@@ -108,6 +116,9 @@ export function GameProvider({ children }) {
           // Fallback to 'user' if permission fails, prevents crash
           setUserRole('user');
         });
+
+        // Public profile (author name) for accounts made before profiles existed
+        ensureProfile(currentUser);
 
         // --- B. Read Receipts ---
         {
@@ -149,6 +160,8 @@ export function GameProvider({ children }) {
         setUserRole('user');
         setReadReceipts({});
         setCharacters([]);
+        setActiveCharIdState(null);
+        setHideWelcomeState(null);
       }
       setLoading(false);
     });
@@ -175,6 +188,12 @@ export function GameProvider({ children }) {
         email: email,
         createdAt: serverTimestamp()
       });
+      // Public author name; the rules apply the same name checks as signup
+      try {
+        await createProfile(cred.user.uid, username);
+      } catch (e) {
+        console.warn("Could not create the public profile:", e);
+      }
     }
 
     return cred.user;
@@ -186,7 +205,7 @@ export function GameProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
-    setActiveCharId(null);
+    setActiveCharIdState(null);
     if (!auth) return Promise.resolve();
     return signOut(auth);
   }, []);
@@ -200,14 +219,32 @@ export function GameProvider({ children }) {
     return sendPasswordResetEmail(auth, email);
   }, []);
 
+  // Saving never blocks the UI: the local state changes at once
+  const saveAccountSetting = useCallback((fields) => {
+    if (!user || !db) return;
+    updateDoc(accountRef(user.uid), fields).catch(e => console.warn("Could not save account setting:", e));
+  }, [user]);
+
+  const setActiveCharId = useCallback((id) => {
+    setActiveCharIdState(id);
+    saveAccountSetting({ activeCharId: id ?? null });
+  }, [saveAccountSetting]);
+
+  const setHideWelcome = useCallback((hide) => {
+    setHideWelcomeState(!!hide);
+    saveAccountSetting({ hideWelcome: !!hide });
+  }, [saveAccountSetting]);
+
   // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
   // when GameProvider renders but data hasn't changed.
   const value = useMemo(() => ({
     user, userRole, loading, characters, activeCharId, setActiveCharId,
+    hideWelcome, setHideWelcome,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   }), [
-    user, userRole, loading, characters, activeCharId,
+    user, userRole, loading, characters, activeCharId, setActiveCharId,
+    hideWelcome, setHideWelcome,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   ]);

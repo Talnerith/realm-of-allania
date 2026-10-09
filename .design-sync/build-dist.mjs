@@ -22,6 +22,7 @@ const SWAPS = {
   '@/context/GameContext': stub('GameContext.js'),
   '@/lib/firebase': stub('firebase-misc.js'),
   '@/lib/constants': stub('constants.js'),
+  '@/lib/artAssets': stub('artAssets.js'),
   'firebase/firestore': stub('firestore.js'),
   'firebase/storage': stub('firebase-misc.js'),
   'firebase/functions': stub('firebase-misc.js'),
@@ -71,6 +72,8 @@ await esbuild.build({
     'process.env.NODE_ENV': '"production"',
     'process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET': '""',
     'process.env.NEXT_PUBLIC_KOFI_URL': '""',
+    // Shows the footer's Patreon button in designs (the real URL is still to come)
+    'process.env.NEXT_PUBLIC_PATREON_URL': '"https://www.patreon.com/"',
     'process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY': '""'
   },
   logLevel: 'warning'
