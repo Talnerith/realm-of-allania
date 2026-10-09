@@ -62,7 +62,7 @@
     "CodexEntry": "page: { id?: string; isNew?: boolean; title?: string; category?: string; tags?: string[]; content?: string; gallery?: string[]; imageUrl?: string; imagePosition?: string; isLocked?: boolean; creatorId?: string; status?: string; updatedAt?: { toMillis(): number } }; goBack?: () => void; onWikiLink?: (title: string) => void; /** Open a related or same-author entry. */ onOpenEntry?: (page: object) => void;",
     "SearchResults": "query: string; onNavigate?: (view: string) => void; onOpenThread?: (thread: object) => void; onOpenCodex?: (page: object) => void;",
     "RichText": "content: string; className?: string; onWikiLink?: (title: string) => void;",
-    "MarkdownEditor": "value: string; onChange: (value: string) => void; placeholder?: string; className?: string; minHeight?: string; onPost?: (() => void) | null; submitLabel?: string; disabled?: boolean; isSubmitting?: boolean; isSubmitDisabled?: boolean; onWikiLink?: ((title: string) => void) | null;",
+    "MarkdownEditor": "value: string; onChange: (value: string) => void; placeholder?: string; className?: string; minHeight?: string; onPost?: (() => void) | null; submitLabel?: string; disabled?: boolean; isSubmitting?: boolean; isSubmitDisabled?: boolean; onWikiLink?: ((title: string) => void) | null; maxLength?: number | null;",
     "ImageUploader": "initialUrl?: string; initialPosition?: string; onImageChanged?: (url: string, position: string) => void; folder?: 'character_portraits' | 'codex_gallery' | 'region_banners' | 'thread_banners' | 'uploads'; shape?: 'square' | 'banner' | 'circle';",
     "CookieBanner": "",
     "LegalDocs": "goBack?: () => void; /** Tab shown first (default 'tos'). */ initialTab?: 'tos' | 'privacy' | 'cookies';",
