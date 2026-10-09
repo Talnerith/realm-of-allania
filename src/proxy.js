@@ -1,37 +1,24 @@
 import { NextResponse } from 'next/server';
+import { buildCsp } from '@/lib/csp';
 
-export function middleware(request) {
-  const response = NextResponse.next();
+export function proxy(request) {
+  // A fresh, unguessable nonce per request
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  // 'unsafe-eval' is only required by React's dev tooling; production drops it
+  const csp = buildCsp(nonce, { isDev: process.env.NODE_ENV === 'development' });
 
-  // Add security headers
+  // Next.js reads the nonce from the request's CSP header while rendering;
+  // the layout reads x-nonce for its own inline script
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', csp);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set('Content-Security-Policy', csp);
   response.headers.set('X-DNS-Prefetch-Control', 'on');
   response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'origin-when-cross-origin');
-  
-  // Content Security Policy
-  // 'unsafe-eval' is only required by React Fast Refresh in development;
-  // production drops it. ('unsafe-inline' remains for Next.js inline
-  // bootstrap scripts — removing it requires nonce-based CSP.)
-  const isDev = process.env.NODE_ENV === 'development';
-  const csp = [
-    "default-src 'self'",
-    `script-src 'self' ${isDev ? "'unsafe-eval' " : ''}'unsafe-inline' https://www.gstatic.com https://www.google.com`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    // Only our own assets and Storage-hosted images (pasted links are imported
-    // into Storage), so pages never load images from third-party hosts
-    "img-src 'self' data: blob: https://firebasestorage.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com wss://*.firebaseio.com https://www.google.com https://www.gstatic.com https://*.cloudfunctions.net",
-    "frame-src 'self' https://www.google.com",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'self'",
-  ].join('; ');
-  
-  response.headers.set('Content-Security-Policy', csp);
-
   return response;
 }
 
@@ -43,8 +30,14 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * Link prefetches don't render a page, so they need no nonce.
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sitemap.xml|robots.txt).*)',
+    {
+      source: '/((?!api|_next/static|_next/image|favicon.ico|manifest.json|sitemap.xml|robots.txt).*)',
+      missing: [
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' },
+      ],
+    },
   ],
 };
-

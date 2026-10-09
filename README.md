@@ -155,7 +155,7 @@ src/
 ├── context/        # GameContext: auth, role, characters, read receipts, presence
 ├── hooks/          # Custom React hooks
 ├── lib/            # Firebase setup, constants, image and moderation helpers
-└── middleware.js   # Security headers and Content Security Policy
+└── proxy.js        # Security headers and Content Security Policy (nonce-based)
 functions/          # Firebase Cloud Functions (moderation, image import, character sync)
 scripts/            # Maintenance scripts (map optimization, data backfills)
 public/             # Static assets (map, icons, landing media)

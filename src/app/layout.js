@@ -5,6 +5,7 @@ import { themeInitScript } from '@/lib/theme';
 import VersionUpdater from '@/components/VersionUpdater';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { Inter, Cormorant_Garamond, Pinyon_Script } from 'next/font/google';
+import { headers } from 'next/headers';
 
 // Font Setup
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -76,12 +77,15 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  // This request's CSP nonce (set by src/proxy.js): inline scripts without it
+  // don't run. Reading headers renders every page per request, which nonces need.
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
   return (
     <html lang="en" className={`${inter.variable} ${cormorant.variable} ${pinyon.variable}`} data-theme="dark" data-accent="gold" suppressHydrationWarning>
       <head>
         {/* Apply the saved/system theme before first paint (no dark flash in light mode) */}
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#b45309" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />

@@ -203,6 +203,8 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
     // Reset active chat when closed to ensure we stop "reading" messages
     useEffect(() => {
         if (!isOpen) {
+            // Closing the panel ends the conversation view (a one-off reset, not a loop)
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setActiveChatId(null);
         }
     }, [isOpen]);

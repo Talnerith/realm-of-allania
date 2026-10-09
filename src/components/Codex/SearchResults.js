@@ -16,6 +16,8 @@ export default function SearchResults({ query: searchQuery, onNavigate, onOpenTh
   useEffect(() => {
     // Don't search if empty, but clear results
     if (!searchQuery) {
+        // Nothing to search: settle immediately (a one-off, not a loop)
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLoading(false);
         return;
     }
