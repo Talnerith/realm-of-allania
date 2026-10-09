@@ -119,6 +119,17 @@ describe('Navbar', () => {
     expect(logout).toHaveBeenCalled();
   });
 
+  it('account menu switches the welcome page back on', () => {
+    const setHideWelcome = jest.fn();
+    signedIn({ hideWelcome: true, setHideWelcome });
+    render(<Navbar {...props} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu' }));
+    const item = screen.getByRole('menuitemcheckbox', { name: 'Show welcome page' });
+    expect(item).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(item);
+    expect(setHideWelcome).toHaveBeenCalledWith(false);
+  });
+
   it('staff get a Moderation link', () => {
     signedIn({ userRole: 'moderator' });
     render(<Navbar {...props} />);

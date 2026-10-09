@@ -1,6 +1,6 @@
 import { useState, useEffect, memo } from 'react';
 import { onSnapshot } from 'firebase/firestore';
-import { Heart } from 'lucide-react';
+import { ThumbsUp } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { likeRef, setPostLike, canLikePost } from '@/lib/likes';
 
@@ -49,11 +49,13 @@ function LikeButton({ post, user }) {
             aria-pressed={canLike ? liked : undefined}
             aria-label={`${liked ? 'Unlike' : 'Like'} post, ${count} like${count === 1 ? '' : 's'}`}
             title={title}
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs tabular-nums border transition-colors disabled:cursor-default ${liked
-                ? 'border-gold-700 bg-gold-900/30 text-gold-300'
-                : 'border-ink-700 text-ink-400 enabled:hover:text-gold-300 enabled:hover:border-gold-700'}`}
+            className={`flex items-center gap-2 rounded border px-3 py-1.5 text-sm tabular-nums transition-colors ${isOwn
+                ? 'border-ink-800 text-ink-500 cursor-not-allowed'
+                : !canLike ? 'border-ink-700 text-ink-400 cursor-default'
+                : liked ? 'border-gold-700 bg-gold-900/30 text-gold-300'
+                : 'border-ink-700 text-ink-300 hover:border-gold-700 hover:text-gold-300'}`}
         >
-            <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} aria-hidden="true" />
+            <ThumbsUp className="w-4 h-4" fill={liked ? 'currentColor' : 'none'} aria-hidden="true" />
             {count}
         </button>
     );

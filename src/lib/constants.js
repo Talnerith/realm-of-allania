@@ -76,6 +76,9 @@ export const isRegionPlayable = (index) => {
   return true;
 };
 
+// Shown for regions without a custom name; n is the 1-based grid index
+export const unnamedRegionLabel = (index) => `Unnamed region ${Number(index) + 1}`;
+
 export const getRegionName = (index) => {
   return ""; 
 };

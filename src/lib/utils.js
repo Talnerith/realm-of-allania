@@ -193,3 +193,36 @@ export const getErrorMessage = (error) => {
   return 'An unknown error occurred';
 };
 
+
+/**
+ * Relative time in words, as the forum pages show it: "18 minutes ago",
+ * "4 hours ago", "3 days ago" (short: "18 min ago", "4 hr ago").
+ * Accepts a Firestore timestamp or milliseconds.
+ */
+export const timeAgo = (value, { short = false } = {}) => {
+  const ms = typeof value === 'number' ? value : value?.toMillis?.();
+  if (!ms) return 'just now';
+  const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+  if (m < 1) return 'just now';
+  if (m < 60) return short ? `${m} min ago` : `${m} ${m === 1 ? 'minute' : 'minutes'} ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return short ? `${h} hr ago` : `${h} ${h === 1 ? 'hour' : 'hours'} ago`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `${d} ${d === 1 ? 'day' : 'days'} ago`;
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+/**
+ * Markdown post content -> plain text for previews (activity feed, excerpts)
+ */
+export const plainText = (content, maxLength = 160) => {
+  const text = String(content || '')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[\[([^\]|]+)(\|[^\]]+)?\]\]/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[*_~`#>|]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength).replace(/\s+\S*$/, '')}…` : text;
+};

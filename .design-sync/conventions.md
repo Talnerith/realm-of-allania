@@ -57,6 +57,18 @@ Ramps: `ink-50…950` (neutrals) and `gold-50…950` (accent), each 50, 100–90
 
 `Navbar` is the site header on every page (80px, `bg-ink-950`, `gold-900/50` bottom border): the tree-shield crest with "Realm of Allania / CHRONICLES", the World Map · Codex · Members · Search tabs (lg and up; the active one has a 2px `gold-500` underline, and World Map stays active on region and thread pages), then messages, the notification bell and the account menu (Appearance theme switch, Moderation for staff, Legal and Terms, Sign out). Search opens a site search panel under the bar; Members opens `ActiveUsers`. Below lg the tabs and account items move into the hamburger menu. Use the component as is; don't rebuild a header. Posts carry a like button (heart + count, one like per player, not on your own posts).
 
+## Pages
+
+The main screens are built: use these components rather than recreating them.
+
+- `LandingPage`: the welcome page (hero, live site counts, features, how it works).
+- `WorldMapPage` (with `WorldMap`, `SiteFooter`).
+- `RegionView`: region banner with crest and blurb, thread list with tags, replies, views and last poster, a Locations panel (the active character's threads and whose turn it is) and Recent activity.
+- `ThreadView`: banner with breadcrumb, 8 posts per page, `PostItem` cards (character profile with joined, posts and reputation, post number, a "⋯" menu, thumbs-up like), a reply box floating above the roster bar, Thread Information. A sealed (locked) thread takes no new posts.
+- `CodexIndex` and `CodexEntry`: three sections, Characters, Locations and History. An entry's facts (`**Race:** Human` lines), opening and closing quotes (`> ...` at the top and end) and related entries (`[[Wiki Links]]`) come from its text.
+
+Thread tags come from a fixed list (Roleplay, Adventure, Lore, Investigation, Discussion, Open, Ongoing, Politics, Trade), up to 3 per thread. Codex tags are free text, up to 3.
+
 ## Images
 
 Only images hosted in the project's Firebase Storage are displayed. Others render blank (portraits fall back to the character's initial). Don't use external image URLs; leave `imageUrl` empty for a clean initial-letter portrait.

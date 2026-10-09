@@ -37,6 +37,9 @@ export const ClickSequence = ({ steps, children }: { steps: string[]; children: 
   return <div ref={ref}>{children}</div>;
 };
 
-export const at = (minutesAgo: number) => ({ toDate: () => new Date(Date.now() - minutesAgo * 60000) });
+export const at = (minutesAgo: number) => {
+  const ms = Date.now() - minutesAgo * 60000;
+  return { toDate: () => new Date(ms), toMillis: () => ms };
+};
 
 export const noop = () => {};

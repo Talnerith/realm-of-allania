@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, memo } from 'react';
 import Link from 'next/link';
 import { collection, query, onSnapshot, orderBy, limit } from 'firebase/firestore';
-import { LocateFixed, BookOpen, Users, Search, Mail, Menu, X, ChevronDown, LogIn, Shield, Heart } from 'lucide-react';
+import { LocateFixed, BookOpen, Users, Search, Mail, Menu, X, ChevronDown, LogIn, Shield, Heart, Check } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { CREST_IMG } from '@/lib/artAssets';
@@ -21,7 +21,7 @@ const NAV_ITEMS = [
 const menuItemCls = 'text-left text-sm rounded-lg px-3 py-2 transition-colors hover:bg-ink-800';
 
 function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, unreadCount }) {
-  const { user, userRole, logout } = useGame();
+  const { user, userRole, logout, hideWelcome, setHideWelcome } = useGame();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -113,6 +113,26 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
   };
 
   const openLegal = () => { closeAll(); setView('legal'); };
+
+  // "Show welcome page" — the account-menu switch for the Landing page's
+  // "Don't show this again"
+  const showWelcome = hideWelcome !== true;
+  const toggleWelcome = () => {
+    const hide = showWelcome;
+    setHideWelcome?.(hide);
+    try {
+      if (hide) localStorage.setItem('skipLanding', 'true');
+      else localStorage.removeItem('skipLanding');
+    } catch { /* storage blocked */ }
+  };
+  const welcomeItem = (cls) => setHideWelcome && (
+    <button type="button" role="menuitemcheckbox" aria-checked={showWelcome} onClick={toggleWelcome} className={`${cls} flex items-center justify-between gap-2 text-ink-200`}>
+      Show welcome page
+      <span className={`w-4 h-4 rounded-sm border flex items-center justify-center ${showWelcome ? 'bg-gold-700 border-gold-700 text-white' : 'border-ink-600'}`} aria-hidden="true">
+        {showWelcome && <Check className="w-3 h-3" strokeWidth={3} />}
+      </span>
+    </button>
+  );
 
   return (
     <header ref={headerRef} className="relative z-40 h-20 shrink-0 bg-ink-950 border-b border-gold-900/50">
@@ -207,6 +227,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
                         <Heart className="w-4 h-4 text-gold-600" aria-hidden="true" /> Support the Realm
                       </a>
                     )}
+                    {welcomeItem(menuItemCls)}
                     <button type="button" role="menuitem" onClick={openLegal} className={`${menuItemCls} text-ink-200`}>Legal and Terms</button>
                     <button type="button" role="menuitem" onClick={handleLogout} className={`${menuItemCls} text-red-400 light:text-red-700`}>Sign out</button>
                   </div>
@@ -290,6 +311,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
               <Heart className="w-4 h-4 text-gold-600" aria-hidden="true" /> Support the Realm
             </a>
           )}
+          {user && welcomeItem('text-left text-sm hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors')}
           <button type="button" onClick={openLegal} className="text-left text-sm text-ink-200 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">Legal and Terms</button>
           {user ? (
             <button type="button" onClick={handleLogout} className="text-left text-sm text-red-400 light:text-red-700 hover:bg-ink-800 rounded-lg px-3 py-3 transition-colors">Sign out</button>

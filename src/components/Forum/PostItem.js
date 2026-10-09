@@ -1,16 +1,40 @@
-import React, { memo } from 'react';
-import {
-    Edit3, Trash2, MessageCircle, User, Shield, Check
-} from 'lucide-react';
+import React, { memo, useState, useEffect, useRef } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import RichText from '@/components/RichText';
-import { hostedImageUrl } from '@/lib/imageUrls';
 import LikeButton from '@/components/Forum/LikeButton';
+import { hostedImageUrl } from '@/lib/imageUrls';
+import { timeAgo } from '@/lib/utils';
+import useCharacterStats, { joinedLabel } from '@/hooks/useCharacterStats';
+
+const menuItemCls = 'text-left text-sm text-ink-200 hover:bg-ink-800 rounded px-3 py-2 transition-colors';
+
+// Character portrait in a gold ring, or the character's initial underneath
+function Portrait({ post, size }) {
+    const portrait = hostedImageUrl(post.characterImageUrl);
+    const initial = post.characterName ? post.characterName.substring(0, 1) : '?';
+    return (
+        <div
+            className={`relative ${size === 'lg' ? 'w-24 h-24 text-4xl' : 'w-12 h-12 text-xl'} rounded-full overflow-hidden bg-ink-800 border border-gold-700 flex items-center justify-center font-serif font-bold text-gold-300 shrink-0 shadow-[0_0_0_4px_var(--color-ink-900),0_0_0_5px_var(--color-gold-900)]`}
+        >
+            <span aria-hidden="true">{initial}</span>
+            {portrait && (
+                <img
+                    src={portrait}
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover"
+                    style={{ objectPosition: post.characterImagePosition || 'center' }}
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+            )}
+        </div>
+    );
+}
 
 const PostItem = memo(function PostItem({
     post,
+    number,
     user,
-    activeCharId,
     isAdmin,
     isAdminOrMod,
     editingPostId,
@@ -29,177 +53,133 @@ const PostItem = memo(function PostItem({
 }) {
     const isOwner = user && user.uid === post.userId;
     const isEditing = editingPostId === post.id;
+    const stats = useCharacterStats(post.userId, post.characterId);
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
 
-    // Portrait, or the character's initial when there is none (an <img> with an
-    // empty src shows broken-image alt text instead of the fallback)
-    const portrait = hostedImageUrl(post.characterImageUrl);
-    const initial = post.characterName ? post.characterName.substring(0, 1) : '?';
+    // The post menu closes on Escape or a click outside it
+    useEffect(() => {
+        if (!menuOpen) return;
+        const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+        const onDown = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+        document.addEventListener('keydown', onKey);
+        document.addEventListener('mousedown', onDown);
+        return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onDown); };
+    }, [menuOpen]);
 
-    const formatTimestamp = (timestamp) => {
-        if (!timestamp?.toDate) return 'Just now';
-        return timestamp.toDate().toLocaleString();
-    };
+    const run = (fn) => () => { setMenuOpen(false); fn(); };
+    const meta = [post.characterRace, post.characterClass].filter(Boolean).join(' · ');
+    const name = post.characterName || 'Unknown';
+    const anchor = number ? `post-${number}` : `post-${post.id}`;
+    const openProfile = () => onOpenCodex && onOpenCodex(post.characterId);
+    const menuItems = [
+        user && !isOwner && onMessageUser && { label: `Message ${name.split(' ')[0]}`, onClick: () => onMessageUser({ id: post.userId, name: post.characterName, characterId: post.characterId }) },
+        isOwner && !editingPostId && { label: 'Edit post', onClick: () => onEditStart(post) },
+        isAdminOrMod && onCopyUserId && { label: copiedUserId === post.userId ? 'User ID copied' : 'Copy user ID', onClick: () => onCopyUserId(post.userId) },
+        isAdmin && onManageUser && { label: 'Manage role', onClick: () => onManageUser({ id: post.userId, name: post.characterName }) },
+        isAdminOrMod && !editingPostId && { label: 'Remove post', onClick: () => onDelete(post.id), danger: true },
+    ].filter(Boolean);
 
-    // Small action buttons under the name (DM / copy ID / manage role)
-    const actionClass = 'text-2xs bg-ink-800 hover:bg-ink-700 text-ink-400 hover:text-gold-500 border border-ink-700 rounded flex items-center gap-1 transition-colors';
-    const initialFill = 'bg-[color-mix(in_oklab,var(--color-gold-900)_22%,var(--color-ink-800))] text-gold-300';
-
-    const actions = (pad) => (
-        <>
-            {user && user.uid !== post.userId && (
-                <button
-                    onClick={() => onMessageUser && onMessageUser({ id: post.userId, name: post.characterName, characterId: post.characterId })}
-                    className={`${actionClass} ${pad}`}
-                    title="Send Message"
-                >
-                    <MessageCircle className="w-3 h-3" aria-hidden="true" /> DM
-                </button>
-            )}
-            {isAdminOrMod && (
-                <button
-                    onClick={() => onCopyUserId(post.userId)}
-                    className={`${actionClass} ${pad}`}
-                    aria-label="Copy User ID"
-                    title="Copy User ID"
-                >
-                    {copiedUserId === post.userId ? <Check className="w-3 h-3 text-emerald-500" aria-hidden="true" /> : <User className="w-3 h-3" aria-hidden="true" />} ID
-                </button>
-            )}
-            {isAdmin && (
-                <button
-                    onClick={() => onManageUser({ id: post.userId, name: post.characterName })}
-                    className={`${actionClass} hover:bg-gold-900 hover:border-gold-700 ${pad}`}
-                    title="Manage User Role"
-                >
-                    <Shield className="w-3 h-3" aria-hidden="true" /> Role
-                </button>
-            )}
-        </>
-    );
+    const statRows = [
+        ['Joined', joinedLabel(stats?.joined)],
+        ['Posts', stats?.posts ?? '—'],
+        ['Reputation', stats ? stats.reputation : '—'],
+    ];
+    const label = number ? `Post ${number} by ${name}` : `Post by ${name}`;
 
     return (
-        <div className="flex flex-col md:flex-row gap-4 md:gap-6 group relative">
-            {/* ADMIN TOOLS */}
-            <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-all z-10">
-                {isOwner && !editingPostId && (
-                    <button
-                        onClick={() => onEditStart(post)}
-                        className="text-ink-500 hover:text-gold-500 bg-ink-900/50 rounded p-1"
-                        aria-label="Edit Post"
-                        title="Edit Post"
-                    >
-                        <Edit3 className="w-4 h-4" />
+        <article id={anchor} aria-label={label} className="scroll-mt-6 rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow)">
+            <div className="flex flex-col md:flex-row md:items-stretch">
+                {/* Character profile */}
+                <div className="flex flex-wrap items-center gap-3 px-4 pt-4 pb-3 border-b border-ink-800 md:w-48 md:shrink-0 md:flex-col md:flex-nowrap md:text-center md:p-5 md:border-b-0 md:border-r">
+                    <button type="button" onClick={openProfile} aria-label={`View ${name}'s profile`} className="rounded-full md:hidden">
+                        <Portrait post={post} size="sm" />
                     </button>
-                )}
-                {isAdminOrMod && !editingPostId && (
-                    <button
-                        onClick={() => onDelete(post.id)}
-                        className="text-red-700 hover:text-red-500 bg-ink-900/50 rounded p-1"
-                        aria-label="Delete Post"
-                        title="Delete Post"
-                    >
-                        <Trash2 className="w-4 h-4" />
+                    <button type="button" onClick={openProfile} aria-label={`View ${name}'s profile`} className="rounded-full hidden md:block">
+                        <Portrait post={post} size="lg" />
                     </button>
-                )}
-            </div>
-
-            {/* MOBILE AVATAR HEADER */}
-            <div className="md:hidden flex items-start gap-3 px-1">
-                <button
-                    type="button"
-                    onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                    className="w-11 h-11 rounded-[10px] overflow-hidden border border-(color:--card-border) relative shrink-0 cursor-pointer p-0"
-                    aria-label={`View ${post.characterName || 'User'}'s profile`}
-                >
-                    <span className={`absolute inset-0 flex items-center justify-center text-lg font-serif font-bold ${initialFill}`} aria-hidden="true">{initial}</span>
-                    {portrait && (
-                        <img
-                            src={portrait}
-                            alt={`${post.characterName}'s avatar`}
-                            className="relative w-full h-full object-cover"
-                            style={{ objectPosition: post.characterImagePosition || 'center' }}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        />
-                    )}
-                </button>
-                <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start gap-3">
-                        <div className="min-w-0">
-                            <div className="font-serif text-lg font-bold leading-tight text-gold-500">{post.characterName}</div>
-                            <div className="text-2xs text-ink-400 uppercase">{post.characterRace} {post.characterClass}</div>
-                        </div>
-                        <span className="text-2xs text-ink-400 tabular-nums shrink-0">{formatTimestamp(post.createdAt)}</span>
+                    <div className="flex flex-col gap-1 min-w-0">
+                        <button type="button" onClick={openProfile} className="font-serif font-bold text-xl leading-tight text-gold-100 hover:text-gold-300 text-balance text-left md:text-center transition-colors">
+                            {name}
+                        </button>
+                        {meta && <span className="text-xs text-gold-500">{meta}</span>}
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-2">{actions('px-2 py-1')}</div>
-                </div>
-            </div>
-
-            {/* DESKTOP AVATAR SIDEBAR */}
-            <div className="hidden md:flex flex-col items-center gap-2 w-28 shrink-0">
-                <button
-                    onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                    className="w-[5.5rem] h-[5.5rem] rounded-[14px] border border-(color:--card-border) shadow-(--card-shadow) overflow-hidden relative cursor-pointer p-0 transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-gold-500"
-                    aria-label={`View ${post.characterName || 'User'}'s profile`}
-                >
-                    <span className={`absolute inset-0 flex items-center justify-center text-3xl font-serif font-bold ${initialFill}`} aria-hidden="true">
-                        {initial}
+                    <dl className="hidden md:grid w-full grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-2xs text-left mt-2">
+                        {statRows.map(([k, v]) => (
+                            <React.Fragment key={k}>
+                                <dt className="text-ink-400">{k}</dt>
+                                <dd className="text-ink-200 text-right tabular-nums">{v}</dd>
+                            </React.Fragment>
+                        ))}
+                    </dl>
+                    <span className="md:hidden text-2xs text-ink-400 basis-full">
+                        Joined {statRows[0][1]} · {statRows[1][1]} posts · {statRows[2][1]} rep
                     </span>
-                    {portrait && (
-                        <img
-                            src={portrait}
-                            alt={`${post.characterName || 'User'}'s avatar`}
-                            className="relative w-full h-full object-cover"
-                            style={{ objectPosition: post.characterImagePosition || 'center' }}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                        />
-                    )}
-                </button>
-                <div className="text-center w-full">
-                    <button
-                        type="button"
-                        onClick={() => onOpenCodex && onOpenCodex(post.characterId)}
-                        className="mt-1 w-full font-serif font-bold text-[1.0625rem] leading-[1.2] text-gold-500 break-words cursor-pointer hover:underline bg-transparent border-none p-0"
-                    >
-                        {post.characterName}
-                    </button>
-                    <div className="mt-0.5 text-2xs leading-[1.45] text-ink-400 uppercase tracking-wider">{post.characterRace} {post.characterClass}</div>
-                    <div className="mt-1 flex flex-wrap justify-center gap-1">{actions('px-1.5 py-0.5')}</div>
                 </div>
-            </div>
 
-            {/* CONTENT CARD */}
-            <div className="flex-1 min-w-0 relative rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow) p-4 md:pt-9 md:px-10 md:pb-8 transition-[border-color,box-shadow] duration-200 group-hover:border-[color-mix(in_oklab,var(--color-gold-700)_45%,var(--card-border))]">
-                {isEditing ? (
-                    <div className="space-y-2 motion-safe:animate-fade-in">
-                        <MarkdownEditor
-                            value={editPostContent}
-                            onChange={(e) => onEditChange(e.target.value)}
-                            minHeight="min-h-[250px]"
-                            onWikiLink={onWikiLink}
-                        />
-                        <div className="flex gap-2 justify-end">
-                            <button onClick={onEditCancel} className="px-3 py-1 text-ink-400 hover:text-ink-50 text-xs">Cancel</button>
-                            <button onClick={onEditSave} className="px-3 py-1 bg-gold-700 text-white rounded hover:bg-gold-600 text-xs">Save Edits</button>
-                        </div>
+                {/* Post */}
+                <div className="flex-1 min-w-0 flex flex-col gap-4 p-4 md:p-6">
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs text-ink-400 flex-1 min-w-0">
+                            Posted {timeAgo(post.createdAt)}
+                            {post.isEdited && <span className="italic"> · edited</span>}
+                            {post.status && post.status !== 'approved' && (
+                                <span className="ml-2 rounded border border-ink-700 bg-ink-800 px-1.5 py-0.5 text-2xs font-semibold text-ink-300">
+                                    {post.status === 'pending' ? 'Awaiting approval' : post.status === 'rejected' ? 'Rejected' : 'Under review'}
+                                </span>
+                            )}
+                        </span>
+                        {number && (
+                            <a href={`#${anchor}`} className="text-sm text-ink-400 hover:text-gold-300 tabular-nums transition-colors" title="Link to this post">#{number}</a>
+                        )}
+                        {menuItems.length > 0 && (
+                            <div className="relative" ref={menuRef}>
+                                <button type="button" onClick={() => setMenuOpen(o => !o)} aria-haspopup="menu" aria-expanded={menuOpen}
+                                    aria-label={number ? `Post ${number} options` : 'Post options'}
+                                    className="p-1 rounded text-ink-400 hover:text-ink-50 hover:bg-ink-800 transition-colors">
+                                    <MoreHorizontal className="w-[18px] h-[18px]" aria-hidden="true" />
+                                </button>
+                                {menuOpen && (
+                                    <div role="menu" className="absolute right-0 top-[calc(100%+.25rem)] z-20 w-44 rounded-[10px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow) p-1 flex flex-col">
+                                        {menuItems.map(item => (
+                                            <button key={item.label} type="button" role="menuitem" onClick={run(item.onClick)}
+                                                className={item.danger ? `${menuItemCls} text-red-400 light:text-red-700` : menuItemCls}>
+                                                {item.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                ) : (
-                    <>
+
+                    {isEditing ? (
+                        <div className="space-y-2">
+                            <MarkdownEditor
+                                value={editPostContent}
+                                onChange={(e) => onEditChange(e.target.value)}
+                                minHeight="min-h-[250px]"
+                                onWikiLink={onWikiLink}
+                            />
+                            <div className="flex gap-2 justify-end">
+                                <button type="button" onClick={onEditCancel} className="px-3 py-1 text-ink-400 hover:text-ink-50 text-sm">Cancel</button>
+                                <button type="button" onClick={onEditSave} className="px-4 py-1.5 bg-gold-700 text-white rounded hover:bg-gold-600 text-sm font-bold">Save edits</button>
+                            </div>
+                        </div>
+                    ) : (
                         <RichText
                             content={post.content}
-                            className="font-serif text-[1.1875rem] md:text-[1.3125rem] leading-[1.7] text-(color:--story) max-w-[40rem]"
+                            className="font-sans text-base md:text-lg leading-relaxed text-(color:--story)"
                             onWikiLink={onWikiLink}
                         />
-                        <div className="mt-4 flex justify-end">
-                            <LikeButton post={post} user={user} />
-                        </div>
-                        <div className="absolute top-3.5 right-5 hidden md:flex gap-2 items-center tabular-nums">
-                            {post.isEdited && <span className="text-2xs text-ink-400 italic">(Edited)</span>}
-                            <span className="text-2xs text-ink-400">{formatTimestamp(post.createdAt)}</span>
-                        </div>
-                    </>
-                )}
+                    )}
+
+                    <div className="flex items-center justify-end gap-3 mt-auto">
+                        <LikeButton post={post} user={user} />
+                    </div>
+                </div>
             </div>
-        </div>
+        </article>
     );
 });
 

@@ -60,6 +60,10 @@ How this repo syncs to Claude Design (project "Realm of Allania", id in config.j
 
 - `.design-sync/assets/{icons,banners,maps}/` are gitignored (2026-10-08, before the first public push): ~33 MB of full-resolution art, already stored in the Claude Design project. Only `assets/map-preview.webp` is tracked (the build inlines it). On a fresh clone, download any art a re-upload needs from the project's `assets/`; the app's own copies live in `public/images/`.
 
+- Remaining handoff screens (2026-10-08): Region, Thread, Codex Index/Entry and Landing rebuilt. Codex/landing art lives in `public/images/{codex,landing}` and is inlined by `stubs/artAssets.js` (640 banners only, SVG icons via the `.svg` dataurl loader in build-dist). Sample data gained thread tags/views/excerpts/last posters, region blurbs, codex tags and structured codex text, and character join dates and reputation.
+- `verify-theme.mjs` opens the (now collapsed) reply box before auditing the editor toolbar.
+- Banners with fixed light text (thread, codex hero, codex entry) sit on a fixed dark base (`bg-[rgb(8_10_15)]`), not `bg-ink-900`, so light theme keeps contrast without an image.
+
 ## Re-sync risks
 - `sample-data.js` mirrors real Firestore document shapes by hand. If a component starts reading a new field or collection, its preview silently shows empty states: check cards after component changes.
 - `dtsPropsFor` in config.json is hand-written per component (plain JS has no types). A changed component signature needs the matching entry updated, or the design agent codes against a stale contract.

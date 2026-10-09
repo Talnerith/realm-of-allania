@@ -53,6 +53,11 @@ function runQuery(q) {
       if (c.op === '==') return v === c.value;
       if (c.op === 'in') return c.value.includes(v);
       if (c.op === 'array-contains') return Array.isArray(v) && v.includes(c.value);
+      if (c.op === '>') return timeOf(v) > timeOf(c.value);
+      if (c.op === '>=') return timeOf(v) >= timeOf(c.value);
+      if (c.op === '<') return timeOf(v) < timeOf(c.value);
+      if (c.op === '<=') return timeOf(v) <= timeOf(c.value);
+      if (c.op === '!=') return v !== c.value;
       return true;
     });
   }
@@ -107,3 +112,7 @@ export const arrayRemove = () => [];
 export const deleteField = () => undefined;
 
 export const getFirestore = () => ({});
+export const getCountFromServer = async (q) => {
+  const n = runQuery(q).size;
+  return { data: () => ({ count: n }) };
+};

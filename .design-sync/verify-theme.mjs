@@ -111,7 +111,10 @@ for (const width of [390, 1440]) {
   for (const theme of ['dark', 'light']) {
     for (const accent of ['gold', 'ember', 'brass', 'verdigris']) {
       await page.goto(`http://127.0.0.1:${port}/_verify.html?theme=${theme}&accent=${accent}`, { waitUntil: 'networkidle' });
-      await page.waitForFunction(() => document.querySelectorAll('textarea').length && document.body.textContent.includes('Lyra dropped'), null, { timeout: 10000 });
+      // The reply box starts collapsed: open it so the editor toolbar is audited too
+      await page.waitForFunction(() => document.body.textContent.includes('Lyra dropped'), null, { timeout: 10000 });
+      await page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.startsWith('Continue the tale'))?.click());
+      await page.waitForFunction(() => document.querySelectorAll('textarea').length, null, { timeout: 10000 });
       await page.waitForTimeout(800); // entrance animations settle
       const r = await page.evaluate(audit);
       const issues = [...r.overflow.map((x) => `overflow: ${x}`), ...r.clipped.map((x) => `toolbar: ${x}`), ...r.contrast.map((x) => `contrast: ${x}`)];

@@ -1,13 +1,18 @@
 import { AllaniaProvider, RegionView } from 'realm-of-aethelraed';
-import { noop } from '../preview-helpers';
+import { ClickSequence, noop } from '../preview-helpers';
 
 const region = { id: 125, name: 'Thornwatch Ridge' };
-const frame = (children: React.ReactNode) => <div style={{ height: 820 }} className="flex flex-col bg-ink-950">{children}</div>;
+const frame = (children: React.ReactNode, height = 1100) => <div style={{ height }} className="flex flex-col bg-ink-950">{children}</div>;
+const view = (r = region) => <RegionView region={r} setView={noop} setActiveThread={noop} onRequireAuth={noop} />;
 
-export const Region = () => frame(<RegionView region={region} setView={noop} setActiveThread={noop} />);
+// Banner, Locations (left), thread list with tags and stats, Recent activity (right)
+export const Region = () => frame(view());
 
-export const Guest = () => frame(
-  <AllaniaProvider signedIn={false}><RegionView region={region} setView={noop} setActiveThread={noop} /></AllaniaProvider>
-);
+export const NewThreadForm = () => frame(<ClickSequence steps={['New thread']}>{view()}</ClickSequence>, 1300);
 
-export const EmptyRegion = () => frame(<RegionView region={{ id: 190, name: 'Silverwood' }} setView={noop} setActiveThread={noop} />);
+// Moderators can rename the region, change its banner and edit the blurb
+export const Moderator = () => frame(<AllaniaProvider role="moderator">{view()}</AllaniaProvider>);
+
+export const Guest = () => frame(<AllaniaProvider signedIn={false}>{view()}</AllaniaProvider>);
+
+export const EmptyRegion = () => frame(view({ id: 190, name: 'Silverwood' }));

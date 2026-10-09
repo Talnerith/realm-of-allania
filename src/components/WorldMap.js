@@ -3,11 +3,12 @@ import { collection, onSnapshot, query, orderBy, limit, where } from 'firebase/f
 import { db } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
 import {
-  MAP_IMAGE_URL, MAP_WIDTH, MAP_HEIGHT, GRID_ROWS, GRID_COLS, TOTAL_REGIONS, getRegionName, isRegionPlayable, APP_ID
+  MAP_IMAGE_URL, MAP_WIDTH, MAP_HEIGHT, GRID_ROWS, GRID_COLS, TOTAL_REGIONS, getRegionName, isRegionPlayable, APP_ID,
+  unnamedRegionLabel
 } from '@/lib/constants';
 
-// Shown for regions without a custom name; n is the 1-based grid index
-export const unnamedRegionLabel = (i) => `Unnamed region ${i + 1}`;
+// Re-exported for existing imports
+export { unnamedRegionLabel };
 
 // The painted map plus its 20x13 click grid. It fills its parent's width at
 // the map's fixed 2816x1504 aspect, so the parent decides size and scrolling.

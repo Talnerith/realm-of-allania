@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { collection, query, where, getDocs, limit, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -156,12 +156,16 @@ export default function Home() {
     window.history.pushState({ view: newView, ...extraState }, '');
   }, [view]);
 
-  const { user, loading, hideWelcome, setHideWelcome } = gameContext || {};
+  const { user, loading, hideWelcome } = gameContext || {};
 
   // Players who ticked "Don't show this again" (saved on their account) go
-  // straight to the map, on any device
+  // straight to the map, on any device. Checked once, when the account first
+  // loads, so ticking the box on the welcome page doesn't jump away from it.
+  const welcomeChecked = useRef(false);
   useEffect(() => {
-    if (view === 'landing' && user && hideWelcome) {
+    if (welcomeChecked.current || !user || hideWelcome === null || hideWelcome === undefined) return;
+    welcomeChecked.current = true;
+    if (view === 'landing' && hideWelcome) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setView('map');
       window.history.replaceState({ view: 'map' }, '');
@@ -296,10 +300,7 @@ export default function Home() {
       <div className="flex-1 relative overflow-hidden">
 
         {view === 'landing' && (
-          <LandingPage onEnter={(skipFuture) => {
-            if (skipFuture && user) setHideWelcome(true);
-            navigateTo('map');
-          }} />
+          <LandingPage onEnter={() => navigateTo('map')} onNavigate={navigateTo} />
         )}
 
         {view === 'map' && (
@@ -316,12 +317,15 @@ export default function Home() {
             setView={navigateTo}
             setActiveThread={handleThreadSelect}
             onWikiLink={handleWikiLink}
+            onRequireAuth={handleLoginClick}
           />
         )}
 
         {view === 'thread' && (
           <ThreadView
+            key={activeThread?.id}
             thread={activeThread}
+            onOpenThread={handleThreadSelect}
             region={activeRegion}
             setView={navigateTo}
             onOpenCodex={handleCodexOpen}
@@ -335,6 +339,7 @@ export default function Home() {
         {view === 'codex' && (
           <CodexIndex
             onOpenEntry={handleOpenCodexEntry}
+            onRequireAuth={handleLoginClick}
           />
         )}
 
@@ -345,6 +350,7 @@ export default function Home() {
               page={activeCodexPage}
               goBack={() => navigateTo('codex')}
               onWikiLink={handleWikiLink}
+              onOpenEntry={handleOpenCodexEntry}
             />
           ) : (
             <div className="flex items-center justify-center h-screen bg-ink-950"><Loader className="w-8 h-8 animate-spin text-gold-500" /></div>

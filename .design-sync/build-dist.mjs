@@ -64,7 +64,7 @@ await esbuild.build({
   platform: 'browser',
   target: 'es2020',
   jsx: 'automatic',
-  loader: { '.js': 'jsx', '.webp': 'dataurl' },
+  loader: { '.js': 'jsx', '.webp': 'dataurl', '.svg': 'dataurl' },
   // Resolved by the converter's own bundle pass (react is provided by Claude Design)
   external: ['react', 'react-dom', 'react/*', 'react-dom/*', 'lucide-react'],
   plugins: [aliases],
