@@ -34,6 +34,17 @@ const ImageUploader = React.memo(function ImageUploader({
     setPosition(initialPosition || 'center');
   }, [initialUrl, initialPosition]);
 
+  // A replaced image from this session is never saved anywhere, so delete it
+  // (only once the new one is stored). Failures never block the new image.
+  const discardLastUpload = useCallback(async () => {
+    if (!lastUploadedUrl) return;
+    try {
+      await deleteObject(ref(storage, lastUploadedUrl));
+    } catch (delErr) {
+      console.warn("Failed to clean up intermediate file (might be already gone or permission issue):", delErr);
+    }
+  }, [lastUploadedUrl]);
+
   const handleFileSelect = useCallback(async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -48,24 +59,16 @@ const ImageUploader = React.memo(function ImageUploader({
       // 1. Read the new file first, so an unreadable one leaves the current image alone
       const image = await prepareImage(file);
 
-      // 2. Intermediate Cleanup: If we already uploaded a file in this session, delete it before uploading the new one
-      if (lastUploadedUrl) {
-        try {
-          const oldRef = ref(storage, lastUploadedUrl);
-          await deleteObject(oldRef);
-          console.log("Cleaned up intermediate file:", lastUploadedUrl);
-        } catch (delErr) {
-          console.warn("Failed to clean up intermediate file (might be already gone or permission issue):", delErr);
-        }
-      }
-
-      // 3. Upload New
+      // 2. Upload New
       // SECURITY UPDATE: We now nest uploads under the user's ID
       const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${image.ext}`;
       const storageRef = ref(storage, `artifacts/${APP_ID}/public/${folder}/${user.uid}/${filename}`);
 
       await uploadBytes(storageRef, image.blob, { contentType: image.type });
       const url = await getDownloadURL(storageRef);
+
+      // 3. Intermediate Cleanup: the image this one replaces was never saved
+      await discardLastUpload();
 
       // 4. Update State
       setLastUploadedUrl(url); // Mark this as the one to delete if they replace it again
@@ -86,7 +89,7 @@ const ImageUploader = React.memo(function ImageUploader({
     } finally {
       setIsUploading(false);
     }
-  }, [user, lastUploadedUrl, folder, position, onImageChanged]);
+  }, [user, discardLastUpload, folder, position, onImageChanged]);
 
   // Pasted links are copied into the user's Storage folder by a Cloud
   // Function (and moderated like an upload); the site only shows hosted images
@@ -100,6 +103,7 @@ const ImageUploader = React.memo(function ImageUploader({
     setIsUploading(true);
     try {
       const url = await importImageFromUrl(urlInput.trim(), folder);
+      await discardLastUpload();
       setLastUploadedUrl(url);
       setPreviewUrl(url);
       onImageChanged(url, position);
@@ -110,7 +114,7 @@ const ImageUploader = React.memo(function ImageUploader({
     } finally {
       setIsUploading(false);
     }
-  }, [urlInput, user, folder, position, onImageChanged]);
+  }, [urlInput, user, discardLastUpload, folder, position, onImageChanged]);
 
   // --- Drag Logic (Unified Mouse & Touch) ---
   const handleStart = useCallback((clientX, clientY) => {

@@ -4,6 +4,7 @@ import ImageUploader from '@/components/ImageUploader';
 import { useGame } from '@/context/GameContext';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '@/lib/firebase';
+import { importImageFromUrl } from '@/lib/imageUrls';
 
 // Mocks
 jest.mock('@/context/GameContext', () => ({
@@ -19,6 +20,11 @@ jest.mock('firebase/storage', () => ({
 
 jest.mock('@/lib/firebase', () => ({
   storage: { app: {} }, // minimal mock
+}));
+
+jest.mock('@/lib/imageUrls', () => ({
+  ...jest.requireActual('@/lib/imageUrls'),
+  importImageFromUrl: jest.fn(),
 }));
 
 jest.mock('@/lib/constants', () => ({
@@ -278,6 +284,57 @@ describe('ImageUploader', () => {
       await choose(container, new File(['c'], 'b.heic', { type: 'image/heic' }));
       expect(deleteObject).not.toHaveBeenCalled();
       expect(uploadBytes).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('imports by link', () => {
+    const importLink = async (link) => {
+      await act(async () => { fireEvent.click(screen.getByText('Image URL')); });
+      fireEvent.change(screen.getByLabelText('Image URL'), { target: { value: link } });
+      await act(async () => { fireEvent.click(screen.getByText('Add')); });
+    };
+
+    beforeEach(() => { jest.spyOn(window, 'alert').mockImplementation(() => {}); });
+
+    it('deletes an earlier import it replaces', async () => {
+      importImageFromUrl.mockResolvedValueOnce('import1').mockResolvedValueOnce('import2');
+      render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await importLink('https://example.com/a.jpg');
+      expect(deleteObject).not.toHaveBeenCalled();
+      await importLink('https://example.com/b.jpg');
+      expect(ref).toHaveBeenCalledWith(storage, 'import1');
+      expect(deleteObject).toHaveBeenCalledTimes(1);
+      expect(mockOnImageChanged).toHaveBeenLastCalledWith('import2', 'center');
+    });
+
+    it('deletes an earlier file upload it replaces', async () => {
+      setupFileMocks();
+      getDownloadURL.mockResolvedValueOnce('upload1');
+      importImageFromUrl.mockResolvedValueOnce('import1');
+      const { container } = render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await act(async () => {
+        fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [new File(['c'], 'a.png', { type: 'image/png' })] } });
+      });
+      await waitFor(() => expect(uploadBytes).toHaveBeenCalled());
+      await importLink('https://example.com/b.jpg');
+      expect(ref).toHaveBeenCalledWith(storage, 'upload1');
+      expect(deleteObject).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the earlier image when the import fails', async () => {
+      importImageFromUrl.mockResolvedValueOnce('import1').mockRejectedValueOnce(new Error('Could not fetch that image.'));
+      render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await importLink('https://example.com/a.jpg');
+      await importLink('https://example.com/broken.jpg');
+      expect(window.alert).toHaveBeenCalledWith('Could not fetch that image.');
+      expect(deleteObject).not.toHaveBeenCalled();
+    });
+
+    it('never deletes the saved image it started with', async () => {
+      importImageFromUrl.mockResolvedValueOnce('import1');
+      render(<ImageUploader initialUrl="saved-portrait" onImageChanged={mockOnImageChanged} />);
+      await importLink('https://example.com/a.jpg');
+      expect(deleteObject).not.toHaveBeenCalled();
     });
   });
 
