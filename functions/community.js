@@ -16,7 +16,38 @@ function likeDelta(before, after) {
     return 0;
 }
 
-const NOT_FOUND = 5;
+// Recounts a post's likes and moves the author's reputation by however much
+// the count changed. Idempotent: events can be delivered twice or out of
+// order, and a repeat finds the stored likeCount already right and changes
+// nothing (plain increments drifted, even below zero).
+async function recountPostLikes(db, postId) {
+    const postRef = db.doc(`${DATA}/posts/${postId}`);
+    return db.runTransaction(async (tx) => {
+        const [post, likes] = await Promise.all([
+            tx.get(postRef),
+            tx.get(postRef.collection('likes').count())
+        ]);
+        if (!post.exists) return 0; // deleted post: nothing to count against
+
+        const count = likes.data().count;
+        const delta = count - (post.get('likeCount') || 0);
+        if (!delta) return 0;
+
+        // Reputation: the player's total, and the character's shown on its posts
+        const { userId: authorId, characterId } = post.data();
+        const characterRef = authorId && characterId
+            ? db.doc(`artifacts/${APP_ID}/users/${authorId}/characters/${characterId}`)
+            : null;
+        const character = characterRef ? await tx.get(characterRef) : null; // all reads before writes
+
+        tx.update(postRef, { likeCount: count });
+        if (authorId) {
+            tx.set(db.doc(`${DATA}/profiles/${authorId}`), { likesReceived: FieldValue.increment(delta) }, { merge: true });
+            if (character?.exists) tx.update(characterRef, { likesReceived: FieldValue.increment(delta) }); // deleted character: skip
+        }
+        return delta;
+    });
+}
 
 const countPostLikes = onDocumentWritten(
     {
@@ -29,30 +60,7 @@ const countPostLikes = onDocumentWritten(
             event.data?.after.exists ? event.data.after.data() : null);
         if (!delta) return;
 
-        const db = admin.firestore();
-        const postRef = db.doc(`${DATA}/posts/${event.params.postId}`);
-        const post = await postRef.get();
-        if (!post.exists) return; // deleted post: nothing to count against
-
-        try {
-            await postRef.update({ likeCount: FieldValue.increment(delta) });
-        } catch (error) {
-            if (error.code !== NOT_FOUND) throw error;
-            return;
-        }
-        const { userId: authorId, characterId } = post.data();
-        if (authorId) {
-            // Reputation: the player's total, and the character's shown on its posts
-            await db.doc(`${DATA}/profiles/${authorId}`).set({ likesReceived: FieldValue.increment(delta) }, { merge: true });
-            if (characterId) {
-                try {
-                    await db.doc(`artifacts/${APP_ID}/users/${authorId}/characters/${characterId}`)
-                        .update({ likesReceived: FieldValue.increment(delta) });
-                } catch (error) {
-                    if (error.code !== NOT_FOUND) throw error; // deleted character
-                }
-            }
-        }
+        await recountPostLikes(admin.firestore(), event.params.postId);
     }
 );
 
@@ -90,4 +98,4 @@ const updateSiteStats = onSchedule(
     }
 );
 
-module.exports = { countPostLikes, updateSiteStats, likeDelta, computeSiteStats, appCollectionGroup };
+module.exports = { countPostLikes, updateSiteStats, likeDelta, recountPostLikes, computeSiteStats, appCollectionGroup };

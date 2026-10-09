@@ -15,6 +15,14 @@ async function sha256Hex(text) {
     return Array.from(new Uint8Array(bytes)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// What a log's contentHash covers. Codex entries: title, tags, category and
+// content, all moderated together (matches codexModeratedFields() in
+// functions/index.js). Older codex logs hashed the content alone, so they never
+// match and count as "edited since": the safe default.
+const hashedText = (type, data) => (type === 'codex'
+    ? JSON.stringify([data.title || '', Array.isArray(data.tags) ? data.tags : [], data.category || '', data.content || ''])
+    : data.content);
+
 // Admin tool: images that still point at outside hosts (pasted before links
 // were imported into Storage) are hidden on the site. Find them, then import
 // them all into Storage and update every reference (migrateExternalImages).
@@ -87,6 +95,9 @@ function ExternalImagesTool() {
             {state === 'done' && result && (
                 <div className="mt-3 text-sm">
                     <p className="text-emerald-400">Imported {result.imported} image{result.imported === 1 ? '' : 's'} and updated {result.documentsUpdated} document{result.documentsUpdated === 1 ? '' : 's'}.</p>
+                    {result.documentsRemaining > 0 && (
+                        <p className="mt-1 text-gold-400">Ran out of time with {result.documentsRemaining} document{result.documentsRemaining === 1 ? '' : 's'} left. Find external images again to continue where it stopped.</p>
+                    )}
                     {result.failed.length > 0 && (
                         <ul className="mt-2 space-y-1 text-xs text-red-400">
                             {result.failed.map((f) => <li key={f.url} className="truncate">Couldn&apos;t import {f.url}: {f.error}</li>)}
@@ -100,7 +111,7 @@ function ExternalImagesTool() {
 }
 
 export default function ModerationDashboard() {
-    const { user, userRole, loading: authLoading } = useGame();
+    const { user, userRole, roleLoaded, loading: authLoading } = useGame();
     const router = useRouter();
 
     const [posts, setPosts] = useState([]);
@@ -109,12 +120,15 @@ export default function ModerationDashboard() {
     const [contentType, setContentType] = useState('posts'); // posts, codex, images
     const [limitCount, setLimitCount] = useState(50);
 
-    // 1. Access Control
+    // 1. Access Control (the rules enforce it; this only redirects). The role
+    // arrives after the auth state, so wait for it before deciding: on a
+    // refresh userRole is still the default 'user' for a moment.
     useEffect(() => {
-        if (!authLoading && (!user || (userRole !== 'admin' && userRole !== 'moderator'))) {
+        if (authLoading) return;
+        if (!user || (roleLoaded && userRole !== 'admin' && userRole !== 'moderator')) {
             router.push('/');
         }
-    }, [user, userRole, authLoading, router]);
+    }, [user, userRole, roleLoaded, authLoading, router]);
 
     // 2. Data Fetching - ALL CONTENT TYPES NOW USE moderation_logs
     useEffect(() => {
@@ -238,7 +252,7 @@ export default function ModerationDashboard() {
                     if (live.exists() && item.proposedEdit) {
                         contentUpdate = item.proposedEdit;
                     } else if (live.exists() && item.contentHash
-                        && await sha256Hex(live.data().content) !== item.contentHash) {
+                        && await sha256Hex(hashedText(item.type, live.data())) !== item.contentHash) {
                         alert('This content was edited after it was flagged. Review its newer moderation entry instead.');
                         return;
                     }
@@ -333,7 +347,7 @@ export default function ModerationDashboard() {
         }
     };
 
-    if (authLoading || loading) {
+    if (authLoading || (user && !roleLoaded) || loading) {
         return (
             <div className="min-h-screen bg-ink-950 text-ink-200 flex items-center justify-center font-serif">
                 <div className="flex flex-col items-center gap-4">

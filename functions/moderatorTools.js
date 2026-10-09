@@ -3,9 +3,11 @@
 // remove players' images through this function instead.
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
+const { FieldValue } = require("firebase-admin/firestore");
 
 const APP_ID = 'realm-of-allania-v2';
 const PUBLIC_PREFIX = `artifacts/${APP_ID}/public/`;
+const STAFF_ROLES = ['moderator', 'admin'];
 
 // Only files in the public user-upload area may be deleted this way
 function isDeletableImagePath(filePath) {
@@ -15,20 +17,48 @@ function isDeletableImagePath(filePath) {
         && !filePath.split('/').some(part => part === '..' || part === '.' || part === '');
 }
 
+// The uploader's uid for artifacts/<app>/public/<folder>/<uid>/<file>, or
+// null for files outside a player's folder (legacy uploads)
+function imageOwner(filePath) {
+    const parts = filePath.split('/');
+    return parts.length === 6 ? parts[4] : null;
+}
+
+// Whether a caller with `role` may delete this file. Admins may delete any
+// public upload. Moderators may delete players' uploads and their own, but
+// not files in an admin's or another moderator's folder, nor legacy files
+// whose uploader is unknown.
+function canDeleteImage({ role, callerUid, ownerUid, ownerRole }) {
+    if (role === 'admin') return true;
+    if (role !== 'moderator' || !ownerUid) return false;
+    return ownerUid === callerUid || !STAFF_ROLES.includes(ownerRole);
+}
+
+const getRole = async (db, uid) => {
+    const account = await db.doc(`artifacts/${APP_ID}/users/${uid}/settings/account`).get();
+    return account.exists ? (account.data().role || 'user') : 'user';
+};
+
 const deleteUserImage = onCall(
     { region: "us-central1", timeoutSeconds: 30 },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
 
         const db = admin.firestore();
-        const account = await db.doc(`artifacts/${APP_ID}/users/${request.auth.uid}/settings/account`).get();
-        const role = account.exists ? account.data().role : 'user';
-        if (role !== 'moderator' && role !== 'admin') {
+        const callerUid = request.auth.uid;
+        const role = await getRole(db, callerUid);
+        if (!STAFF_ROLES.includes(role)) {
             throw new HttpsError('permission-denied', 'Only moderators can delete player images.');
         }
 
         const { filePath } = request.data || {};
         if (!isDeletableImagePath(filePath)) throw new HttpsError('invalid-argument', 'Invalid image path.');
+
+        const ownerUid = imageOwner(filePath);
+        const ownerRole = ownerUid && ownerUid !== callerUid ? await getRole(db, ownerUid) : null;
+        if (!canDeleteImage({ role, callerUid, ownerUid, ownerRole })) {
+            throw new HttpsError('permission-denied', 'Only an admin can delete this image.');
+        }
 
         try {
             await admin.storage().bucket().file(filePath).delete();
@@ -36,9 +66,22 @@ const deleteUserImage = onCall(
             // Already gone is fine: the goal is that it no longer exists
             if (error.code !== 404) throw new HttpsError('internal', 'Could not delete the image.');
         }
-        console.log(`[Moderator] ${request.auth.uid} (${role}) deleted image ${filePath}`);
+
+        // Audit trail. Its own type, so it doesn't show up as an image to review
+        await db.collection(`artifacts/${APP_ID}/public/data/moderation_logs`).add({
+            type: 'image_deletion',
+            filePath,
+            userId: ownerUid,
+            ownerRole,
+            deletedBy: callerUid,
+            deletedByRole: role,
+            status: 'deleted',
+            moderationMethod: 'manual-admin',
+            timestamp: FieldValue.serverTimestamp()
+        });
+        console.log(`[Moderator] ${callerUid} (${role}) deleted image ${filePath}`);
         return { deleted: true };
     }
 );
 
-module.exports = { deleteUserImage, isDeletableImagePath };
+module.exports = { deleteUserImage, isDeletableImagePath, imageOwner, canDeleteImage };

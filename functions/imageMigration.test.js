@@ -7,7 +7,7 @@ jest.mock('firebase-functions/v2/https', () => ({
     }
 }));
 
-const { findExternalImages, rewriteFields, isExternalImageUrl } = require('./imageMigration');
+const { findExternalImages, rewriteFields, isExternalImageUrl, importAndRewrite } = require('./imageMigration');
 
 const BUCKET = 'realm.firebasestorage.app';
 const hosted = `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/a.jpg?alt=media`;
@@ -68,5 +68,97 @@ describe('rewriteFields', () => {
 
     it('leaves out fields whose images failed to import', () => {
         expect(rewriteFields({ bannerUrl: 'https://ex.com/dead.jpg' }, ['bannerUrl'], mapping)).toEqual({});
+    });
+});
+
+describe('importAndRewrite', () => {
+    const ext = (name) => `https://ex.com/${name}`;
+    const stored = (name) => `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${name}`;
+
+    // Fake Firestore: documents by path, with every call recorded in order
+    function setup(docs) {
+        const events = [];
+        const db = {
+            doc: (path) => ({
+                get: async () => ({ exists: path in docs, data: () => docs[path] }),
+                update: async (update) => {
+                    events.push(`update ${path}`);
+                    docs[path] = { ...docs[path], ...update };
+                }
+            })
+        };
+        const importImage = jest.fn(async (img) => {
+            events.push(`import ${img.url}`);
+            if (img.url.includes('dead')) throw new Error('404');
+            return stored(img.url.split('/').pop());
+        });
+        return { db, events, importImage };
+    }
+    const imagesFor = (refs) => new Map(refs.map((r) => [r.url, { url: r.url, folder: r.folder, owner: r.owner }]));
+
+    it('rewrites each document as soon as its images are imported', async () => {
+        const docs = {
+            't/1': { bannerUrl: ext('a.jpg') },
+            't/2': { bannerUrl: ext('b.jpg') }
+        };
+        const refs = [
+            { path: 't/1', field: 'bannerUrl', url: ext('a.jpg'), folder: 'thread_banners', owner: 'u1' },
+            { path: 't/2', field: 'bannerUrl', url: ext('b.jpg'), folder: 'thread_banners', owner: 'u2' }
+        ];
+        const { db, events, importImage } = setup(docs);
+        const result = await importAndRewrite({ db, refs, images: imagesFor(refs), importImage });
+
+        expect(events).toEqual([`import ${ext('a.jpg')}`, 'update t/1', `import ${ext('b.jpg')}`, 'update t/2']);
+        expect(docs['t/1'].bannerUrl).toBe(stored('a.jpg'));
+        expect(result).toEqual({ imported: 2, failed: [], documentsUpdated: 2, documentsRemaining: 0 });
+    });
+
+    it('imports a shared image once and reports failures', async () => {
+        const docs = {
+            'p/1': { content: `![x](${ext('a.jpg')}) ![y](${ext('dead.jpg')})` },
+            'p/2': { content: `![x](${ext('a.jpg')})` }
+        };
+        const refs = [
+            { path: 'p/1', field: 'content', url: ext('a.jpg'), folder: 'uploads', owner: 'u1' },
+            { path: 'p/1', field: 'content', url: ext('dead.jpg'), folder: 'uploads', owner: 'u1' },
+            { path: 'p/2', field: 'content', url: ext('a.jpg'), folder: 'uploads', owner: 'u2' }
+        ];
+        const { db, importImage } = setup(docs);
+        const result = await importAndRewrite({ db, refs, images: imagesFor(refs), importImage });
+
+        expect(importImage).toHaveBeenCalledTimes(2);
+        expect(docs['p/1'].content).toBe(`![x](${stored('a.jpg')}) ![y](${ext('dead.jpg')})`);
+        expect(docs['p/2'].content).toBe(`![x](${stored('a.jpg')})`);
+        expect(result.failed).toEqual([{ url: ext('dead.jpg'), error: '404' }]);
+    });
+
+    it('stops at the deadline, keeping what is done for the next run', async () => {
+        const docs = { 't/1': { bannerUrl: ext('a.jpg') }, 't/2': { bannerUrl: ext('b.jpg') } };
+        const refs = [
+            { path: 't/1', field: 'bannerUrl', url: ext('a.jpg'), folder: 'thread_banners', owner: 'u1' },
+            { path: 't/2', field: 'bannerUrl', url: ext('b.jpg'), folder: 'thread_banners', owner: 'u2' }
+        ];
+        const { db, importImage } = setup(docs);
+        let clock = 0;
+        const now = () => clock;
+        importImage.mockImplementation(async (img) => { clock += 100; return stored(img.url.split('/').pop()); });
+        const result = await importAndRewrite({ db, refs, images: imagesFor(refs), importImage, deadline: 50, now });
+
+        expect(docs['t/1'].bannerUrl).toBe(stored('a.jpg'));
+        expect(docs['t/2'].bannerUrl).toBe(ext('b.jpg'));
+        expect(result).toMatchObject({ imported: 1, documentsUpdated: 1, documentsRemaining: 1 });
+    });
+
+    it('skips documents deleted or changed since the scan', async () => {
+        const docs = { 't/2': { bannerUrl: 'https://firebasestorage.googleapis.com/new.jpg' } };
+        const refs = [
+            { path: 't/1', field: 'bannerUrl', url: ext('a.jpg'), folder: 'thread_banners', owner: 'u1' },
+            { path: 't/2', field: 'bannerUrl', url: ext('b.jpg'), folder: 'thread_banners', owner: 'u2' }
+        ];
+        const { db, events, importImage } = setup(docs);
+        const result = await importAndRewrite({ db, refs, images: imagesFor(refs), importImage });
+
+        expect(events.filter((e) => e.startsWith('update'))).toEqual([]);
+        expect(result.documentsUpdated).toBe(0);
     });
 });

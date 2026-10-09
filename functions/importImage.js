@@ -25,6 +25,24 @@ const IMAGE_TYPES = {
     'image/webp': { ext: 'webp', magic: (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' }
 };
 
+// The eight 16-bit groups of an IPv6 address ("::" expanded, a trailing
+// dotted IPv4 part converted, any "%zone" dropped)
+function ipv6Groups(address) {
+    let addr = address.toLowerCase().split('%')[0];
+    const v4 = addr.match(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+    if (v4) {
+        const [a, b, c, d] = v4.slice(1).map(Number);
+        addr = `${addr.slice(0, v4.index)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+    }
+    const [head, tail] = addr.includes('::') ? addr.split('::') : [addr, null];
+    const h = head ? head.split(':') : [];
+    const t = tail ? tail.split(':') : [];
+    const fill = tail === null ? [] : Array(8 - h.length - t.length).fill('0');
+    return [...h, ...fill, ...t].map((g) => parseInt(g, 16));
+}
+
+const embeddedIPv4 = (hi, lo) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+
 // True for addresses a server-side fetch must never reach: loopback, private
 // networks, link-local (incl. the 169.254.169.254 metadata server), CGNAT,
 // multicast/reserved, and their IPv6 / IPv4-mapped equivalents.
@@ -40,18 +58,31 @@ function isBlockedAddress(address) {
             || (a === 198 && (b === 18 || b === 19));
     }
     if (net.isIPv6(address)) {
-        const lower = address.toLowerCase();
-        const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-        if (mapped) return isBlockedAddress(mapped[1]);
-        return lower === '::' || lower === '::1'
-            || /^f[cd]/.test(lower)        // unique local fc00::/7
-            || /^fe[89ab]/.test(lower)     // link-local fe80::/10
-            || /^ff/.test(lower)           // multicast
-            || /^64:ff9b:/.test(lower)     // NAT64
-            || /^2001:db8:/.test(lower);   // documentation
+        // Compared as numbers, so "::ffff:a9fe:a9fe" and "::ffff:169.254.169.254"
+        // (or "0:0:0:0:0:0:0:1" and "::1") get the same answer
+        const g = ipv6Groups(address);
+        const zeros = (n) => g.slice(0, n).every((v) => v === 0);
+        // IPv4-mapped ::ffff:0:0/96 and IPv4-translated ::ffff:0:0:0/96
+        if (zeros(5) && g[5] === 0xffff) return isBlockedAddress(embeddedIPv4(g[6], g[7]));
+        if (zeros(4) && g[4] === 0xffff && g[5] === 0) return isBlockedAddress(embeddedIPv4(g[6], g[7]));
+        // 6to4 2002::/16 carries an IPv4 address in its next 32 bits
+        if (g[0] === 0x2002) return isBlockedAddress(embeddedIPv4(g[1], g[2]));
+        return g[0] === 0                          // ::, ::1, IPv4-compatible, reserved ::/16
+            || (g[0] === 0x100 && g[1] === 0 && g[2] === 0 && g[3] === 0) // discard 100::/64
+            || (g[0] & 0xfe00) === 0xfc00          // unique local fc00::/7 (incl. metadata fd00:ec2::254, fd20:ce::254)
+            || (g[0] & 0xffc0) === 0xfe80          // link-local fe80::/10
+            || (g[0] & 0xffc0) === 0xfec0          // site-local fec0::/10 (deprecated)
+            || (g[0] & 0xff00) === 0xff00          // multicast
+            || (g[0] === 0x64 && g[1] === 0xff9b)  // NAT64 64:ff9b::/96 and 64:ff9b:1::/48
+            || (g[0] === 0x2001 && g[1] === 0)     // Teredo 2001::/32
+            || (g[0] === 0x2001 && g[1] === 0xdb8); // documentation
     }
     return true;
 }
+
+// URL.hostname keeps the brackets of an IPv6 literal ("[::1]"), which
+// net.isIP() doesn't recognise
+const bareHost = (hostname) => hostname.replace(/^\[(.*)\]$/, '$1');
 
 // DNS lookup used for the actual connection, so a hostname that resolves to
 // a public address during a check and a private one at connect time (DNS
@@ -78,7 +109,10 @@ function parseImageUrl(raw) {
     if (url.protocol !== 'https:') throw new HttpsError('invalid-argument', 'Only https:// image links are supported.');
     if (url.username || url.password) throw new HttpsError('invalid-argument', 'Links with credentials are not allowed.');
     if (url.port && url.port !== '443') throw new HttpsError('invalid-argument', 'Only standard https links are supported.');
-    if (net.isIP(url.hostname) && isBlockedAddress(url.hostname)) {
+    // Node never calls the custom `lookup` for IP literals, so they are
+    // checked here, on the first URL and on every redirect target alike
+    const host = bareHost(url.hostname);
+    if (net.isIP(host) && isBlockedAddress(host)) {
         throw new HttpsError('invalid-argument', 'That address is not allowed.');
     }
     return url;
@@ -88,6 +122,11 @@ function parseImageUrl(raw) {
 // body, refusing anything that isn't a supported image or is over the size cap.
 function download(url, redirectsLeft = MAX_REDIRECTS) {
     return new Promise((resolve, reject) => {
+        try {
+            parseImageUrl(url.toString());
+        } catch (e) {
+            return reject(e);
+        }
         const req = https.get(url, {
             lookup: safeLookup,
             timeout: REQUEST_TIMEOUT_MS,

@@ -49,16 +49,28 @@ const syncCharacter = onDocumentWritten(
 
         // Scoped to this user's documents, so a forged characterId elsewhere
         // can't be rewritten through someone else's character
-        const [posts, threads, codexPages] = await Promise.all([
+        const [posts, threads, lastPostThreads, codexPages] = await Promise.all([
             db.collection(`${data}/posts`).where('userId', '==', userId).where('characterId', '==', charId).get(),
             db.collection(`${data}/threads`).where('creatorId', '==', userId).where('characterId', '==', charId).get(),
+            // Threads whose latest reply ("last post by") is this character's
+            db.collection(`${data}/threads`).where('lastPostUserId', '==', userId).where('lastPostCharacterId', '==', charId).get(),
             after ? null : db.collection(`${data}/codex_pages`).where('creatorId', '==', userId).where('relatedId', '==', charId).get()
         ]);
+
+        // One update per thread, also when the character both started it and
+        // posted last
+        const threadUpdates = new Map();
+        const addThreadUpdate = (doc, fields) => {
+            const pending = threadUpdates.get(doc.ref.path);
+            threadUpdates.set(doc.ref.path, { ref: doc.ref, fields: { ...pending?.fields, ...fields } });
+        };
+        threads.forEach(doc => addThreadUpdate(doc, { createdBy: postFields.characterName }));
+        lastPostThreads.forEach(doc => addThreadUpdate(doc, { lastPostBy: postFields.characterName }));
 
         // BulkWriter batches, parallelises and retries, with no 500-write limit
         const writer = db.bulkWriter();
         posts.forEach(doc => writer.update(doc.ref, postFields));
-        threads.forEach(doc => writer.update(doc.ref, { createdBy: postFields.characterName }));
+        threadUpdates.forEach(({ ref, fields }) => writer.update(ref, fields));
         // A deleted character's profile page is kept as archived lore
         codexPages?.forEach(doc => {
             const archived = { title: `[Archived] ${before.name}`, category: 'Lore' };
@@ -73,7 +85,7 @@ const syncCharacter = onDocumentWritten(
         await writer.close();
 
         console.log(`[Character] ${after ? 'Updated' : 'Deleted'} ${userId}/${charId}: ` +
-            `${posts.size} posts, ${threads.size} threads, ${codexPages?.size ?? 0} codex pages`);
+            `${posts.size} posts, ${threadUpdates.size} threads, ${codexPages?.size ?? 0} codex pages`);
     }
 );
 

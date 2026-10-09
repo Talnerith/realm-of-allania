@@ -1,6 +1,7 @@
 // One-time (re-runnable) admin tool: finds images that still point at outside
 // hosts (pasted before pasted links were imported) and copies them into
-// Storage, then rewrites every reference. The site only displays
+// Storage, rewriting each document's references as soon as its images are
+// in (so an interrupted run loses nothing). The site only displays
 // Storage-hosted images, so these were hidden until migrated. Imported files
 // go through moderateImage like any upload.
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
@@ -53,7 +54,8 @@ function findExternalImages(docs, bucketName) {
 }
 
 // The Firestore update for one document: each listed field with imported
-// URLs swapped in. Fields whose images all failed to import are left out.
+// URLs swapped in. Fields whose images all failed to import, or that no
+// longer hold what they did when scanned, are left out.
 function rewriteFields(data, fields, mapping) {
     const swap = (u) => (mapping.has(u) ? mapping.get(u) : u);
     const swapText = (t) => t.replace(MD_IMAGE, (m, u) => (mapping.has(u) ? m.replace(u, mapping.get(u)) : m));
@@ -62,10 +64,61 @@ function rewriteFields(data, fields, mapping) {
     for (const field of new Set(fields)) {
         const value = get(field);
         const leaf = field.split('.').pop();
+        if (leaf === 'gallery' ? !Array.isArray(value) : typeof value !== 'string') continue;
         const next = leaf === 'gallery' ? value.map(swap) : leaf === 'content' ? swapText(value) : swap(value);
         if (JSON.stringify(next) !== JSON.stringify(value)) update[field] = next;
     }
     return update;
+}
+
+// Stops starting new work this long into the 540s run, so the call returns a
+// summary instead of timing out; running it again picks up the rest
+const TIME_BUDGET_MS = 450 * 1000;
+
+// Imports the images document by document and rewrites each document as soon
+// as its images are in Storage, so a run cut short keeps everything done so
+// far and a re-run (which scans again) only sees what is left.
+async function importAndRewrite({ db, refs, images, importImage, deadline = Infinity, now = Date.now }) {
+    const byPath = new Map();
+    for (const ref of refs) byPath.set(ref.path, [...(byPath.get(ref.path) ?? []), ref]);
+
+    const mapping = new Map();
+    const failed = [];
+    const failedUrls = new Set();
+    let documentsUpdated = 0;
+    let documentsRemaining = 0;
+    for (const [path, docRefs] of byPath) {
+        if (now() > deadline) {
+            documentsRemaining += 1;
+            continue;
+        }
+        let complete = true;
+        for (const { url } of docRefs) {
+            if (mapping.has(url) || failedUrls.has(url)) continue;
+            if (now() > deadline) {
+                complete = false; // rewrite what is in, leave the rest for the next run
+                break;
+            }
+            const img = images.get(url);
+            try {
+                mapping.set(url, await importImage(img));
+            } catch (error) {
+                failedUrls.add(url);
+                failed.push({ url, error: error.message });
+            }
+        }
+        if (!complete) documentsRemaining += 1;
+        // Re-read: the document may have been edited while images imported
+        const docRef = db.doc(path);
+        const snap = await docRef.get();
+        if (!snap.exists) continue;
+        const update = rewriteFields(snap.data(), docRefs.map((r) => r.field), mapping);
+        if (Object.keys(update).length) {
+            await docRef.update(update);
+            documentsUpdated += 1;
+        }
+    }
+    return { imported: mapping.size, failed, documentsUpdated, documentsRemaining };
 }
 
 async function scanDocuments(db, adminUid) {
@@ -93,6 +146,7 @@ const migrateExternalImages = onCall(
     { region: "us-central1", timeoutSeconds: 540, memory: "512MiB" },
     async (request) => {
         if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+        const deadline = Date.now() + TIME_BUDGET_MS;
         const db = admin.firestore();
         const account = await db.doc(`artifacts/${APP_ID}/users/${request.auth.uid}/settings/account`).get();
         if (!account.exists || account.data().role !== 'admin') {
@@ -115,33 +169,18 @@ const migrateExternalImages = onCall(
         const summary = [...images.values()].map(({ url, uses, places }) => ({ url, uses, places: [...places] }));
         if (dryRun) return { dryRun: true, images: summary };
 
-        const mapping = new Map();
-        const failed = [];
-        for (const img of images.values()) {
-            try {
-                mapping.set(img.url, await storeImage(await fetchImage(img.url), img.folder, img.owner));
-            } catch (error) {
-                failed.push({ url: img.url, error: error.message });
-            }
-        }
+        const result = await importAndRewrite({
+            db,
+            refs,
+            images,
+            importImage: async (img) => storeImage(await fetchImage(img.url), img.folder, img.owner),
+            deadline
+        });
 
-        const byPath = new Map();
-        for (const ref of refs) byPath.set(ref.path, [...(byPath.get(ref.path) ?? []), ref.field]);
-        const dataByPath = new Map(docs.map((d) => [d.path, d.data]));
-        const writer = db.bulkWriter();
-        let documentsUpdated = 0;
-        for (const [path, fields] of byPath) {
-            const update = rewriteFields(dataByPath.get(path), fields, mapping);
-            if (Object.keys(update).length) {
-                writer.update(db.doc(path), update);
-                documentsUpdated += 1;
-            }
-        }
-        await writer.close();
-
-        console.log(`[Image Migration] ${request.auth.uid}: ${mapping.size} imported, ${failed.length} failed, ${documentsUpdated} documents updated`);
-        return { dryRun: false, imported: mapping.size, failed, documentsUpdated };
+        console.log(`[Image Migration] ${request.auth.uid}: ${result.imported} imported, ${result.failed.length} failed, ` +
+            `${result.documentsUpdated} documents updated, ${result.documentsRemaining} left for another run`);
+        return { dryRun: false, ...result };
     }
 );
 
-module.exports = { migrateExternalImages, findExternalImages, rewriteFields, isExternalImageUrl };
+module.exports = { migrateExternalImages, findExternalImages, rewriteFields, isExternalImageUrl, importAndRewrite };
