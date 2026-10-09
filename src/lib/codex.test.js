@@ -1,4 +1,4 @@
-import { parseCodexContent, sectionForCategory, cleanCodexTags, codexTagStyle } from '@/lib/codex';
+import { parseCodexContent, sectionForCategory, cleanCodexTags, codexTagStyle, newPageTemplate, stripEmptyFacts } from '@/lib/codex';
 
 jest.mock('@/lib/artAssets', () => ({
   CODEX_ART: {
@@ -63,5 +63,31 @@ describe('parseCodexContent', () => {
     const auto = parseCodexContent('**Race:** Elf\n**Class:** Druid\n\nTracker of the Silverwood.');
     expect(auto.facts).toHaveLength(2);
     expect(auto.paragraphs).toEqual(['Tracker of the Silverwood.']);
+  });
+});
+
+describe('newPageTemplate', () => {
+  it('starts Characters and Locations with their blank fact lines', () => {
+    expect(newPageTemplate('Characters')).toBe('**Race:** \n**Class:** \n\n');
+    expect(newPageTemplate('Regions')).toBe('**Region:** \n**Type:** \n**Governance:** \n\n');
+  });
+
+  it('gives History pages no template', () => {
+    expect(newPageTemplate('History')).toBe('');
+  });
+});
+
+describe('stripEmptyFacts', () => {
+  it('drops fact lines left blank and keeps filled ones', () => {
+    expect(stripEmptyFacts('**Region:** Faithlan\n**Type:** \n**Governance:**\n\nText here.')).toBe('**Region:** Faithlan\n\nText here.');
+  });
+
+  it('leaves a page with no template untouched', () => {
+    const text = 'Plain lore with **bold** words.\n\nMore.';
+    expect(stripEmptyFacts(text)).toBe(text);
+  });
+
+  it('turns an untouched template into nothing', () => {
+    expect(stripEmptyFacts(newPageTemplate('Locations')).trim()).toBe('');
   });
 });

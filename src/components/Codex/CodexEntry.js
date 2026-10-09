@@ -12,7 +12,7 @@ import { timeAgo } from '@/lib/utils';
 import { hostedImageUrl } from '@/lib/imageUrls';
 import {
     CODEX_SECTIONS, sectionForCategory, parseCodexContent, cleanCodexTags, codexTagStyle,
-    MAX_CODEX_TAGS, MAX_CODEX_TAG_LENGTH
+    MAX_CODEX_TAGS, MAX_CODEX_TAG_LENGTH, newPageTemplate, stripEmptyFacts
 } from '@/lib/codex';
 import { useProfile, authorName } from '@/lib/profiles';
 import useCodexPages from '@/hooks/useCodexPages';
@@ -29,6 +29,18 @@ const labelCls = 'text-xs uppercase tracking-widest text-ink-400';
 
 const FACT_ICONS = { race: PersonStanding, class: Swords, region: MapIcon, type: Castle, governance: Crown };
 const factIcon = (label) => FACT_ICONS[label.toLowerCase()] || Gem;
+
+// Longest opening paragraph shown as the blurb (about two sentences)
+const BLURB_MAX = 320;
+
+// The entry's short summary beside its facts: an italic note with a gold edge
+function Blurb({ content, onWikiLink }) {
+    return (
+        <div className="min-w-0 flex-[1_1_16rem] border-l-2 border-gold-700 bg-ink-900/40 rounded-r px-5 py-4">
+            <RichText content={content} className="font-serif italic text-lg md:text-xl leading-snug text-(color:--story)" onWikiLink={onWikiLink} />
+        </div>
+    );
+}
 
 const thumbOf = (page) => hostedImageUrl(page?.imageUrl) || hostedImageUrl((page?.gallery || [])[0]);
 
@@ -75,7 +87,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
     const [category, setCategory] = useState(page.category || 'Characters');
     const [tags, setTags] = useState(cleanCodexTags(page.tags));
     const [customTag, setCustomTag] = useState('');
-    const [content, setContent] = useState(page.content || '');
+    const [content, setContent] = useState(page.content || (page.isNew ? newPageTemplate(page.category) : ''));
     const [gallery, setGallery] = useState(page.gallery || []);
     const [portrait, setPortrait] = useState({ url: page.imageUrl || '', position: page.imagePosition || 'center' });
     const [error, setError] = useState('');
@@ -112,7 +124,11 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
     // History: none); Quick Facts lists them all
     const keyFacts = parsed.facts.slice(0, section.keyFacts);
     const quickFacts = parsed.facts;
-    const [summary, ...bodyParas] = parsed.paragraphs.length > 1 ? parsed.paragraphs : ['', ...parsed.paragraphs];
+    // A short opening paragraph is the entry's blurb, set apart beside the
+    // facts; a longer one simply starts the text (with the drop cap)
+    const [opening = '', ...rest] = parsed.paragraphs;
+    const summary = opening.length <= BLURB_MAX ? opening : '';
+    const bodyParas = summary ? rest : parsed.paragraphs;
     const portraitUrl = hostedImageUrl(localPage.imageUrl) || hostedImageUrl((localPage.gallery || [])[0]);
     const viewGallery = (localPage.gallery || []).map(hostedImageUrl).filter(Boolean);
 
@@ -120,7 +136,8 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
         setError('');
         if (!user) return setError("You must be signed in to save.");
         if (!title.trim() || title.trim().length < 3) return setError("Title must be at least 3 characters.");
-        if (!content.trim() || content.length < 10) return setError("Content must be at least 10 characters.");
+        const text = stripEmptyFacts(content);
+        if (!text.trim() || text.length < 10) return setError("Content must be at least 10 characters.");
         if (gallery.length > 5) return setError("Gallery cannot exceed 5 images.");
 
         // Everything but mod edits is checked by the moderation function first
@@ -129,7 +146,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
         const status = isAdminOrMod ? 'approved' : 'pending';
 
         const pageData = {
-            title: title.trim(), category, tags: cleanCodexTags(tags), content, gallery,
+            title: title.trim(), category, tags: cleanCodexTags(tags), content: text, gallery,
             imageUrl: portrait.url || '', imagePosition: portrait.position || 'center',
             updatedAt: serverTimestamp(),
             updatedBy: characters.find(c => c.id === activeCharId)?.name || 'Anonymous',
@@ -439,7 +456,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                                 {(keyFacts.length > 0 || summary) && (
                                     <div className="flex flex-wrap gap-6 items-start">
                                         {keyFacts.length > 0 && (
-                                            <dl className={`flex flex-col gap-4 shrink-0 ${summary ? 'pr-6 border-r border-ink-800' : ''}`}>
+                                            <dl className="flex flex-col gap-4 shrink-0">
                                                 {keyFacts.map(f => {
                                                     const Icon = factIcon(f.label);
                                                     return (
@@ -456,15 +473,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                                                 })}
                                             </dl>
                                         )}
-                                        {summary && (
-                                            <div className="flex flex-col gap-4 min-w-0 flex-[1_1_14rem]">
-                                                <RichText content={summary} className="text-base text-ink-100" onWikiLink={onWikiLink} />
-                                                <svg viewBox="0 0 240 10" aria-hidden="true" preserveAspectRatio="none" className="w-full h-2.5">
-                                                    <path d="M0 5h112M128 5h112" stroke="var(--color-gold-900)" strokeWidth="1" />
-                                                    <path d="M120 1.5l3.5 3.5-3.5 3.5-3.5-3.5z" fill="var(--color-ink-950)" stroke="var(--color-gold-600)" strokeWidth="1" />
-                                                </svg>
-                                            </div>
-                                        )}
+                                        {summary && <Blurb content={summary} onWikiLink={onWikiLink} />}
                                     </div>
                                 )}
                                 {!sideBySide && portraitEl}

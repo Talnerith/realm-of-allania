@@ -11,6 +11,7 @@ export const CODEX_SECTIONS = [
     banner: CODEX_ART.characters.banner,
     portraitSide: 'right',
     keyFacts: 2, // Race, Class
+    templateFacts: ['Race', 'Class'],
   },
   {
     id: 'locations', title: 'Locations', tagline: 'Cities, regions, and places across Allania.',
@@ -19,6 +20,7 @@ export const CODEX_SECTIONS = [
     banner: CODEX_ART.locations.banner,
     portraitSide: 'right',
     keyFacts: 3, // Region, Type, Governance
+    templateFacts: ['Region', 'Type', 'Governance'],
   },
   {
     id: 'history', title: 'History', tagline: 'Faiths, events, and the shaping of the world.',
@@ -40,6 +42,16 @@ export const sectionForCategory = (category) =>
   CODEX_SECTIONS.find(s => s.categories.includes(category)) || CODEX_SECTIONS[2];
 
 export const sectionById = (id) => CODEX_SECTIONS.find(s => s.id === id) || CODEX_SECTIONS[0];
+
+// A new page starts with its section's fact lines, blank, to fill in
+export function newPageTemplate(category) {
+  const labels = sectionForCategory(category).templateFacts || [];
+  return labels.length ? `${labels.map(l => `**${l}:** `).join('\n')}\n\n` : '';
+}
+
+// Fact lines left blank (e.g. from the template) are dropped when saving
+export const stripEmptyFacts = (content) =>
+  String(content).replace(/^[ \t]*\*\*[^*:\n]{1,40}:\*\*[ \t]*(?:\r?\n|$)/gm, '');
 
 // Free-text tags get a stable hue from their text
 const HUES = [25, 60, 95, 150, 185, 215, 250, 285, 320, 350];
