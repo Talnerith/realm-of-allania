@@ -44,7 +44,7 @@ describe('GameContext', () => {
     firestore.setDoc.mockResolvedValue();
     firestore.updateDoc.mockResolvedValue();
     fbAuth.onAuthStateChanged.mockImplementation((auth, cb) => {
-      cb({ uid: 'u1', displayName: 'Wanderer', emailVerified: true, email: 'w@example.com' });
+      cb({ uid: 'u1', displayName: 'Wanderer', emailVerified: true, email: 'w@example.com', getIdTokenResult: async () => ({ claims: { email_verified: true } }) });
       return jest.fn();
     });
   });
@@ -85,6 +85,49 @@ describe('GameContext', () => {
     await renderProvider();
     await act(async () => {});
     expect(firestore.setDoc).not.toHaveBeenCalledWith({ path: PROFILE }, expect.anything());
+  });
+
+  describe('verification token refresh', () => {
+    const signInAs = (user) => {
+      fbAuth.onAuthStateChanged.mockImplementation((auth, cb) => { cb(user); return jest.fn(); });
+    };
+    const player = (fields) => ({
+      uid: 'u1', displayName: 'Wanderer', email: 'w@example.com',
+      reload: jest.fn(), getIdToken: jest.fn().mockResolvedValue('fresh'), ...fields,
+    });
+
+    it('refreshes a stale token for a player verified since it was issued', async () => {
+      // On page load the SDK reloads the user but keeps the cached token
+      const user = player({ emailVerified: true, getIdTokenResult: jest.fn().mockResolvedValue({ claims: { email_verified: false } }) });
+      signInAs(user);
+      await renderProvider();
+      expect(user.reload).not.toHaveBeenCalled();
+      expect(user.getIdToken).toHaveBeenCalledWith(true);
+    });
+
+    it('refreshes the token when a reload shows the email was just verified', async () => {
+      const user = player({ emailVerified: false, getIdTokenResult: jest.fn().mockResolvedValue({ claims: { email_verified: false } }) });
+      user.reload.mockImplementation(async () => { user.emailVerified = true; });
+      signInAs(user);
+      await renderProvider();
+      expect(user.getIdToken).toHaveBeenCalledWith(true);
+    });
+
+    it('leaves a current token alone', async () => {
+      const user = player({ emailVerified: true, getIdTokenResult: jest.fn().mockResolvedValue({ claims: { email_verified: true } }) });
+      signInAs(user);
+      await renderProvider();
+      expect(user.getIdToken).not.toHaveBeenCalled();
+    });
+
+    it('does not refresh for a player who is still unverified', async () => {
+      const user = player({ emailVerified: false, getIdTokenResult: jest.fn() });
+      signInAs(user);
+      await renderProvider();
+      expect(user.reload).toHaveBeenCalled();
+      expect(user.getIdTokenResult).not.toHaveBeenCalled();
+      expect(user.getIdToken).not.toHaveBeenCalled();
+    });
   });
 
   it('signup writes the account and the public profile', async () => {

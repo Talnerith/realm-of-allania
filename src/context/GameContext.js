@@ -68,10 +68,16 @@ export function GameProvider({ children }) {
       if (currentUser) {
         // The rules require a verified email in the ID token. A user who just
         // clicked the verification link still has an old token, so refresh it.
-        if (!currentUser.emailVerified && !currentUser.isAnonymous) {
+        // On page load the SDK has already reloaded the user (emailVerified is
+        // true) but keeps the cached token for up to an hour, so compare the
+        // token's own claim rather than the user object.
+        if (!currentUser.isAnonymous) {
           try {
-            await currentUser.reload();
-            if (currentUser.emailVerified) await currentUser.getIdToken(true);
+            if (!currentUser.emailVerified) await currentUser.reload();
+            if (currentUser.emailVerified) {
+              const { claims } = await currentUser.getIdTokenResult();
+              if (claims.email_verified !== true) await currentUser.getIdToken(true);
+            }
           } catch (e) {
             console.warn("Could not refresh verification status:", e);
           }
