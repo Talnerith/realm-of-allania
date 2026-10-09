@@ -49,8 +49,15 @@ const mockDb = {
 };
 const mockFile = {
     getSignedUrl: jest.fn(async () => ['https://signed.example/image.png']),
-    delete: jest.fn(async () => {})
+    delete: jest.fn(async () => {}),
+    getMetadata: jest.fn(async () => [{ metadata: { firebaseStorageDownloadTokens: 'tok-1' } }]),
+    setMetadata: jest.fn(async () => {})
 };
+// The file was hidden: its download token set aside and the held mark set
+const expectHeld = () => expect(mockFile.setMetadata).toHaveBeenCalledWith({
+    metadata: { firebaseStorageDownloadTokens: null, heldDownloadTokens: 'tok-1', moderation: 'held' }
+});
+const notifications = () => mockAdded.filter((a) => a.path.endsWith('/notifications')).map((a) => a.data);
 
 jest.mock('firebase-admin', () => ({
     initializeApp: jest.fn(),
@@ -66,7 +73,10 @@ jest.mock('firebase-admin/firestore', () => ({
     },
     FieldPath: { documentId: jest.fn() }
 }));
-jest.mock('firebase-functions/v2/firestore', () => ({ onDocumentWritten: jest.fn((config, handler) => handler) }));
+jest.mock('firebase-functions/v2/firestore', () => ({
+    onDocumentWritten: jest.fn((config, handler) => handler),
+    onDocumentUpdated: jest.fn((config, handler) => handler)
+}));
 jest.mock('firebase-functions/v2/storage', () => ({ onObjectFinalized: jest.fn((config, handler) => handler) }));
 jest.mock('firebase-functions/v2/scheduler', () => ({ onSchedule: jest.fn((config, handler) => handler) }));
 jest.mock('firebase-functions/v2/https', () => ({
@@ -324,20 +334,45 @@ describe('moderateImage', () => {
         expect(logs()[0]).toMatchObject({ status: 'rejected' });
     });
 
-    it('keeps the image and logs needs_review when both attempts fail', async () => {
+    it('hides the image (without deleting it) for review when both attempts fail', async () => {
         aiReplies(timeoutError(), timeoutError());
         await run();
         expect(global.fetch).toHaveBeenCalledTimes(2);
         expect(mockFile.delete).not.toHaveBeenCalled();
-        expect(logs()).toEqual([expect.objectContaining({ status: 'needs_review', moderationMethod: 'auto-fallback' })]);
+        expectHeld();
+        expect(logs()).toEqual([expect.objectContaining({ status: 'needs_review', moderationMethod: 'auto-fallback', held: true })]);
+        expect(notifications()).toEqual([expect.objectContaining({ type: 'image_held' })]);
     });
 
-    it('keeps the image and logs needs_review over the uploader\'s quota', async () => {
+    it('hides the image for review over the uploader\'s quota', async () => {
         mockStore[quotaPath('u1')] = { windowStart: Date.now(), count: AI_CALLS_PER_HOUR };
         aiReplies('SAFE');
         await run();
         expect(global.fetch).not.toHaveBeenCalled();
         expect(mockFile.delete).not.toHaveBeenCalled();
-        expect(logs()).toEqual([expect.objectContaining({ status: 'needs_review', moderationMethod: 'rate-limit' })]);
+        expectHeld();
+        expect(logs()).toEqual([expect.objectContaining({ status: 'needs_review', moderationMethod: 'rate-limit', held: true })]);
+    });
+
+    it('hides the image for review when the AI reply is unclear', async () => {
+        aiReplies('Probably fine, it looks like a castle');
+        await run();
+        expectHeld();
+        expect(logs()).toEqual([expect.objectContaining({ status: 'needs_review', moderationMethod: 'ai-check', held: true })]);
+    });
+
+    it('leaves an approved image as it is', async () => {
+        aiReplies('SAFE');
+        await run();
+        expect(mockFile.setMetadata).not.toHaveBeenCalled();
+        expect(notifications()).toEqual([]);
+    });
+
+    it('still logs for review if hiding the file fails', async () => {
+        mockFile.setMetadata.mockRejectedValueOnce(new Error('storage down'));
+        aiReplies('Hmm');
+        await run();
+        expect(logs()).toEqual([expect.objectContaining({ status: 'needs_review', held: false })]);
+        expect(notifications()).toEqual([]);
     });
 });

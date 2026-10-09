@@ -1,6 +1,8 @@
 const mockRoles = {};      // uid -> role
 const mockLogs = [];
 const mockDelete = jest.fn(async () => {});
+const mockGetMetadata = jest.fn(async () => [{ contentType: 'image/png', size: '4' }]);
+const mockDownload = jest.fn(async () => [Buffer.from([1, 2, 3, 4])]);
 
 jest.mock('firebase-admin', () => ({
     firestore: jest.fn(() => ({
@@ -12,7 +14,7 @@ jest.mock('firebase-admin', () => ({
         }),
         collection: (path) => ({ add: async (data) => mockLogs.push({ path, data }) })
     })),
-    storage: jest.fn(() => ({ bucket: () => ({ file: () => ({ delete: mockDelete }) }) }))
+    storage: jest.fn(() => ({ bucket: () => ({ file: () => ({ delete: mockDelete, getMetadata: mockGetMetadata, download: mockDownload }) }) }))
 }));
 jest.mock('firebase-admin/firestore', () => ({ FieldValue: { serverTimestamp: () => 'now' } }));
 jest.mock('firebase-functions/v2/https', () => ({
@@ -22,7 +24,7 @@ jest.mock('firebase-functions/v2/https', () => ({
     }
 }));
 
-const { isDeletableImagePath, imageOwner, canDeleteImage, deleteUserImage } = require('./moderatorTools');
+const { isDeletableImagePath, imageOwner, canDeleteImage, deleteUserImage, previewImage } = require('./moderatorTools');
 
 const file = (folder, uid) => `artifacts/realm-of-allania-v2/public/${folder}/${uid}/pic.jpg`;
 
@@ -105,5 +107,37 @@ describe('deleteUserImage', () => {
 
     it('refuses players', async () => {
         await expect(call('player1', file('uploads', 'player1'))).rejects.toMatchObject({ code: 'permission-denied' });
+    });
+});
+
+describe('previewImage', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+        for (const k of Object.keys(mockRoles)) delete mockRoles[k];
+        Object.assign(mockRoles, { mod1: 'moderator', player1: 'user' });
+    });
+    const call = (uid, filePath) => previewImage({ auth: uid ? { uid } : null, data: { filePath } });
+
+    it('gives moderators the image as a data URL (held images have no working link)', async () => {
+        await expect(call('mod1', file('character_portraits', 'player1'))).resolves.toEqual({ dataUrl: 'data:image/png;base64,AQIDBA==' });
+    });
+
+    it('refuses players, guests and paths outside the public uploads', async () => {
+        await expect(call('player1', file('uploads', 'player1'))).rejects.toMatchObject({ code: 'permission-denied' });
+        await expect(call(null, file('uploads', 'player1'))).rejects.toMatchObject({ code: 'unauthenticated' });
+        await expect(call('mod1', 'artifacts/realm-of-allania-v2/private/x.png')).rejects.toMatchObject({ code: 'invalid-argument' });
+        expect(mockDownload).not.toHaveBeenCalled();
+    });
+
+    it('refuses files that are not images or are too large', async () => {
+        mockGetMetadata.mockResolvedValueOnce([{ contentType: 'text/html', size: '10' }]);
+        await expect(call('mod1', file('uploads', 'player1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+        mockGetMetadata.mockResolvedValueOnce([{ contentType: 'image/png', size: String(6 * 1024 * 1024) }]);
+        await expect(call('mod1', file('uploads', 'player1'))).rejects.toMatchObject({ code: 'failed-precondition' });
+    });
+
+    it('says when the image is already gone', async () => {
+        mockGetMetadata.mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }));
+        await expect(call('mod1', file('uploads', 'player1'))).rejects.toMatchObject({ code: 'not-found' });
     });
 });

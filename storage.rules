@@ -16,9 +16,15 @@ service firebase.storage {
       // 2. USER-OWNED FILES (The new secure standard)
       // Matches files inside a user-specific subfolder (e.g. public/character_portraits/USER_ID/image.jpg)
       match /public/{folder}/{userId}/{filename} {
-        
-        // Everyone can view
-        allow read: if true;
+        // Images the AI couldn't clear are held until a moderator decides
+        // (functions/heldImages.js): their download token is set aside, and
+        // these rules stop anyone minting a new one or removing the mark
+        function isHeld(file) {
+          return file != null && file.metadata != null && file.metadata.get('moderation', '') == 'held';
+        }
+
+        // Everyone can view, except held images
+        allow read: if !isHeld(resource);
 
         // Only the owner of the folder can upload, update, or delete.
         // Uploads need a verified email (like all public content) and must be
@@ -30,6 +36,10 @@ service firebase.storage {
         // role from Firestore; a missing account doc counts as a player.
         allow create, update: if request.auth != null
                       && request.auth.uid == userId
+                      // A held image stays as the moderator will see it, and only
+                      // the moderation pipeline sets the mark
+                      && !isHeld(resource)
+                      && !isHeld(request.resource)
                       && request.auth.token.email_verified == true
                       && !(firestore.exists(/databases/(default)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account)
                            && firestore.get(/databases/(default)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data.get('role', 'user') == 'banned')

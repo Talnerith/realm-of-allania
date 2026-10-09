@@ -7,6 +7,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { useGame } from '@/context/GameContext';
+import ImagePreview from './ImagePreview';
 import { Shield, AlertTriangle, Check, X, Trash2, Filter, ChevronLeft, RefreshCw, Image as ImageIcon, FileText, BookOpen, Trash } from 'lucide-react';
 
 // SHA-256 hex of a string; matches contentHash() in functions/index.js
@@ -518,6 +519,10 @@ export default function ModerationDashboard() {
                                                     <div className="text-xs text-ink-500 mb-1">File Path:</div>
                                     <code className="text-sm break-all">{item.filePath}</code>
                                 </div>
+                                {item.held && item.status === 'needs_review' && (
+                                    <p className="text-xs text-gold-400">Hidden from players until you approve it. Rejecting deletes it.</p>
+                                )}
+                                <ImagePreview filePath={item.filePath} />
                             </div>
                         ) : item.type === 'codex' ? (
                                             <div className="space-y-2">

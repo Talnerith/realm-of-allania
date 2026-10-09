@@ -84,4 +84,36 @@ const deleteUserImage = onCall(
     }
 );
 
-module.exports = { deleteUserImage, isDeletableImagePath, imageOwner, canDeleteImage };
+// The image behind a moderation entry, for the dashboard. Held images have no
+// working URL (see heldImages.js), so the bytes come back as a data: URL,
+// which the site's CSP already allows for images.
+const PREVIEW_MAX_BYTES = 5 * 1024 * 1024; // the upload limit
+const previewImage = onCall(
+    { region: "us-central1", timeoutSeconds: 30, memory: "512MiB" },
+    async (request) => {
+        if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+        const db = admin.firestore();
+        if (!STAFF_ROLES.includes(await getRole(db, request.auth.uid))) {
+            throw new HttpsError('permission-denied', 'Only moderators can preview images.');
+        }
+        const { filePath } = request.data || {};
+        if (!isDeletableImagePath(filePath)) throw new HttpsError('invalid-argument', 'Invalid image path.');
+
+        const file = admin.storage().bucket().file(filePath);
+        let metadata;
+        try {
+            [metadata] = await file.getMetadata();
+        } catch (error) {
+            if (error.code === 404) throw new HttpsError('not-found', 'This image no longer exists.');
+            throw new HttpsError('internal', 'Could not load the image.');
+        }
+        const contentType = metadata.contentType || '';
+        if (!/^image\/(jpeg|png|gif|webp)$/.test(contentType) || Number(metadata.size) > PREVIEW_MAX_BYTES) {
+            throw new HttpsError('failed-precondition', 'This file cannot be previewed.');
+        }
+        const [bytes] = await file.download();
+        return { dataUrl: `data:${contentType};base64,${bytes.toString('base64')}` };
+    }
+);
+
+module.exports = { deleteUserImage, previewImage, isDeletableImagePath, imageOwner, canDeleteImage };

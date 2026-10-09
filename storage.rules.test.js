@@ -3,7 +3,7 @@
 // emulators (the rules read the player's role from Firestore).
 const { assertFails, assertSucceeds, initializeTestEnvironment } = require('@firebase/rules-unit-testing');
 const { doc, setDoc } = require('firebase/firestore');
-const { ref, uploadBytes } = require('firebase/storage');
+const { ref, uploadBytes, getMetadata, updateMetadata, deleteObject } = require('firebase/storage');
 const fs = require('fs');
 
 // Cross-service rules read the Firestore emulator under the emulator's own
@@ -33,6 +33,41 @@ beforeEach(async () => {
   await testEnv.withSecurityRulesDisabled(async (context) => {
     await setDoc(doc(context.firestore(), `artifacts/${APP_ID}/users/p1/settings/account`), { role: 'user' });
     await setDoc(doc(context.firestore(), `artifacts/${APP_ID}/users/exile/settings/account`), { role: 'banned' });
+  });
+});
+
+describe('Held images', () => {
+  const HELD_PATH = `artifacts/${APP_ID}/public/character_portraits/p1/held.png`;
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled((context) => uploadBytes(ref(context.storage(), HELD_PATH), PNG, {
+      contentType: 'image/png', customMetadata: { moderation: 'held' }
+    }));
+  });
+
+  test('nobody can read a held image (so no new download link can be made)', async () => {
+    await assertFails(getMetadata(ref(storageFor('p1'), HELD_PATH)));
+    await assertFails(getMetadata(ref(storageFor('p2'), HELD_PATH)));
+    await assertFails(getMetadata(ref(testEnv.unauthenticatedContext().storage(), HELD_PATH)));
+  });
+
+  test('the owner cannot remove the mark or replace the held file', async () => {
+    await assertFails(updateMetadata(ref(storageFor('p1'), HELD_PATH), { customMetadata: { moderation: '' } }));
+    await assertFails(upload('p1', 'character_portraits/p1/held.png'));
+  });
+
+  test('the owner can still delete it', async () => {
+    await assertSucceeds(deleteObject(ref(storageFor('p1'), HELD_PATH)));
+  });
+
+  test('uploads cannot mark themselves held', async () => {
+    await assertFails(uploadBytes(ref(storageFor('p1'), `artifacts/${APP_ID}/public/character_portraits/p1/self.png`), PNG, {
+      contentType: 'image/png', customMetadata: { moderation: 'held' }
+    }));
+  });
+
+  test('ordinary images stay readable', async () => {
+    await assertSucceeds(upload('p1', 'character_portraits/p1/ok.png'));
+    await assertSucceeds(getMetadata(ref(storageFor('p2'), `artifacts/${APP_ID}/public/character_portraits/p1/ok.png`)));
   });
 });
 

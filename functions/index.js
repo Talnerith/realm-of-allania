@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { FieldValue } = require("firebase-admin/firestore");
 const { validatePostContent } = require("./validation");
 const { updateThreadMeta } = require("./threadMeta");
+const { holdImage } = require("./heldImages");
 
 admin.initializeApp();
 
@@ -862,42 +863,53 @@ exports.moderateImage = onObjectFinalized(
         const db = admin.firestore();
         const storage = admin.storage();
         const userId = extractUserIdFromPath(filePath);
+        const file = storage.bucket(bucket).file(filePath);
 
-        // Every image gets the AI check, trusted uploader or not: images are the
-        // one thing the keyword filter can't screen.
-        const apiKey = openRouterKey.value();
-        
-        // If API key is missing, log for manual review but don't delete the image
-        if (!apiKey) {
-            console.error("[Image Mod] No OpenRouter API Key found - marking for manual review");
+        // Anything short of a clear verdict hides the image until a moderator
+        // decides, like pending text (see heldImages.js)
+        const holdForReview = async (flaggedReason, moderationMethod) => {
+            let held = false;
+            try {
+                await holdImage(file);
+                held = true;
+            } catch (e) {
+                console.error(`[Image Mod] Could not hold ${filePath}:`, e.message);
+            }
             await createModerationLog(db, {
                 type: 'image',
                 filePath: filePath,
                 userId: userId,
                 status: 'needs_review',
-                flaggedReason: 'AI moderation unavailable - requires manual review',
-                moderationMethod: 'auto-fallback'
+                flaggedReason,
+                moderationMethod,
+                held
             });
+            if (held) {
+                await sendNotification(userId, 'image_held',
+                    'Your image is waiting for a moderator to check it. It will appear once approved.',
+                    { contentType: 'image', filePath: filePath });
+            }
+        };
+
+        // Every image gets the AI check, trusted uploader or not: images are the
+        // one thing the keyword filter can't screen.
+        const apiKey = openRouterKey.value();
+
+        if (!apiKey) {
+            console.error("[Image Mod] No OpenRouter API Key found - holding for manual review");
+            await holdForReview('AI moderation unavailable - requires manual review', 'auto-fallback');
             return;
         }
 
         try {
             if (!await consumeAiQuota(db, userId)) {
-                // Over the uploader's hourly limit: keep the image, flag it for a human
+                // Over the uploader's hourly limit: a human decides instead
                 console.warn(`[Image Mod] ${userId} is over the hourly AI moderation limit: ${filePath}`);
-                await createModerationLog(db, {
-                    type: 'image',
-                    filePath: filePath,
-                    userId: userId,
-                    status: 'needs_review',
-                    flaggedReason: AI_QUOTA_REASON,
-                    moderationMethod: 'rate-limit'
-                });
+                await holdForReview(AI_QUOTA_REASON, 'rate-limit');
                 return;
             }
 
             // Get a signed URL for the image
-            const file = storage.bucket(bucket).file(filePath);
             const [url] = await file.getSignedUrl({
                 action: 'read',
                 expires: Date.now() + 15 * 60 * 1000 // 15 minutes
@@ -945,30 +957,15 @@ exports.moderateImage = onObjectFinalized(
                     moderationMethod: 'ai-check'
                 });
             } else {
-                // Ambiguous response: keep the image but flag it for a human
-                console.log(`[Image Mod] Ambiguous AI response, marking needs_review: ${aiResponse}`);
-                await createModerationLog(db, {
-                    type: 'image',
-                    filePath: filePath,
-                    userId: userId,
-                    status: 'needs_review',
-                    flaggedReason: `Unrecognized AI response: ${aiResponse}`,
-                    moderationMethod: 'ai-check'
-                });
+                // Ambiguous response: hidden until a human decides
+                console.log(`[Image Mod] Ambiguous AI response, holding for review: ${aiResponse}`);
+                await holdForReview(`Unrecognized AI response: ${aiResponse}`, 'ai-check');
             }
 
         } catch (error) {
             console.error("[Image Mod] Error:", error.message);
-
-            // Log error for manual review - don't delete the image on error
-            await createModerationLog(db, {
-                type: 'image',
-                filePath: filePath,
-                userId: userId,
-                status: 'needs_review',
-                flaggedReason: `AI moderation failed: ${error.message}`,
-                moderationMethod: 'auto-fallback'
-            });
+            // Never deleted on an error, but hidden until a moderator checks it
+            await holdForReview(`AI moderation failed: ${error.message}`, 'auto-fallback');
         }
     }
 );
@@ -987,6 +984,8 @@ exports.syncCharacter = require('./characterSync').syncCharacter;
 // MODERATOR TOOLS
 // ==========================================
 exports.deleteUserImage = require('./moderatorTools').deleteUserImage;
+exports.previewImage = require('./moderatorTools').previewImage;
+exports.onImageReviewed = require('./heldImages').onImageReviewed;
 exports.migrateExternalImages = require('./imageMigration').migrateExternalImages;
 // Weekly: deletes uploads no document has used for 7+ days
 exports.cleanupOrphanImages = require('./orphanImages').cleanupOrphanImages;
