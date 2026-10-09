@@ -68,7 +68,7 @@ service cloud.firestore {
           && (tags.size() < 3 || isCodexTag(tags[2]));
     }
     // Thread summary fields only Cloud Functions write (from approved posts)
-    function threadServerFields() { return ['excerpt', 'openingPostId', 'lastPostBy', 'lastPostCharacterId', 'lastPostAt', 'views']; }
+    function threadServerFields() { return ['excerpt', 'openingPostId', 'lastPostBy', 'lastPostCharacterId', 'lastPostUserId', 'lastPostAt', 'views']; }
     function isValidCharacter(data) {
       return isShortString(data.name, 60) && data.name.size() >= 1
           && isShortString(data.get('race', ''), 40)
@@ -306,9 +306,13 @@ service cloud.firestore {
                         && request.resource.data.keys().hasOnly(['displayName', 'createdAt'])
                         && isValidDisplayName(request.resource.data.displayName)
                         && request.resource.data.createdAt == request.time;
+          // The author picture is an upload in the player's own Storage folder
+          // (checked by moderateImage); the site only renders hosted images
           allow update: if isOwner(userId) && !isBanned()
-                        && changedKeys().hasOnly(['displayName'])
-                        && isValidDisplayName(request.resource.data.displayName);
+                        && changedKeys().hasOnly(['displayName', 'avatarUrl', 'avatarPosition'])
+                        && isValidDisplayName(request.resource.data.displayName)
+                        && isShortString(request.resource.data.get('avatarUrl', ''), 2048)
+                        && isShortString(request.resource.data.get('avatarPosition', 'center'), 40);
           allow delete: if isAdmin();
         }
 

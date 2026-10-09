@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { Clock, ChevronDown } from 'lucide-react';
 import { timeAgo, plainText } from '@/lib/utils';
+import Avatar from '@/components/Avatar';
 
 const MAX_ITEMS = 6;
 
@@ -28,9 +29,7 @@ function ActivityPanel({ character, activity, onOpenThread, onMarkAllRead, showE
           {items.map(a => (
             <li key={a.id}>
               <button type="button" onClick={() => onOpenThread(a.thread)} className="w-full text-left flex gap-3 rounded-lg p-2 hover:bg-ink-800 transition-colors">
-                <div className="w-8 h-8 rounded-full bg-ink-800 border border-gold-900/50 flex items-center justify-center font-serif font-bold text-gold-300 shrink-0" aria-hidden="true">
-                  {a.by.charAt(0)}
-                </div>
+                <Avatar name={a.by} imageUrl={a.image} imagePosition={a.imagePosition} className="w-8 h-8 text-base" />
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
                   <div className="flex items-baseline gap-2">
                     <span className="font-serif text-base leading-tight text-gold-500 truncate flex-1 min-w-0">{a.by}</span>

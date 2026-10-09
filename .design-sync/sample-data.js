@@ -46,19 +46,19 @@ export const SAMPLE_DATA = {
   [`${DATA}/threads`]: {
     't-ember': { title: 'Smoke over the Ember Road', regionId: '125', creatorId: 'u-seraphine', createdBy: 'Seraphine Ashdown', characterId: 'c-seraphine', status: 'approved', postCount: 4, createdAt: ago(2880), updatedAt: ago(18), bannerUrl: '', bannerPosition: 'center',
       tags: ['Roleplay', 'Ongoing'], views: 124, excerpt: 'The smoke rose in a single black thread from beyond the ridge. Seraphine drew her cloak tight and studied it.',
-      lastPostBy: 'Lyra Moonwhisper', lastPostCharacterId: 'c-lyra', lastPostAt: ago(18), openingPostId: 'p-1' },
+      lastPostBy: 'Lyra Moonwhisper', lastPostCharacterId: 'c-lyra', lastPostUserId: 'u-aldric', lastPostAt: ago(18), openingPostId: 'p-1' },
     't-watch': { title: 'The Night Watch at Thornwatch', regionId: '125', creatorId: 'u-aldric', createdBy: 'Aldric Vane', characterId: 'c-aldric', status: 'approved', postCount: 2, createdAt: ago(5000), updatedAt: ago(240), isLocked: true,
       tags: ['Lore'], views: 312, excerpt: 'The oath of the night watch, as it has been spoken at Thornwatch for three hundred years.',
-      lastPostBy: 'Aldric Vane', lastPostCharacterId: 'c-aldric', lastPostAt: ago(240) },
+      lastPostBy: 'Aldric Vane', lastPostCharacterId: 'c-aldric', lastPostUserId: 'u-aldric', lastPostAt: ago(240) },
     't-relic': { title: 'A Relic Beneath the Ridge', regionId: '125', creatorId: 'u-brannock', createdBy: 'Brannock Ironhide', characterId: 'c-brannock', status: 'approved', postCount: 1, createdAt: ago(9000), updatedAt: ago(4300),
       tags: ['Adventure', 'Open'], views: 41, excerpt: 'Old dwarven stonework has surfaced under the ridge. Brannock is looking for hands to help him dig.',
-      lastPostBy: 'Brannock Ironhide', lastPostCharacterId: 'c-brannock', lastPostAt: ago(4300) },
+      lastPostBy: 'Brannock Ironhide', lastPostCharacterId: 'c-brannock', lastPostUserId: 'u-brannock', lastPostAt: ago(4300) },
     't-marsh': { title: 'Lanterns in the Saltmarsh', regionId: '130', creatorId: 'u-seraphine', createdBy: 'Seraphine Ashdown', characterId: 'c-seraphine', status: 'approved', postCount: 3, createdAt: ago(7000), updatedAt: ago(95),
       tags: ['Investigation', 'Ongoing'], views: 97, excerpt: 'Lanterns have been seen moving over the marsh where no path runs.',
-      lastPostBy: 'Seraphine Ashdown', lastPostCharacterId: 'c-seraphine', lastPostAt: ago(95) },
+      lastPostBy: 'Seraphine Ashdown', lastPostCharacterId: 'c-seraphine', lastPostUserId: 'u-seraphine', lastPostAt: ago(95) },
     't-keep': { title: 'Council at Emberfall Keep', regionId: '166', creatorId: 'u-brannock', createdBy: 'Brannock Ironhide', characterId: 'c-brannock', status: 'approved', postCount: 5, createdAt: ago(12000), updatedAt: ago(30),
       tags: ['Roleplay', 'Politics'], views: 208, excerpt: 'The council hall smelled of pitch and old iron.',
-      lastPostBy: 'Brannock Ironhide', lastPostCharacterId: 'c-brannock', lastPostAt: ago(30) }
+      lastPostBy: 'Brannock Ironhide', lastPostCharacterId: 'c-brannock', lastPostUserId: 'u-brannock', lastPostAt: ago(30) }
   },
   [`${DATA}/posts`]: Object.fromEntries([
     post('p-1', 't-ember', 2880, 'u-seraphine', 'c-seraphine', 'Seraphine Ashdown', 'Human', 'Wizard / Mage',

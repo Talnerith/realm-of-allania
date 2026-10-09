@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { MapPin } from 'lucide-react';
-import WorldMap, { THREAD_FRAME, THREAD_DOT } from '@/components/WorldMap';
+import WorldMap, { THREAD_FRAME, THREAD_DOT, THREAD_OPACITY } from '@/components/WorldMap';
 import SiteFooter from '@/components/SiteFooter';
 import { Gem } from '@/components/Ornaments';
 
@@ -11,7 +11,7 @@ function MapLegend() {
     return (
         <ul aria-label="Map legend" className="flex flex-col gap-3 rounded-lg border border-gold-900/50 bg-ink-900 px-4 py-3">
             <li className="flex items-center gap-3">
-                <span aria-hidden="true" className={`relative shrink-0 w-7 h-5 rounded-sm ${THREAD_FRAME}`}>
+                <span aria-hidden="true" className={`relative shrink-0 w-7 h-5 rounded-sm ${THREAD_FRAME} ${THREAD_OPACITY}`}>
                     <span className={`absolute left-[3px] bottom-[3px] w-1.5 h-1.5 rounded-full ${THREAD_DOT}`} />
                 </span>
                 <span className="text-sm text-ink-200">Region with active threads</span>

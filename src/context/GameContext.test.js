@@ -23,17 +23,20 @@ const Probe = () => {
 
 describe('GameContext', () => {
   let account;
+  let profileDoc;
 
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
     account = { role: 'user', activeCharId: 'c2', hideWelcome: true };
+    profileDoc = null;
     firestore.doc.mockImplementation((_, ...path) => ({ path: path.join('/') }));
     firestore.collection.mockImplementation((_, ...path) => ({ path: path.join('/') }));
     firestore.query.mockImplementation((ref) => ref);
     firestore.serverTimestamp.mockReturnValue('now');
     firestore.onSnapshot.mockImplementation((ref, cb) => {
       if (ref.path === ACCOUNT) cb({ exists: () => true, data: () => account });
+      else if (ref.path === PROFILE) cb({ exists: () => !!profileDoc, data: () => profileDoc });
       else cb({ docs: [] });
       return jest.fn();
     });
@@ -142,6 +145,43 @@ describe('GameContext', () => {
       await expect(ctx.updateDisplayName('Emberquill')).rejects.toThrow('Could not save your name');
       expect(fbAuth.updateProfile).not.toHaveBeenCalled();
       expect(ctx.displayName).toBe('Wanderer');
+      console.error.mockRestore();
+    });
+  });
+
+  describe('author picture', () => {
+    const PIC = 'https://firebasestorage.googleapis.com/v0/b/x/o/a.jpg';
+    afterEach(() => { delete auth.currentUser; });
+
+    it('loads the picture from the public profile', async () => {
+      profileDoc = { displayName: 'Wanderer', avatarUrl: PIC, avatarPosition: '50% 20%' };
+      await renderProvider();
+      expect(ctx.avatar).toEqual({ url: PIC, position: '50% 20%' });
+    });
+
+    it('has no picture by default', async () => {
+      await renderProvider();
+      expect(ctx.avatar).toEqual({ url: '', position: 'center' });
+    });
+
+    it('saves and removes the picture', async () => {
+      auth.currentUser = { uid: 'u1' };
+      await renderProvider();
+      await act(async () => { await ctx.updateAvatar(PIC, '40% 40%'); });
+      expect(firestore.updateDoc).toHaveBeenCalledWith({ path: PROFILE }, { avatarUrl: PIC, avatarPosition: '40% 40%' });
+      expect(ctx.avatar).toEqual({ url: PIC, position: '40% 40%' });
+      await act(async () => { await ctx.updateAvatar(''); });
+      expect(firestore.updateDoc).toHaveBeenLastCalledWith({ path: PROFILE }, { avatarUrl: '', avatarPosition: 'center' });
+      expect(ctx.avatar.url).toBe('');
+    });
+
+    it('reports a failed save and keeps the old picture', async () => {
+      auth.currentUser = { uid: 'u1' };
+      await renderProvider();
+      firestore.updateDoc.mockRejectedValueOnce(new Error('denied'));
+      jest.spyOn(console, 'error').mockImplementation(() => {});
+      await expect(ctx.updateAvatar(PIC)).rejects.toThrow('Could not save your picture');
+      expect(ctx.avatar.url).toBe('');
       console.error.mockRestore();
     });
   });

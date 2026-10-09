@@ -39,9 +39,12 @@ function threadMetaUpdate(thread, post, postId, isOpening) {
     // An edit of an older post must not make it the "last reply"
     if (!thread.lastPostAt || millis(post.createdAt) >= millis(thread.lastPostAt)) {
         if (thread.lastPostBy !== post.characterName || thread.lastPostCharacterId !== (post.characterId || null)
+            || thread.lastPostUserId !== (post.userId || null)
             || millis(thread.lastPostAt) !== millis(post.createdAt)) {
             fields.lastPostBy = post.characterName || 'Unknown';
             fields.lastPostCharacterId = post.characterId || null;
+            // The poster's account, so pages can look up the character's portrait
+            fields.lastPostUserId = post.userId || null;
             fields.lastPostAt = post.createdAt || null;
         }
     }

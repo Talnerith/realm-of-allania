@@ -20,6 +20,7 @@ import useMediaQuery from '@/hooks/useMediaQuery';
 import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import RichText from '@/components/RichText';
+import Avatar from '@/components/Avatar';
 
 const cardCls = 'rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow)';
 const fieldCls = 'w-full bg-ink-800 border border-ink-700 rounded px-3 py-2 text-ink-50 focus:border-gold-500 focus:outline-none transition-colors';
@@ -347,7 +348,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
 
     /* ---------- Reading mode ---------- */
     const rosterPanel = (
-        <AuthorEntries collapsible={!wide} title={`${authorLabel}'s ${section.title}`} noun={section.id === 'history' ? ['entry', 'entries'] : [section.title.toLowerCase().replace(/s$/, ''), section.title.toLowerCase()]}
+        <AuthorEntries collapsible={!wide} author={author} title={`${authorLabel}'s ${section.title}`} noun={section.id === 'history' ? ['entry', 'entries'] : [section.title.toLowerCase().replace(/s$/, ''), section.title.toLowerCase()]}
             entries={authorEntries} currentId={localPage.id} onOpen={openEntry} />
     );
     const portraitEl = (
@@ -502,7 +503,10 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                         )}
 
                         <footer className="flex flex-wrap items-center gap-x-3 gap-y-2 pt-4 border-t border-ink-800 text-xs text-ink-400">
-                            <span>Written by <span className="text-gold-500">{authorLabel}</span></span>
+                            <span className="flex items-center gap-2">
+                                <Avatar name={author?.displayName} imageUrl={author?.avatarUrl} imagePosition={author?.avatarPosition} className="w-6 h-6 text-xs" />
+                                <span>Written by <span className="text-gold-500">{authorLabel}</span></span>
+                            </span>
                             <span aria-hidden="true">·</span>
                             <span>Last updated {timeAgo(localPage.updatedAt)}</span>
                             {canEdit && (
@@ -589,7 +593,7 @@ function FactValue({ value, onWikiLink }) {
 }
 
 // "<Author>'s <Section>": the author's other pages in this section
-function AuthorEntries({ title, noun, entries, currentId, onOpen, collapsible }) {
+function AuthorEntries({ author, title, noun, entries, currentId, onOpen, collapsible }) {
     const list = entries.length > 0 ? (
         <ul className="flex flex-col p-2 gap-1">
             {entries.map(p => {
@@ -610,10 +614,13 @@ function AuthorEntries({ title, noun, entries, currentId, onOpen, collapsible })
         </ul>
     ) : <p className="p-4 text-sm text-ink-400">No other entries yet.</p>;
     const header = (
-        <span className="flex-1 min-w-0 flex flex-col">
-            <span className="font-serif font-bold text-lg uppercase leading-tight tracking-[.06em] text-gold-500">{title}</span>
-            <span className="text-2xs text-ink-400">{entries.length} {entries.length === 1 ? noun[0] : noun[1]}</span>
-        </span>
+        <>
+            {author?.avatarUrl && <Avatar name={author.displayName} imageUrl={author.avatarUrl} imagePosition={author.avatarPosition} className="w-10 h-10 text-lg" />}
+            <span className="flex-1 min-w-0 flex flex-col">
+                <span className="font-serif font-bold text-lg uppercase leading-tight tracking-[.06em] text-gold-500">{title}</span>
+                <span className="text-2xs text-ink-400">{entries.length} {entries.length === 1 ? noun[0] : noun[1]}</span>
+            </span>
+        </>
     );
     if (collapsible) {
         return (

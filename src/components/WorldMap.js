@@ -10,7 +10,9 @@ import {
 // Re-exported for existing imports
 export { unnamedRegionLabel };
 
-// Active-thread marker, shared with the WorldMapPage legend
+// Active-thread marker, shared with the WorldMapPage legend. At 75% so a map
+// with many active regions doesn't clutter; unread (cyan) stays at full.
+export const THREAD_OPACITY = 'opacity-75';
 export const THREAD_FRAME = 'border-2 border-(color:--a-300) bg-[color-mix(in_oklab,var(--a-400)_22%,transparent)] shadow-[0_0_0_1.5px_rgb(20_12_3/.85),inset_0_0_0_1.5px_rgb(20_12_3/.85),0_0_14px_2px_color-mix(in_oklab,var(--a-500)_75%,transparent)]';
 export const THREAD_DOT = 'bg-(color:--a-300) shadow-[0_0_0_1.5px_rgb(20_12_3/.9),0_0_6px_var(--a-400)]';
 
@@ -120,7 +122,7 @@ function WorldMap({ setView, setActiveRegion, onRegionHover }) {
               on the painted parchment (fixed --a-* colours: the map looks the
               same in every theme). Only when no unread. */}
           {hasThreads && !hasUnread && (
-            <span className="absolute inset-0 z-0 pointer-events-none">
+            <span className={`absolute inset-0 z-0 pointer-events-none ${THREAD_OPACITY}`}>
               <span className={`absolute inset-1 rounded-sm ${THREAD_FRAME}`} />
               <span className={`absolute bottom-1 left-1 w-2 h-2 rounded-full ${THREAD_DOT}`} />
             </span>

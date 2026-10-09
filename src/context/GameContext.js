@@ -12,9 +12,11 @@ import {
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
-import { createProfile, ensureProfile, displayNameProblem, saveProfileName } from '@/lib/profiles';
+import { createProfile, ensureProfile, displayNameProblem, saveProfileName, saveProfileAvatar, profileRef } from '@/lib/profiles';
 
 const accountRef = (uid) => doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'account');
+
+const NO_AVATAR = { url: '', position: 'center' };
 
 const GameContext = createContext();
 
@@ -30,6 +32,8 @@ export function GameProvider({ children }) {
   // The player's author name. Kept in state because the Auth user object is
   // mutated in place by updateProfile, which wouldn't re-render anything.
   const [displayName, setDisplayNameState] = useState(null);
+  // The player's author picture ({ url, position }), from their public profile
+  const [avatar, setAvatar] = useState(NO_AVATAR);
 
   // Global Read Receipts
   const [readReceipts, setReadReceipts] = useState({});
@@ -37,6 +41,7 @@ export function GameProvider({ children }) {
   // 1. Listen for Auth State & Real-time Data
   useEffect(() => {
     let roleUnsub = null;
+    let profileUnsub = null;
     let receiptsUnsub = null;
     let charUnsub = null;
     let presenceInterval = null;
@@ -51,6 +56,7 @@ export function GameProvider({ children }) {
     // emissions for the same user don't stack duplicate listeners/intervals
     const cleanupUserListeners = () => {
       if (roleUnsub) { roleUnsub(); roleUnsub = null; }
+      if (profileUnsub) { profileUnsub(); profileUnsub = null; }
       if (receiptsUnsub) { receiptsUnsub(); receiptsUnsub = null; }
       if (charUnsub) { charUnsub(); charUnsub = null; }
       if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
@@ -123,6 +129,10 @@ export function GameProvider({ children }) {
 
         // Public profile (author name) for accounts made before profiles existed
         ensureProfile(currentUser);
+        profileUnsub = onSnapshot(profileRef(currentUser.uid), (snap) => {
+          const p = snap.exists() ? snap.data() : {};
+          setAvatar(p.avatarUrl ? { url: p.avatarUrl, position: p.avatarPosition || 'center' } : NO_AVATAR);
+        }, (error) => console.error("Profile listener error:", error));
 
         // --- B. Read Receipts ---
         {
@@ -162,6 +172,7 @@ export function GameProvider({ children }) {
         // Cleanup on Logout (listeners already torn down above)
         setUser(null);
         setDisplayNameState(null);
+        setAvatar(NO_AVATAR);
         setUserRole('user');
         setReadReceipts({});
         setCharacters([]);
@@ -260,18 +271,30 @@ export function GameProvider({ children }) {
     saveAccountSetting({ username: next });
   }, [userRole, saveAccountSetting]);
 
+  // Sets ('' removes) the author picture. Throws with a user-facing message.
+  const updateAvatar = useCallback(async (url, position = 'center') => {
+    if (!auth?.currentUser || !db) throw new Error('You must be signed in.');
+    try {
+      await saveProfileAvatar(auth.currentUser.uid, url || '', position);
+    } catch (e) {
+      console.error('Could not change the author picture:', e);
+      throw new Error('Could not save your picture. Please try again.');
+    }
+    setAvatar(url ? { url, position } : NO_AVATAR);
+  }, []);
+
   // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
   // when GameProvider renders but data hasn't changed.
   const value = useMemo(() => ({
     user, userRole, loading, characters, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
-    displayName, updateDisplayName,
+    displayName, updateDisplayName, avatar, updateAvatar,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   }), [
     user, userRole, loading, characters, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
-    displayName, updateDisplayName,
+    displayName, updateDisplayName, avatar, updateAvatar,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   ]);

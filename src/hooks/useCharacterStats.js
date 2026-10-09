@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, collection, query, where, getCountFromServer } from 'firebase/firestore';
+import { collection, query, where, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
+import { fetchCharacter } from '@/lib/characters';
 
 // Per-character figures on each post: when the character joined, how many
 // approved posts it has, and its reputation (likes, kept by countPostLikes).
@@ -12,8 +13,7 @@ export function fetchCharacterStats(userId, characterId) {
   if (!db || !userId || !characterId) return Promise.resolve(null);
   const key = `${userId}/${characterId}`;
   if (!cache.has(key)) {
-    const charP = getDoc(doc(db, 'artifacts', APP_ID, 'users', userId, 'characters', characterId))
-      .then(s => (s.exists() ? s.data() : null)).catch(() => null);
+    const charP = fetchCharacter(userId, characterId);
     const countP = getCountFromServer(query(
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'),
       where('characterId', '==', characterId),

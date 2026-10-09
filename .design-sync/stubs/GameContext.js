@@ -12,10 +12,11 @@ import { setStore } from '../store.js';
 export { useTheme } from '@/context/ThemeContext';
 
 const noop = async () => {};
-const ACTIONS = { signup: noop, login: noop, logout: noop, resendVerification: noop, resetPassword: noop, updateDisplayName: noop };
+const ACTIONS = { signup: noop, login: noop, logout: noop, resendVerification: noop, resetPassword: noop, updateDisplayName: noop, updateAvatar: noop };
+const NO_AVATAR = { url: '', position: 'center' };
 const SIGNED_OUT = {
   user: null, userRole: 'user', loading: false, characters: [], activeCharId: null,
-  setActiveCharId: () => {}, hideWelcome: null, setHideWelcome: () => {}, displayName: null, readReceipts: {}, ...ACTIONS
+  setActiveCharId: () => {}, hideWelcome: null, setHideWelcome: () => {}, displayName: null, avatar: NO_AVATAR, readReceipts: {}, ...ACTIONS
 };
 
 const GameContext = createContext(null);
@@ -29,11 +30,12 @@ const GameContext = createContext(null);
  * @param accent    'ember' (default) | 'brass' | 'verdigris'
  * @param signedIn  false renders the guest experience
  * @param role      'user' | 'trusted' | 'moderator' | 'admin' (mod tools appear for moderator/admin)
+ * @param avatar    the player's author picture ({ url, position }; default none)
  * @param data      replace the sample world ({ "<collection path>": { <docId>: {...} } }; one per page)
  *                  Loading states: use the id "__pending__" (e.g. thread={{ id: '__pending__' }})
  */
 export function AllaniaProvider({
-  children, theme, accent, signedIn = true, role = 'user', user, characters, activeCharId, readReceipts, data
+  children, theme, accent, signedIn = true, role = 'user', user, characters, activeCharId, readReceipts, avatar, data
 }) {
   const roster = characters ?? SAMPLE_CHARACTERS;
   const [active, setActive] = useState(activeCharId ?? roster[0]?.id ?? null);
@@ -44,6 +46,7 @@ export function AllaniaProvider({
     ...ACTIONS,
     user: user ?? SAMPLE_USER,
     displayName: (user ?? SAMPLE_USER).displayName ?? null,
+    avatar: avatar ?? NO_AVATAR,
     userRole: role,
     loading: false,
     characters: roster,
@@ -52,7 +55,7 @@ export function AllaniaProvider({
     hideWelcome: false,
     setHideWelcome: () => {},
     readReceipts: readReceipts ?? SAMPLE_READ_RECEIPTS
-  } : SIGNED_OUT), [signedIn, user, role, roster, active, readReceipts]);
+  } : SIGNED_OUT), [signedIn, user, role, roster, active, readReceipts, avatar]);
 
   // scope="local": themes apply to this subtree, so several providers with
   // different themes can share a page

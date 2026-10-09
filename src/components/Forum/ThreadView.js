@@ -24,6 +24,8 @@ import useCharacterLocations from '@/hooks/useCharacterLocations';
 import useRegionNames from '@/hooks/useRegionNames';
 import useMediaQuery from '@/hooks/useMediaQuery';
 import { hostedImageUrl } from '@/lib/imageUrls';
+import { useCharacter } from '@/lib/characters';
+import Avatar from '@/components/Avatar';
 
 export const POSTS_PER_PAGE = 8;
 
@@ -92,14 +94,14 @@ const PanelRule = ({ edge }) => (
     </svg>
 );
 
-function ThreadInfo({ thread, regionLabel, replies, onJumpLatest, onOpenRegion, collapsible }) {
+function ThreadInfo({ thread, creator, regionLabel, replies, onJumpLatest, onOpenRegion, collapsible }) {
     const tags = validTags(thread.tags);
     const views = thread.views || 0;
     const lastBy = thread.lastPostBy || thread.createdBy;
     const rows = [
         [User, 'Created by', (
             <span key="by" className="flex items-center gap-2 min-w-0">
-                <span className="w-5 h-5 rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif text-xs font-bold text-gold-300 shrink-0" aria-hidden="true">{(thread.createdBy || '?').charAt(0)}</span>
+                <Avatar name={thread.createdBy} imageUrl={creator?.imageUrl} imagePosition={creator?.imagePosition} className="w-5 h-5 text-xs" />
                 <span className="truncate">{thread.createdBy || 'Unknown'}</span>
             </span>
         )],
@@ -198,6 +200,8 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
     const isThreadLocked = liveThread?.isLocked === true;
     const canEditBanner = isAdminOrMod || (isThreadOwner && !isThreadLocked);
     const activeChar = characters.find(c => c.id === activeCharId) || null;
+    // The thread starter's character, for its portrait in the header and info box
+    const creator = useCharacter(liveThread?.creatorId, liveThread?.characterId);
     const { locations, activity, loading: locationsLoading, markAllRead } = useCharacterLocations(user ? activeCharId : null);
 
     // 1. Mark as read on entry
@@ -584,9 +588,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
 
                 <main className={`flex-1 min-w-0 w-full flex flex-col gap-4 ${wide ? '' : 'order-3'}`} aria-busy={posts === null}>
                     <section data-thread-top className={`${cardCls} scroll-mt-6 p-4 md:px-6 flex flex-wrap items-center gap-4`}>
-                        <div className="w-12 h-12 rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif text-xl font-bold text-gold-300 shrink-0" aria-hidden="true">
-                            {(liveThread?.createdBy || '?').charAt(0)}
-                        </div>
+                        <Avatar name={liveThread?.createdBy} imageUrl={creator?.imageUrl} imagePosition={creator?.imagePosition} className="w-12 h-12 text-xl" />
                         <div className="flex-1 min-w-[14rem] flex flex-col gap-1">
                             <h2 className="font-serif text-2xl leading-tight text-ink-50">{liveThread?.title}</h2>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-400">
@@ -663,9 +665,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                             </div>
                         ) : !replyOpen ? (
                             <div className="rounded-[14px] bg-ink-900 border border-gold-900/50 p-3 flex items-center gap-3 shadow-[0_-8px_32px_rgb(0_0_0/.35)]">
-                                <div className="w-10 h-10 rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif text-lg font-bold text-gold-300 shrink-0" aria-hidden="true">
-                                    {activeChar?.name?.charAt(0) || '?'}
-                                </div>
+                                <Avatar name={activeChar?.name} imageUrl={activeChar?.imageUrl} imagePosition={activeChar?.imagePosition} className="w-10 h-10 text-lg" />
                                 <button type="button" onClick={() => setReplyOpen(true)} className="flex-1 min-w-0 text-left bg-ink-800 border border-ink-700 hover:border-gold-700 rounded-full px-4 py-2.5 font-serif italic text-lg text-ink-400 truncate transition-colors">
                                     {activeChar ? `Continue the tale as ${firstName(activeChar.name)}…` : 'Choose a character in the roster to reply…'}
                                 </button>
@@ -676,9 +676,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                         ) : (
                             <div className="rounded-[14px] bg-ink-900 border border-gold-700 p-4 flex flex-col gap-3 shadow-[0_-8px_40px_rgb(0_0_0/.45)]">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif text-lg font-bold text-gold-300 shrink-0" aria-hidden="true">
-                                        {activeChar?.name?.charAt(0) || '?'}
-                                    </div>
+                                    <Avatar name={activeChar?.name} imageUrl={activeChar?.imageUrl} imagePosition={activeChar?.imagePosition} className="w-10 h-10 text-lg" />
                                     <div className="flex-1 min-w-0">
                                         <div className="text-2xs uppercase tracking-widest text-ink-400">Writing as</div>
                                         <div className="font-serif text-lg leading-tight text-gold-100 truncate">
@@ -710,7 +708,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
 
                 <aside className={wide ? 'sticky top-6 flex flex-col gap-6 shrink-0 w-68' : 'order-2 flex flex-col gap-4 w-full'} aria-label="Thread details">
                     {liveThread && (
-                        <ThreadInfo thread={liveThread} regionLabel={regionLabel} replies={replies} collapsible={!wide}
+                        <ThreadInfo thread={liveThread} creator={creator} regionLabel={regionLabel} replies={replies} collapsible={!wide}
                             onJumpLatest={() => goToPost(total)} onOpenRegion={openRegion} />
                     )}
                     {user && (

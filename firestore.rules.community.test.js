@@ -108,6 +108,16 @@ describe('Public profiles', () => {
     await assertSucceeds(updateDoc(doc(dbFor('reader'), profile('reader')), { displayName: 'Emberwing' }));
     await assertFails(updateDoc(doc(dbFor('reader'), profile('reader')), { likesReceived: 99 }));
   });
+
+  test('a player may set their own author picture', async () => {
+    await seed(profile('reader'), { displayName: 'Emberquill' });
+    const url = 'https://firebasestorage.googleapis.com/v0/b/bucket/o/avatar.jpg';
+    await assertSucceeds(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: url, avatarPosition: '50% 30%' }));
+    await assertSucceeds(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: '' }));
+    await assertFails(updateDoc(doc(dbFor('author'), profile('reader')), { avatarUrl: url }));
+    await assertFails(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: 42 }));
+    await assertFails(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: 'x'.repeat(2049) }));
+  });
 });
 
 describe('Site stats', () => {

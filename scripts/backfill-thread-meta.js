@@ -38,6 +38,7 @@ const db = admin.firestore();
             openingPostId: first.id,
             lastPostBy: last.characterName || 'Unknown',
             lastPostCharacterId: last.characterId || null,
+            lastPostUserId: last.userId || null,
             lastPostAt: last.createdAt || null
         };
         if (WRITE) await t.ref.update(fields);

@@ -20,19 +20,19 @@ describe('plainExcerpt', () => {
 });
 
 describe('threadMetaUpdate', () => {
-    const post = { content: 'Hello there, traveller.', characterName: 'Aldric', characterId: 'c1', createdAt: ts(2000) };
+    const post = { content: 'Hello there, traveller.', characterName: 'Aldric', characterId: 'c1', userId: 'u1', createdAt: ts(2000) };
 
     it('records the opening post excerpt and last reply', () => {
         expect(threadMetaUpdate({ postCount: 1 }, post, 'p1', true)).toEqual({
             excerpt: 'Hello there, traveller.', openingPostId: 'p1',
-            lastPostBy: 'Aldric', lastPostCharacterId: 'c1', lastPostAt: post.createdAt
+            lastPostBy: 'Aldric', lastPostCharacterId: 'c1', lastPostUserId: 'u1', lastPostAt: post.createdAt
         });
     });
 
     it('a newer reply updates only the last reply', () => {
         const thread = { openingPostId: 'p1', excerpt: 'x', postCount: 3, lastPostAt: ts(1000), lastPostBy: 'Lyra' };
-        expect(threadMetaUpdate(thread, { ...post, characterName: 'Brannock', characterId: 'c9' }, 'p3', false)).toEqual({
-            lastPostBy: 'Brannock', lastPostCharacterId: 'c9', lastPostAt: post.createdAt
+        expect(threadMetaUpdate(thread, { ...post, characterName: 'Brannock', characterId: 'c9', userId: 'u9' }, 'p3', false)).toEqual({
+            lastPostBy: 'Brannock', lastPostCharacterId: 'c9', lastPostUserId: 'u9', lastPostAt: post.createdAt
         });
     });
 

@@ -170,8 +170,8 @@ const ImageUploader = React.memo(function ImageUploader({
   return (
     <div className="space-y-4">
       <div className="flex gap-4 text-sm border-b border-ink-700 pb-2">
-        <button onClick={() => setMode('upload')} className={`${mode === 'upload' ? 'text-gold-500 font-bold' : 'text-ink-500 hover:text-ink-300'}`}>Upload File</button>
-        <button onClick={() => setMode('url')} className={`${mode === 'url' ? 'text-gold-500 font-bold' : 'text-ink-500 hover:text-ink-300'}`}>Image URL</button>
+        <button type="button" onClick={() => setMode('upload')} className={`${mode === 'upload' ? 'text-gold-500 font-bold' : 'text-ink-500 hover:text-ink-300'}`}>Upload File</button>
+        <button type="button" onClick={() => setMode('url')} className={`${mode === 'url' ? 'text-gold-500 font-bold' : 'text-ink-500 hover:text-ink-300'}`}>Image URL</button>
       </div>
 
       <div className="min-h-[60px]">

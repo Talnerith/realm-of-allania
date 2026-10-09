@@ -16,7 +16,7 @@ const MAX_REDIRECTS = 3;
 const REQUEST_TIMEOUT_MS = 10000;
 const IMPORTS_PER_HOUR = 20;
 // Upload folders used by ImageUploader
-const ALLOWED_FOLDERS = ['character_portraits', 'codex_gallery', 'region_banners', 'thread_banners', 'uploads'];
+const ALLOWED_FOLDERS = ['author_avatars', 'character_portraits', 'codex_gallery', 'region_banners', 'thread_banners', 'uploads'];
 
 const IMAGE_TYPES = {
     'image/jpeg': { ext: 'jpg', magic: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },

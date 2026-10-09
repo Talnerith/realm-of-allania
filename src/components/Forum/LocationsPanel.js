@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { MapPin, ChevronDown } from 'lucide-react';
 import { timeAgo } from '@/lib/utils';
+import Avatar from '@/components/Avatar';
 
 const cardCls = 'rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow)';
 
@@ -48,9 +49,8 @@ function LocationList({ locations, currentThreadId, regionName, onOpenThread }) 
 
 function CharacterBadge({ character, size = 'lg' }) {
   return (
-    <div className={`${size === 'lg' ? 'w-12 h-12 text-xl' : 'w-10 h-10 text-lg'} rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif font-bold text-gold-300 shrink-0`} aria-hidden="true">
-      {character?.name?.charAt(0) || '?'}
-    </div>
+    <Avatar name={character?.name} imageUrl={character?.imageUrl} imagePosition={character?.imagePosition}
+      className={size === 'lg' ? 'w-12 h-12 text-xl' : 'w-10 h-10 text-lg'} />
   );
 }
 

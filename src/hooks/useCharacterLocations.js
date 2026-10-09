@@ -19,7 +19,7 @@ const millis = (ts) => (ts?.toMillis ? ts.toMillis() : typeof ts === 'number' ? 
 // Where the active character is writing: the threads they've posted in, whose
 // turn it is in each, and the unread posts by others there.
 //   locations: [{ id, title, regionId, status, yourTurn, unread, lastAt }]
-//   activity:  [{ id, threadId, threadTitle, by, at, excerpt }]
+//   activity:  [{ id, threadId, threadTitle, by, at, content, image, imagePosition }]
 export default function useCharacterLocations(activeCharId) {
   const { user, readReceipts } = useGame();
   const uid = user?.uid;
@@ -121,7 +121,8 @@ export default function useCharacterLocations(activeCharId) {
   const activity = useMemo(() => locations
     .flatMap(l => unreadFor(l.id).map(p => ({
       id: p.id, threadId: l.id, threadTitle: l.title, thread: l.thread,
-      by: p.characterName || 'Unknown', at: millis(p.createdAt), content: p.content || ''
+      by: p.characterName || 'Unknown', at: millis(p.createdAt), content: p.content || '',
+      image: p.characterImageUrl || '', imagePosition: p.characterImagePosition || 'center'
     })))
     .sort((a, b) => b.at - a.at), [locations, unreadFor]);
 

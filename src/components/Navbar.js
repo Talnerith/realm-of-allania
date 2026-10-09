@@ -10,6 +10,8 @@ import ActiveUsers from '@/components/ActiveUsers';
 import NotificationBell from '@/components/NotificationBell';
 import ThemeToggle from '@/components/ThemeToggle';
 import AccountName from '@/components/AccountName';
+import Avatar from '@/components/Avatar';
+import ProfileEditor from '@/components/ProfileEditor';
 
 // Main tabs. Region and thread pages live under the World Map tab.
 const NAV_ITEMS = [
@@ -22,7 +24,8 @@ const NAV_ITEMS = [
 const menuItemCls = 'text-left text-sm rounded-lg px-3 py-2 transition-colors hover:bg-ink-800';
 
 function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, unreadCount }) {
-  const { user, userRole, logout, hideWelcome, setHideWelcome, displayName: accountName, updateDisplayName } = useGame();
+  const { user, userRole, logout, hideWelcome, setHideWelcome, displayName: accountName, updateDisplayName, avatar, updateAvatar } = useGame();
+  const [profileOpen, setProfileOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -72,6 +75,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
   const displayName = accountName || user?.displayName || 'Adventurer';
 
   const closeAll = () => { setMobileMenuOpen(false); setUserMenuOpen(false); setSearchOpen(false); };
+  const openProfile = () => { closeAll(); setProfileOpen(true); };
 
   const handleLogout = async () => {
     closeAll();
@@ -202,14 +206,12 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
                   aria-label="Account menu"
                   className="flex items-center gap-2 rounded-full p-1 pr-2 hover:bg-ink-900 transition-colors"
                 >
-                  <span className="w-10 h-10 rounded-full bg-ink-800 border border-gold-700 flex items-center justify-center font-serif text-lg font-bold text-gold-300" aria-hidden="true">
-                    {displayName.charAt(0).toUpperCase()}
-                  </span>
+                  <Avatar name={displayName} imageUrl={avatar?.url} imagePosition={avatar?.position} className="w-10 h-10 text-lg" />
                   <ChevronDown className="w-3.5 h-3.5 text-ink-400" strokeWidth={2.4} aria-hidden="true" />
                 </button>
                 {userMenuOpen && (
                   <div role="menu" aria-label="Account" className="absolute right-0 top-[calc(100%+.75rem)] w-60 rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow) p-2 flex flex-col gap-1">
-                    <AccountName name={displayName} email={user.email} onSave={updateDisplayName} />
+                    <AccountName name={displayName} email={user.email} avatar={avatar} onEdit={openProfile} />
                     <div className="h-px bg-ink-800" />
                     <div className="flex items-center justify-between gap-2 px-3 py-2">
                       <span className="text-sm text-ink-300">Appearance</span>
@@ -290,7 +292,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
           ))}
           <div className="h-px bg-ink-800 my-1" />
           {user && (
-            <AccountName name={displayName} email={user.email} onSave={updateDisplayName} />
+            <AccountName name={displayName} email={user.email} avatar={avatar} onEdit={openProfile} />
           )}
           <div className="flex items-center justify-between gap-2 px-3 py-2">
             <span className="text-sm text-ink-300">Appearance</span>
@@ -319,6 +321,9 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
       )}
 
       <ActiveUsers isOpen={showActiveUsers} onClose={() => setShowActiveUsers(false)} />
+      {profileOpen && user && (
+        <ProfileEditor name={displayName} avatar={avatar} onSaveName={updateDisplayName} onSaveAvatar={updateAvatar} onClose={() => setProfileOpen(false)} />
+      )}
     </header>
   );
 }

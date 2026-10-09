@@ -22,6 +22,8 @@ import TagChip from '@/components/Forum/TagChip';
 import useCharacterLocations from '@/hooks/useCharacterLocations';
 import useRegionNames from '@/hooks/useRegionNames';
 import { hostedImageUrl } from '@/lib/imageUrls';
+import { useCharacter } from '@/lib/characters';
+import Avatar from '@/components/Avatar';
 
 const cardCls = 'rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow)';
 const millis = (ts) => ts?.toMillis?.() || 0;
@@ -39,6 +41,11 @@ function ThreadRow({ thread, unread, onOpen }) {
   const replies = Math.max(0, (thread.postCount || 1) - 1);
   const views = thread.views || 0;
   const lastBy = thread.lastPostBy || thread.createdBy || 'Unknown';
+  // The last poster's character, for the portrait. Threads summarised before
+  // lastPostUserId existed only identify the starter's character.
+  const lastCharId = thread.lastPostCharacterId || thread.characterId;
+  const lastUid = thread.lastPostUserId || (lastCharId === thread.characterId ? thread.creatorId : null);
+  const lastChar = useCharacter(lastUid, lastCharId);
   const lastAt = millis(thread.lastPostAt) || millis(thread.updatedAt);
   const tags = validTags(thread.tags);
 
@@ -84,9 +91,7 @@ function ThreadRow({ thread, unread, onOpen }) {
           </div>
           <div className="hidden md:block h-10 w-px bg-ink-800" />
           <div className="flex items-center gap-3 min-w-0 ml-auto flex-1 md:flex-none md:w-[8.5rem]">
-            <div className="w-10 h-10 rounded-full bg-ink-800 border border-gold-900/50 flex items-center justify-center font-serif text-lg font-bold text-gold-300 shrink-0" aria-hidden="true">
-              {lastBy.charAt(0)}
-            </div>
+            <Avatar name={lastBy} imageUrl={lastChar?.imageUrl} imagePosition={lastChar?.imagePosition} className="w-10 h-10 text-lg" />
             <div className="min-w-0 flex flex-col gap-0.5">
               <span className="text-sm text-ink-300 leading-tight truncate">By <span className="text-gold-500 font-medium">{lastBy.split(' ')[0]}</span></span>
               <span className="text-xs text-ink-400 whitespace-nowrap">{timeAgo(lastAt, { short: true })}</span>

@@ -49,6 +49,12 @@ export async function saveProfileName(uid, displayName) {
   cache.delete(uid);
 }
 
+// Sets (or, with '', removes) the player's author picture
+export async function saveProfileAvatar(uid, avatarUrl, avatarPosition = 'center') {
+  await updateDoc(profileRef(uid), { avatarUrl, avatarPosition });
+  cache.delete(uid);
+}
+
 export function fetchProfile(uid) {
   if (!db || !uid) return Promise.resolve(null);
   if (!cache.has(uid)) {
@@ -59,7 +65,7 @@ export function fetchProfile(uid) {
   return cache.get(uid);
 }
 
-// { displayName, likesReceived, createdAt } or null while loading / missing
+// { displayName, avatarUrl, avatarPosition, likesReceived, createdAt } or null while loading / missing
 export function useProfile(uid) {
   const [profile, setProfile] = useState(null);
   useEffect(() => {
