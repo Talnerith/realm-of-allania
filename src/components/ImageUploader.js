@@ -45,7 +45,10 @@ const ImageUploader = React.memo(function ImageUploader({
 
     setIsUploading(true);
     try {
-      // 1. Intermediate Cleanup: If we already uploaded a file in this session, delete it before uploading the new one
+      // 1. Read the new file first, so an unreadable one leaves the current image alone
+      const resizedBlob = await resizeImage(file, 1600);
+
+      // 2. Intermediate Cleanup: If we already uploaded a file in this session, delete it before uploading the new one
       if (lastUploadedUrl) {
         try {
           const oldRef = ref(storage, lastUploadedUrl);
@@ -56,26 +59,27 @@ const ImageUploader = React.memo(function ImageUploader({
         }
       }
 
-      // 2. Upload New
+      // 3. Upload New
       // SECURITY UPDATE: We now nest uploads under the user's ID
-      const resizedBlob = await resizeImage(file, 1600);
       const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
       const storageRef = ref(storage, `artifacts/${APP_ID}/public/${folder}/${user.uid}/${filename}`);
 
       await uploadBytes(storageRef, resizedBlob);
       const url = await getDownloadURL(storageRef);
 
-      // 3. Update State
+      // 4. Update State
       setLastUploadedUrl(url); // Mark this as the one to delete if they replace it again
       setPreviewUrl(url);
       onImageChanged(url, position); // Use current position
       setMode('preview');
     } catch (err) {
-      console.error("Upload failed", err);
-      if (err.code === 'storage/unauthorized') {
-        alert("Permission denied. You may not have access to upload here.");
+      if (err.code === UNSUPPORTED_IMAGE) {
+        alert(unsupportedFormatMessage(file));
       } else {
-        alert("Upload failed. Please try again.");
+        console.error("Upload failed", err);
+        alert(err.code === 'storage/unauthorized'
+          ? "Permission denied. You may not have access to upload here."
+          : "Upload failed. Please try again.");
       }
     } finally {
       setIsUploading(false);
@@ -257,13 +261,29 @@ const ImageUploader = React.memo(function ImageUploader({
 
 export default ImageUploader;
 
+// The browser couldn't decode the file (e.g. an iPhone HEIC photo outside Safari)
+const UNSUPPORTED_IMAGE = 'image/unsupported-format';
+
+export function unsupportedFormatMessage(file) {
+  const formats = 'Please choose a JPG, PNG, GIF or WebP image.';
+  if (/\.(heic|heif)$/i.test(file?.name || '') || /image\/hei[cf]/i.test(file?.type || '')) {
+    return `iPhone photos (HEIC) can't be opened in this browser. ${formats} A screenshot of the photo works too.`;
+  }
+  return `This file format isn't supported. ${formats}`;
+}
+
 function resizeImage(file, maxWidth) {
   return new Promise((resolve, reject) => {
+    const unsupported = () => Object.assign(new Error('The selected file is not a supported image.'), { code: UNSUPPORTED_IMAGE });
+    if (file.type && !file.type.startsWith('image/')) {
+      reject(unsupported());
+      return;
+    }
     const reader = new FileReader();
     reader.onerror = () => reject(new Error('Could not read the selected file.'));
     reader.onload = (event) => {
       const img = new Image();
-      img.onerror = () => reject(new Error('The selected file is not a valid image.'));
+      img.onerror = () => reject(unsupported());
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let width = img.width;

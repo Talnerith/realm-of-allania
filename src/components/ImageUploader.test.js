@@ -146,6 +146,65 @@ describe('ImageUploader', () => {
     expect(ref).toHaveBeenCalledWith(expect.anything(), 'url1');
   });
 
+  describe('unsupported formats', () => {
+    // The browser can't decode the file, so the Image errors instead of loading
+    const setupUndecodable = () => {
+      setupFileMocks();
+      global.Image = class {
+        set src(val) { setTimeout(() => this.onerror && this.onerror(), 10); }
+      };
+    };
+
+    beforeEach(() => { jest.spyOn(window, 'alert').mockImplementation(() => {}); });
+
+    const choose = async (container, file) => {
+      await act(async () => {
+        fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [file] } });
+      });
+      await waitFor(() => expect(window.alert).toHaveBeenCalled());
+    };
+
+    it('explains that iPhone HEIC photos are not supported', async () => {
+      setupUndecodable();
+      const { container } = render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await choose(container, new File(['content'], 'IMG_0042.HEIC', { type: 'image/heic' }));
+      expect(window.alert).toHaveBeenCalledWith(expect.stringMatching(/iPhone photos \(HEIC\).*JPG, PNG, GIF or WebP/));
+      expect(uploadBytes).not.toHaveBeenCalled();
+      expect(mockOnImageChanged).not.toHaveBeenCalled();
+    });
+
+    it('names the supported formats for any other undecodable image', async () => {
+      setupUndecodable();
+      const { container } = render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await choose(container, new File(['content'], 'scan.tiff', { type: 'image/tiff' }));
+      expect(window.alert).toHaveBeenCalledWith("This file format isn't supported. Please choose a JPG, PNG, GIF or WebP image.");
+    });
+
+    it('rejects a file that is not an image without reading it', async () => {
+      setupFileMocks();
+      const { container } = render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await choose(container, new File(['content'], 'notes.pdf', { type: 'application/pdf' }));
+      expect(window.alert).toHaveBeenCalledWith(expect.stringMatching(/isn't supported/));
+      expect(window.FileReader).not.toHaveBeenCalled();
+    });
+
+    it('keeps the previous upload when the new file cannot be read', async () => {
+      setupFileMocks();
+      getDownloadURL.mockResolvedValueOnce('url1');
+      const { container } = render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await act(async () => {
+        fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [new File(['c'], 'a.png', { type: 'image/png' })] } });
+      });
+      await waitFor(() => expect(uploadBytes).toHaveBeenCalledTimes(1));
+
+      await act(async () => { fireEvent.click(screen.getByText('Upload File')); });
+      setupUndecodable();
+      await choose(container, new File(['c'], 'b.heic', { type: 'image/heic' }));
+      expect(deleteObject).not.toHaveBeenCalled();
+      expect(uploadBytes).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('does not delete initialUrl', async () => {
     setupFileMocks();
 
