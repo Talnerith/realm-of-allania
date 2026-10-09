@@ -50,6 +50,7 @@
 :root {
   --font-inter: "Inter";
   --font-cormorant: "Cormorant Garamond";
+  --font-pinyon: "Pinyon Script";
 }
 
 /* The app shell locks the page and scrolls inner panels; designs are

@@ -76,8 +76,9 @@ export const isRegionPlayable = (index) => {
   return true;
 };
 
-// Shown for regions without a custom name; n is the 1-based grid index
-export const unnamedRegionLabel = (index) => `Unnamed region ${Number(index) + 1}`;
+// Shown for every region without a custom name: land no tale has claimed yet
+export const UNNAMED_REGION = 'Lands Yet Unwritten';
+export const unnamedRegionLabel = () => UNNAMED_REGION;
 
 export const getRegionName = (index) => {
   return ""; 

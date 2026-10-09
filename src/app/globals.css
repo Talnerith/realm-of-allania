@@ -6,10 +6,11 @@
    so retuning a palette or font here restyles the whole app.
    ========================================================================== */
 
-/* Fonts: next/font sets --font-inter / --font-cormorant on <html> (layout.js) */
+/* Fonts: next/font sets --font-inter / --font-cormorant / --font-pinyon on <html> (layout.js) */
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-cormorant), ui-serif, Georgia, serif;
+  --font-script: var(--font-pinyon), "Pinyon Script", cursive;
 }
 
 /* Ink and gold are role names: ink = the neutral ramp (backgrounds, surfaces,

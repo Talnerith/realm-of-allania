@@ -1,7 +1,10 @@
 /**
  * One-time backfill: set the thread summary fields the region and thread
  * pages show (excerpt of the opening post, who replied last) on threads
- * created before the moderatePost function started keeping them.
+ * created before the moderatePost function started keeping them. Threads made
+ * before threads recorded their starter character (no characterId) get it
+ * from their opening post by the same player, with that character's name, so
+ * the header can show its portrait.
  *
  * Uses approved posts only, so nothing unmoderated becomes visible. Idempotent:
  * re-running recomputes the same values.
@@ -33,14 +36,20 @@ const db = admin.firestore();
             .orderBy('createdAt', 'asc').get();
         if (posts.empty) { skipped++; continue; }
         const first = posts.docs[0], last = posts.docs[posts.size - 1].data();
+        const opening = first.data();
         const fields = {
-            excerpt: plainExcerpt(first.data().content),
+            ...(!t.get('characterId') && opening.userId === t.get('creatorId') && opening.characterId && {
+                characterId: opening.characterId,
+                createdBy: opening.characterName || t.get('createdBy')
+            }),
+            excerpt: plainExcerpt(opening.content),
             openingPostId: first.id,
             lastPostBy: last.characterName || 'Unknown',
             lastPostCharacterId: last.characterId || null,
             lastPostUserId: last.userId || null,
             lastPostAt: last.createdAt || null
         };
+        if (fields.characterId) console.log(`  ${t.get('title')}: starter character ${fields.createdBy}`);
         if (WRITE) await t.ref.update(fields);
         updated++;
     }

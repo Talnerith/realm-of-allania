@@ -6,7 +6,7 @@ import {
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
-import { APP_ID } from '@/lib/constants';
+import { APP_ID, unnamedRegionLabel } from '@/lib/constants';
 import { timeAgo } from '@/lib/utils';
 import { THREAD_TAGS, MAX_TAGS, tagStyle, validTags } from '@/lib/threadTags';
 import { REGION_CREST_IMG } from '@/lib/artAssets';
@@ -346,14 +346,14 @@ function RegionView({ region, setView, setActiveThread, onRequireAuth }) {
 
   const bannerUrl = hostedImageUrl(regionMetadata?.bannerUrl) || null;
   const bannerPos = regionMetadata?.bannerPosition || 'center';
-  const displayName = regionMetadata?.name || region.name;
+  const displayName = regionMetadata?.name || region.name || unnamedRegionLabel(region.id);
   const blurb = regionMetadata?.blurb || '';
   const showPanels = !!user;
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-ink-950">
       {/* Banner */}
-      <section className="relative shrink-0 overflow-hidden border-b border-gold-900/50 bg-ink-900 h-[clamp(12rem,18vw+4rem,17rem)]">
+      <section className="relative shrink-0 overflow-hidden border-b border-gold-900/50 bg-ink-900 h-[clamp(14rem,56vw,18rem)] md:h-[clamp(16rem,25vw,26rem)]">
         {bannerUrl && (
           <img src={bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: bannerPos }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         )}

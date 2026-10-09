@@ -37,8 +37,8 @@ describe('WorldMap', () => {
   });
 
   test('labels unnamed regions by their 1-based grid index', () => {
-    expect(unnamedRegionLabel(0)).toBe('Unnamed region 1');
-    expect(unnamedRegionLabel(45)).toBe('Unnamed region 46');
+    expect(unnamedRegionLabel(0)).toBe('Lands Yet Unwritten');
+    expect(unnamedRegionLabel(45)).toBe('Lands Yet Unwritten');
   });
 
   test('renders the map image at the full width of its parent', () => {
@@ -51,7 +51,7 @@ describe('WorldMap', () => {
   test('region buttons describe their names and thread state', () => {
     render(<WorldMap setView={jest.fn()} setActiveRegion={jest.fn()} />);
     expect(screen.getByRole('button', { name: 'Thornwatch Ridge, 2 active threads' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Unnamed region 46, unread posts' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lands Yet Unwritten, unread posts' })).toBeInTheDocument();
     // Only playable regions are buttons: rows 2-11, columns 2-17
     expect(screen.getAllByRole('button')).toHaveLength(10 * 16);
   });
@@ -72,8 +72,8 @@ describe('WorldMap', () => {
     fireEvent.mouseEnter(screen.getByRole('button', { name: /Thornwatch Ridge/ }));
     expect(onRegionHover).toHaveBeenLastCalledWith({ id: 46, name: 'Thornwatch Ridge', threadCount: 2, hasUnread: false });
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: /Unnamed region 46/ }));
-    expect(onRegionHover).toHaveBeenLastCalledWith({ id: 45, name: 'Unnamed region 46', threadCount: 1, hasUnread: true });
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /Lands Yet Unwritten, unread/ }));
+    expect(onRegionHover).toHaveBeenLastCalledWith({ id: 45, name: 'Lands Yet Unwritten', threadCount: 1, hasUnread: true });
 
     fireEvent.mouseLeave(container.firstChild);
     expect(onRegionHover).toHaveBeenLastCalledWith(null);
@@ -83,7 +83,7 @@ describe('WorldMap', () => {
     useGame.mockReturnValue({ user: null, readReceipts: null });
     render(<WorldMap setView={jest.fn()} setActiveRegion={jest.fn()} />);
     expect(screen.queryByRole('button', { name: /unread posts/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Unnamed region 46, 1 active thread' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lands Yet Unwritten, 1 active thread' })).toBeInTheDocument();
   });
 });
 
@@ -112,7 +112,7 @@ describe('WorldMapPage', () => {
     fireEvent.mouseEnter(screen.getByRole('button', { name: /Thornwatch Ridge/ }));
     expect(screen.getByText('2 active threads')).toBeInTheDocument();
 
-    fireEvent.mouseEnter(screen.getByRole('button', { name: /Unnamed region 46/ }));
+    fireEvent.mouseEnter(screen.getByRole('button', { name: /Lands Yet Unwritten, unread/ }));
     expect(screen.getByText('Unread posts')).toBeInTheDocument();
     expect(screen.queryByText('2 active threads')).not.toBeInTheDocument();
 

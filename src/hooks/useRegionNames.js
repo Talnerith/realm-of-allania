@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { APP_ID, getRegionName, unnamedRegionLabel } from '@/lib/constants';
 
 // Custom region names (region_metadata), live. Returns a lookup function:
-// regionName(id) -> "Thornwatch Ridge" or "Unnamed region 46".
+// regionName(id) -> "Thornwatch Ridge" or "Lands Yet Unwritten".
 export default function useRegionNames() {
   const [names, setNames] = useState({});
 

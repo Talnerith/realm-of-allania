@@ -4,7 +4,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { themeInitScript } from '@/lib/theme';
 import VersionUpdater from '@/components/VersionUpdater';
 import ErrorBoundary from '@/components/ErrorBoundary';
-import { Inter, Cormorant_Garamond } from 'next/font/google';
+import { Inter, Cormorant_Garamond, Pinyon_Script } from 'next/font/google';
 
 // Font Setup
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -14,6 +14,8 @@ const cormorant = Cormorant_Garamond({
   weight: ['400', '600', '700'],
   style: ['normal', 'italic']
 });
+// Codex drop caps only
+const pinyon = Pinyon_Script({ subsets: ['latin'], weight: '400', variable: '--font-pinyon' });
 
 // Determine Base URL for SEO
 const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -76,7 +78,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} data-theme="dark" data-accent="gold" suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable} ${pinyon.variable}`} data-theme="dark" data-accent="gold" suppressHydrationWarning>
       <head>
         {/* Apply the saved/system theme before first paint (no dark flash in light mode) */}
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />

@@ -509,7 +509,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
     return (
         <div ref={scrollContainerRef} className="h-full overflow-y-auto custom-scrollbar bg-ink-950">
             {/* Banner */}
-            <section className="relative overflow-hidden border-b border-gold-900/50 bg-[rgb(8_10_15)] h-[clamp(14rem,12vw+7rem,18rem)]">
+            <section className="relative overflow-hidden border-b border-gold-900/50 bg-[rgb(8_10_15)] h-[clamp(14rem,56vw,18rem)] md:h-[clamp(16rem,25vw,26rem)]">
                 {banner && <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: bannerPos }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                 <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgb(8_10_15/.92)_0%,rgb(8_10_15/.72)_40%,rgb(8_10_15/.15)_78%),linear-gradient(0deg,rgb(8_10_15/.55),transparent_55%)]" />
                 <div className="absolute inset-0 flex items-center px-4 md:px-8 lg:px-12">

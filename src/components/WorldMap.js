@@ -69,7 +69,7 @@ function WorldMap({ setView, setActiveRegion, onRegionHover }) {
   }, []); // Empty dependency array = runs for everyone
 
   const handleRegionClick = useCallback((i) => {
-    const regionName = customNames[i.toString()] || getRegionName(i);
+    const regionName = customNames[i.toString()] || getRegionName(i) || unnamedRegionLabel(i);
     setActiveRegion({ id: i, name: regionName });
     setView('region');
   }, [customNames, setActiveRegion, setView]);

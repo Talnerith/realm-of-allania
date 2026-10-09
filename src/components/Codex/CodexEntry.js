@@ -21,6 +21,7 @@ import ImageUploader from '@/components/ImageUploader';
 import MarkdownEditor from '@/components/MarkdownEditor';
 import RichText from '@/components/RichText';
 import Avatar from '@/components/Avatar';
+import DropCap from '@/components/Codex/DropCap';
 
 const cardCls = 'rounded-[14px] bg-(color:--card-bg) border border-(color:--card-border) shadow-(--card-shadow)';
 const fieldCls = 'w-full bg-ink-800 border border-ink-700 rounded px-3 py-2 text-ink-50 focus:border-gold-500 focus:outline-none transition-colors';
@@ -469,14 +470,20 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                                 {!sideBySide && portraitEl}
                                 {bodyParas.length > 0 && (
                                     <div className="flex flex-col gap-4 text-base md:text-lg leading-relaxed text-(color:--story)">
-                                        {bodyParas.map((para, i) => (
-                                            <RichText
-                                                key={i}
-                                                content={para}
-                                                onWikiLink={onWikiLink}
-                                                className={i === 0 ? '[&>p:first-child]:first-letter:float-left [&>p:first-child]:first-letter:font-serif [&>p:first-child]:first-letter:font-bold [&>p:first-child]:first-letter:text-[3.5rem] [&>p:first-child]:first-letter:leading-none [&>p:first-child]:first-letter:text-gold-300 [&>p:first-child]:first-letter:border [&>p:first-child]:first-letter:border-gold-700 [&>p:first-child]:first-letter:bg-ink-900 [&>p:first-child]:first-letter:rounded-sm [&>p:first-child]:first-letter:px-2.5 [&>p:first-child]:first-letter:py-1 [&>p:first-child]:first-letter:mr-3.5 [&>p:first-child]:first-letter:mt-1' : ''}
-                                            />
-                                        ))}
+                                        {bodyParas.map((para, i) => {
+                                            // The opening letter becomes a drop cap (and is hidden in the text)
+                                            const dropCap = i === 0 && /^[A-Za-z]/.test(para) ? para[0] : null;
+                                            return (
+                                                <div key={i}>
+                                                    {dropCap && <DropCap letter={dropCap} />}
+                                                    <RichText
+                                                        content={para}
+                                                        onWikiLink={onWikiLink}
+                                                        className={dropCap ? '[&>p:first-child]:first-letter:text-[length:0]' : ''}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
