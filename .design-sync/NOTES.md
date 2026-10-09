@@ -13,7 +13,7 @@ How this repo syncs to Claude Design (project "Realm of Allania", id in config.j
   - `next/link` → plain `<a>`
   - A new `firebase/*` import in a component fails the build with "has no design-sync stand-in": add it to `SWAPS` in build-dist.mjs.
 - Fonts: Inter + Cormorant Garamond Latin woff2 from @fontsource, committed in `fonts/` (the app loads them via next/font).
-- Previews import shared helpers from `preview-helpers.tsx` (Frame contains fixed-position overlays via `transform`; ClickOnMount opens click-to-open UI by aria-label).
+- Previews import shared helpers from `preview-helpers.tsx` (Frame contains fixed-position overlays via `transform`; ClickOnMount opens click-to-open UI by aria-label; ClickSequence clicks several controls by aria-label or exact button text, waiting up to 2s for each to appear, so a click that needs loaded data (e.g. CodexIndex "New Page") doesn't fire before the stub data arrives).
 
 ## Fixes made to the app while syncing (2026-10-04)
 - Avatars without a portrait rendered an `<img src="">` (broken-image alt text) instead of the initial: fixed in PostItem, CharacterListItem, ThreadView reply box.
