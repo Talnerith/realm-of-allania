@@ -40,10 +40,18 @@ const countPostLikes = onDocumentWritten(
             if (error.code !== NOT_FOUND) throw error;
             return;
         }
-        const authorId = post.data().userId;
+        const { userId: authorId, characterId } = post.data();
         if (authorId) {
-            // Reputation shown on the author's posts
+            // Reputation: the player's total, and the character's shown on its posts
             await db.doc(`${DATA}/profiles/${authorId}`).set({ likesReceived: FieldValue.increment(delta) }, { merge: true });
+            if (characterId) {
+                try {
+                    await db.doc(`artifacts/${APP_ID}/users/${authorId}/characters/${characterId}`)
+                        .update({ likesReceived: FieldValue.increment(delta) });
+                } catch (error) {
+                    if (error.code !== NOT_FOUND) throw error; // deleted character
+                }
+            }
         }
     }
 );

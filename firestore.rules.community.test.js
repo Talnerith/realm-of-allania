@@ -133,3 +133,91 @@ describe('Account settings', () => {
     await assertFails(updateDoc(account('reader'), { activeCharId: 'x'.repeat(200) }));
   });
 });
+
+describe('Thread tags, views and server fields', () => {
+  const THREAD = `${DATA}/threads/thread1`;
+  const newThread = (extra = {}) => ({
+    title: 'A New Tale', regionId: '12', creatorId: 'reader', status: 'pending',
+    updatedAt: serverTimestamp(), postCount: 1, ...extra
+  });
+
+  beforeEach(async () => {
+    await seed(THREAD, { title: 'A Grand Adventure', regionId: '12', creatorId: 'author', status: 'approved', postCount: 1, views: 4, tags: ['Lore'] });
+    await seed(`${DATA}/threads/pendingT`, { title: 'Pending Tale', regionId: '12', creatorId: 'author', status: 'pending', postCount: 1 });
+  });
+
+  test('new threads take up to 3 tags from the list', async () => {
+    await assertSucceeds(setDoc(doc(dbFor('reader'), `${DATA}/threads/n1`), newThread({ tags: ['Roleplay', 'Lore', 'Open'] })));
+    await assertFails(setDoc(doc(dbFor('reader'), `${DATA}/threads/n2`), newThread({ tags: ['Roleplay', 'Lore', 'Open', 'Trade'] })));
+    await assertFails(setDoc(doc(dbFor('reader'), `${DATA}/threads/n3`), newThread({ tags: ['Spam'] })));
+  });
+
+  test('clients cannot set excerpt, last reply or views', async () => {
+    for (const extra of [{ excerpt: 'fake' }, { lastPostBy: 'Someone' }, { views: 999 }]) {
+      await assertFails(setDoc(doc(dbFor('reader'), `${DATA}/threads/x${Object.keys(extra)[0]}`), newThread(extra)));
+    }
+    await assertFails(updateDoc(doc(dbFor('author'), THREAD), { excerpt: 'rewritten' }));
+    await assertFails(updateDoc(doc(dbFor('mod1'), THREAD), { lastPostBy: 'Nobody' }));
+  });
+
+  test('the creator can retag within the list', async () => {
+    await assertSucceeds(updateDoc(doc(dbFor('author'), THREAD), { tags: ['Adventure', 'Ongoing'] }));
+    await assertFails(updateDoc(doc(dbFor('author'), THREAD), { tags: ['Nonsense'] }));
+  });
+
+  test('any signed-in player adds exactly one view to a published thread', async () => {
+    await assertSucceeds(updateDoc(doc(dbFor('reader'), THREAD), { views: 5 }));
+    await assertFails(updateDoc(doc(dbFor('reader'), THREAD), { views: 50 }));
+    await assertFails(updateDoc(doc(dbFor('reader'), THREAD), { views: 5, title: 'Hijacked' }));
+    await assertFails(updateDoc(doc(guest(), THREAD), { views: 5 }));
+    await assertFails(updateDoc(doc(dbFor('banned1'), THREAD), { views: 5 }));
+    await assertFails(updateDoc(doc(dbFor('author'), `${DATA}/threads/pendingT`), { views: 1 }));
+  });
+});
+
+describe('Character reputation', () => {
+  const CHAR = `${USERS}/reader/characters/c1`;
+  beforeEach(async () => {
+    await seed(`${USERS}/reader/settings/account`, { role: 'user', characterCount: 1 });
+    await seed(CHAR, { name: 'Lyra', race: 'Elf', class: 'Ranger', likesReceived: 2 });
+  });
+
+  test('owners can edit their character but not its reputation', async () => {
+    await assertSucceeds(updateDoc(doc(dbFor('reader'), CHAR), { description: 'A tracker.' }));
+    await assertFails(updateDoc(doc(dbFor('reader'), CHAR), { likesReceived: 500 }));
+  });
+});
+
+describe('Sealed threads', () => {
+  beforeEach(async () => {
+    await seed(`${DATA}/threads/sealed`, { title: 'The Oath', regionId: '12', creatorId: 'author', status: 'approved', postCount: 1, isLocked: true });
+    await seed(`${USERS}/reader/characters/c1`, { name: 'Lyra', race: 'Elf', class: 'Ranger' });
+  });
+  const reply = (uid) => setDoc(doc(dbFor(uid), `${DATA}/posts/r-${uid}`), {
+    content: 'A reply to the sealed oath.', threadId: 'sealed', userId: uid, status: uid === 'mod1' ? 'approved' : 'pending'
+  });
+
+  test('players cannot post in a sealed thread; moderators can', async () => {
+    await assertFails(reply('reader'));
+    await assertSucceeds(reply('mod1'));
+  });
+});
+
+describe('Codex tags', () => {
+  const page = (extra = {}) => ({
+    title: 'Zekiel', content: 'A wanderer of the dunes.', gallery: [], creatorId: 'reader', lastEditorId: 'reader', status: 'pending', ...extra
+  });
+
+  test('pages take up to 3 short tags without blocked words', async () => {
+    await assertSucceeds(setDoc(doc(dbFor('reader'), `${DATA}/codex_pages/c1`), page({ tags: ['Rogue', 'Deceased', 'Historical'] })));
+    await assertFails(setDoc(doc(dbFor('reader'), `${DATA}/codex_pages/c2`), page({ tags: ['a', 'b', 'c', 'd'] })));
+    await assertFails(setDoc(doc(dbFor('reader'), `${DATA}/codex_pages/c3`), page({ tags: ['x'.repeat(30)] })));
+    await assertFails(setDoc(doc(dbFor('reader'), `${DATA}/codex_pages/c4`), page({ tags: ['free money'] })));
+  });
+
+  test('changing tags sends the page back to moderation', async () => {
+    await seed(`${DATA}/codex_pages/c5`, page({ status: 'approved', tags: ['Rogue'] }));
+    await assertFails(updateDoc(doc(dbFor('reader'), `${DATA}/codex_pages/c5`), { tags: ['Hero'], lastEditorId: 'reader' }));
+    await assertSucceeds(updateDoc(doc(dbFor('reader'), `${DATA}/codex_pages/c5`), { tags: ['Hero'], lastEditorId: 'reader', status: 'pending' }));
+  });
+});

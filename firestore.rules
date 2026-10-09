@@ -54,13 +54,28 @@ service cloud.firestore {
     function isValidTitle(title) { return title is string && title.size() >= 3 && title.size() <= 140; }
     function isValidGallery(gallery) { return gallery is list && gallery.size() <= 5; }
     function isShortString(value, max) { return value is string && value.size() <= max; }
+    // Thread tags: up to 3 from the fixed list (THREAD_TAGS in src/lib/constants.js)
+    function isValidTags(tags) {
+      return tags is list && tags.size() <= 3
+          && tags.hasOnly(['Roleplay', 'Adventure', 'Lore', 'Investigation', 'Discussion', 'Open', 'Ongoing', 'Politics', 'Trade']);
+    }
+    // Codex page tags: up to 3 free-text labels chosen by the writer
+    function isCodexTag(t) { return t is string && t.size() >= 1 && t.size() <= 24 && !hasForbiddenText(t); }
+    function isValidCodexTags(tags) {
+      return tags is list && tags.size() <= 3
+          && (tags.size() < 1 || isCodexTag(tags[0]))
+          && (tags.size() < 2 || isCodexTag(tags[1]))
+          && (tags.size() < 3 || isCodexTag(tags[2]));
+    }
+    // Thread summary fields only Cloud Functions write (from approved posts)
+    function threadServerFields() { return ['excerpt', 'openingPostId', 'lastPostBy', 'lastPostCharacterId', 'lastPostAt', 'views']; }
     function isValidCharacter(data) {
       return isShortString(data.name, 60) && data.name.size() >= 1
           && isShortString(data.get('race', ''), 40)
           && isShortString(data.get('class', ''), 40)
           && isShortString(data.get('description', ''), 5000)
           && isShortString(data.get('imageUrl', ''), 2048)
-          && data.keys().size() <= 15
+          && data.keys().size() <= 16
           // Profiles are public and shown on every post, so they get the logic filter
           && isAcceptableName(data.name)
           && !hasForbiddenText(data.get('race', ''))
@@ -123,8 +138,11 @@ service cloud.firestore {
           allow create: if isOwner(userId) && canWrite()
                         && getCharCount(userId) < 10
                         && getAfter(accountPath(userId)).data.get('characterCount', 0) == getCharCount(userId) + 1
-                        && isValidCharacter(request.resource.data);
-          allow update: if (isOwner(userId) && canWrite() && isValidCharacter(request.resource.data)) || isAdmin();
+                        && isValidCharacter(request.resource.data)
+                        && !('likesReceived' in request.resource.data);
+          // likesReceived (reputation) belongs to the countPostLikes function
+          allow update: if (isOwner(userId) && canWrite() && isValidCharacter(request.resource.data)
+                            && !changedKeys().hasAny(['likesReceived'])) || isAdmin();
           allow delete: if isOwner(userId) || isAdmin();
         }
 
@@ -166,6 +184,8 @@ service cloud.firestore {
                         && request.resource.data.get('postCount', 1) == 1
                         && (!('isLocked' in request.resource.data) || isMod())
                         && !setsModerationFields()
+                        && (!('tags' in request.resource.data) || isValidTags(request.resource.data.tags))
+                        && !request.resource.data.keys().hasAny(threadServerFields())
                         // Anti-impersonation: displayed author name must match one of
                         // the caller's own characters
                         && (!('createdBy' in request.resource.data)
@@ -188,6 +208,8 @@ service cloud.firestore {
                         && (request.auth.uid == resource.data.creatorId || isMod())
                         && (!changedKeys().hasAny(['title']) || isValidTitle(request.resource.data.title))
                         && !changedKeys().hasAny(['creatorId', 'createdAt', 'createdBy', 'characterId'])
+                        && !changedKeys().hasAny(threadServerFields())
+                        && (!changedKeys().hasAny(['tags']) || isValidTags(request.resource.data.tags))
                         // The title was moderated with the first post and activity metadata
                         // belongs to the reply bump, so owners may change neither
                         && (isMod() || !changedKeys().hasAny(['title', 'postCount', 'updatedAt']))
@@ -197,6 +219,13 @@ service cloud.firestore {
                         // Sacred Texts: Only mods can toggle isLocked, and locked threads can only be edited by mods
                         && (isMod() || !changedKeys().hasAny(['isLocked']))
                         && (isMod() || resource.data.get('isLocked', false) != true);
+
+          // View counter: any signed-in player may add exactly one view to a
+          // published thread (the client counts once per thread per session)
+          allow update: if isSignedIn() && !isBanned()
+                        && changedKeys().hasOnly(['views'])
+                        && request.resource.data.views == resource.data.get('views', 0) + 1
+                        && resource.data.get('status', 'approved') == 'approved';
           allow delete: if isMod();
         }
 
@@ -224,6 +253,8 @@ service cloud.firestore {
                         // Posts go into a visible thread or the author's own pending one
                         // (created in the same batch), never into a rejected thread
                         && threadAfter(request.resource.data.threadId) != null
+                        // Sealed threads (Sacred Texts) take no new posts, except from mods
+                        && (threadAfter(request.resource.data.threadId).data.get('isLocked', false) != true || isMod())
                         && (threadAfter(request.resource.data.threadId).data.get('status', 'approved') == 'approved'
                             || (threadAfter(request.resource.data.threadId).data.creatorId == request.auth.uid
                                 && threadAfter(request.resource.data.threadId).data.get('status', 'approved') == 'pending')
@@ -299,6 +330,7 @@ service cloud.firestore {
                         && isValidTitle(request.resource.data.title)
                         && isValidContent(request.resource.data.content)
                         && isValidGallery(request.resource.data.gallery)
+                        && (!('tags' in request.resource.data) || isValidCodexTags(request.resource.data.tags))
                         && (request.resource.data.status == 'pending' || (request.resource.data.status == 'approved' && isMod()))
                         // Locking a page would let its creator squat the title
                         && (!('isLocked' in request.resource.data) || isMod())
@@ -309,11 +341,12 @@ service cloud.firestore {
                         && isValidTitle(request.resource.data.title)
                         && isValidContent(request.resource.data.content)
                         && isValidGallery(request.resource.data.gallery)
+                        && (!('tags' in request.resource.data) || isValidCodexTags(request.resource.data.tags))
                         && (isMod() || !touchesModerationFields())
                         // Same as posts: non-mods may only set 'pending', and must when
                         // they change what readers see
                         && (isMod() || !changedKeys().hasAny(['status']) || request.resource.data.status == 'pending')
-                        && (isMod() || !changedKeys().hasAny(['title', 'content', 'category', 'gallery', 'imageUrl']) || request.resource.data.status == 'pending')
+                        && (isMod() || !changedKeys().hasAny(['title', 'content', 'category', 'tags', 'gallery', 'imageUrl']) || request.resource.data.status == 'pending')
                         // Sacred Texts: Only mods can toggle isLocked, and locked pages can only be edited by mods
                         && (isMod() || !changedKeys().hasAny(['isLocked']))
                         && (isMod() || resource.data.get('isLocked', false) != true);

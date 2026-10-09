@@ -34,11 +34,19 @@ describe('countPostLikes', () => {
         for (const k of Object.keys(mockDocs)) delete mockDocs[k];
     });
 
-    it('increments the post and the author reputation', async () => {
-        mockDoc(`${DATA}/posts/p1`).get.mockResolvedValue({ exists: true, data: () => ({ userId: 'author1' }) });
+    it('increments the post, the author and the character reputation', async () => {
+        mockDoc(`${DATA}/posts/p1`).get.mockResolvedValue({ exists: true, data: () => ({ userId: 'author1', characterId: 'c1' }) });
         await countPostLikes(event(null, { createdAt: 1 }));
         expect(mockDocs[`${DATA}/posts/p1`].update).toHaveBeenCalledWith({ likeCount: { increment: 1 } });
         expect(mockDocs[`${DATA}/profiles/author1`].set).toHaveBeenCalledWith({ likesReceived: { increment: 1 } }, { merge: true });
+        expect(mockDocs['artifacts/realm-of-allania-v2/users/author1/characters/c1'].update).toHaveBeenCalledWith({ likesReceived: { increment: 1 } });
+    });
+
+    it('ignores a deleted character', async () => {
+        mockDoc(`${DATA}/posts/p1`).get.mockResolvedValue({ exists: true, data: () => ({ userId: 'author1', characterId: 'gone' }) });
+        const err = Object.assign(new Error('not found'), { code: 5 });
+        mockDoc('artifacts/realm-of-allania-v2/users/author1/characters/gone').update.mockRejectedValue(err);
+        await expect(countPostLikes(event(null, { createdAt: 1 }))).resolves.toBeUndefined();
     });
 
     it('decrements when a like is removed', async () => {

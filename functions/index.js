@@ -5,6 +5,7 @@ const admin = require("firebase-admin");
 const crypto = require("crypto");
 const { FieldValue } = require("firebase-admin/firestore");
 const { validatePostContent } = require("./validation");
+const { updateThreadMeta } = require("./threadMeta");
 
 admin.initializeApp();
 
@@ -298,7 +299,7 @@ module.exports.PROMOTION_RULES = PROMOTION_RULES;
 
 // Codex fields kept as the "last approved version" of a page, restored when
 // a later edit fails moderation
-const CODEX_SNAPSHOT_FIELDS = ['title', 'content', 'category', 'gallery', 'imageUrl', 'imagePosition', 'updatedBy', 'lastEditorId'];
+const CODEX_SNAPSHOT_FIELDS = ['title', 'content', 'category', 'tags', 'gallery', 'imageUrl', 'imagePosition', 'updatedBy', 'lastEditorId'];
 
 function contentHash(text) {
     return crypto.createHash('sha256').update(text || '').digest('hex');
@@ -474,6 +475,14 @@ exports.moderatePost = onDocumentWritten(
         const postId = event.params.postId;
         const { content, userId } = data;
 
+        // A moderator approved a post by hand (from needs_review / rejected):
+        // keep the thread's excerpt and "last reply" in step
+        if (data.status === 'approved' && previousData && previousData.status !== 'approved'
+            && previousData.status !== 'pending') {
+            await updateThreadMeta(db, data.threadId, data, postId, false);
+            return;
+        }
+
         // Only pending posts are moderated. New posts and author edits arrive as
         // 'pending' (the rules require it); approved / rejected / needs_review are
         // final or a moderator's call, and include this function's own writes.
@@ -508,6 +517,7 @@ exports.moderatePost = onDocumentWritten(
 
         if (verdict.status === 'approved') {
             if (parentThread) await approveThreadIfPending(parentThread.ref);
+            await updateThreadMeta(db, data.threadId, data, postId, !!parentThread);
             if (data.imageUrl) await deleteRejectedImageForPost(change.after.ref, data.imageUrl);
             if (verdict.method === 'ai-check') await checkAndPromoteUser(userId);
         } else if (verdict.status === 'rejected') {
@@ -553,11 +563,13 @@ exports.moderateCodexPage = onDocumentWritten(
         const pageId = event.params.pageId;
         const { content, title, creatorId, lastEditorId } = data;
         const editorId = lastEditorId || creatorId;
+        const tagsText = (Array.isArray(data.tags) ? data.tags : []).join(', ');
+        const sameTags = (other) => (Array.isArray(other.tags) ? other.tags : []).join(', ') === tagsText;
 
         // Same gate as posts: only pending pages are moderated
         if (data.status !== 'pending') return;
         if (previousData && previousData.status === 'pending'
-            && previousData.content === content && previousData.title === title) return;
+            && previousData.content === content && previousData.title === title && sameTags(previousData)) return;
 
         // The last approved version of this shared page. Pages approved before
         // snapshots existed fall back to the version this edit replaced.
@@ -566,8 +578,8 @@ exports.moderateCodexPage = onDocumentWritten(
 
         const role = await checkUserRole(editorId);
         const verdict = await getTextVerdict({
-            text: `Title: ${title}\n\nContent: ${content}`,
-            maxLength: 10200, // 10000-char page + title
+            text: `Title: ${title}${tagsText ? `\nTags: ${tagsText}` : ''}\n\nContent: ${content}`,
+            maxLength: 10300, // 10000-char page + title + tags
             contentType: 'codex',
             trusted: TRUSTED_ROLES.includes(role),
             mockResponse: data._mockAiResponse
@@ -597,7 +609,7 @@ exports.moderateCodexPage = onDocumentWritten(
         if (data._mockAiResponse !== undefined) update._mockAiResponse = FieldValue.delete();
 
         const applied = await applyVerdictIfUnchanged(change.after.ref,
-            (current) => current.content === content && current.title === title, update);
+            (current) => current.content === content && current.title === title && sameTags(current), update);
         if (!applied) {
             console.log(`[Codex] ${pageId} changed during moderation; its newer version is moderated separately`);
             return;
