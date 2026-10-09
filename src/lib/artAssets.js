@@ -17,10 +17,10 @@ export const EDIT_PEN_IMG = {
   srcSet: '/images/roster/character-edit-pen-128.webp 1x, /images/roster/character-edit-pen-256.webp 2x'
 };
 
-// 640x140 and 1024x223 (aspect 4.571)
+// 640x74 and 1024x118 (aspect 8.67)
 export const NAME_SCROLL_IMG = {
-  src: '/images/roster/character-name-scroll-640.webp',
-  srcSet: '/images/roster/character-name-scroll-640.webp 640w, /images/roster/character-name-scroll-1024.webp 1024w'
+  src: '/images/roster/character-name-scroll-thin-640.webp',
+  srcSet: '/images/roster/character-name-scroll-thin-640.webp 640w, /images/roster/character-name-scroll-thin-1024.webp 1024w'
 };
 
 export const FOOTER_BANNER_IMG = {
