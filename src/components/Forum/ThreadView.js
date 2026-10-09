@@ -361,7 +361,9 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
             // 2. Update Thread Metadata (atomic increment)
             batch.update(doc(db, 'artifacts', APP_ID, 'public', 'data', 'threads', thread.id), {
                 updatedAt: serverTimestamp(),
-                postCount: increment(1)
+                postCount: increment(1),
+                // The rules check this names the post created in this batch
+                lastReplyPostId: postRef.id
             });
 
             // 3. Update User Read Receipt

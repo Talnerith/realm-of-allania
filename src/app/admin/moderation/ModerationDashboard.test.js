@@ -69,6 +69,7 @@ jest.mock('@/context/GameContext', () => ({
     useGame: jest.fn(() => ({
         user: { uid: 'admin-user' },
         userRole: 'admin',
+        roleLoaded: true,
         loading: false
     }))
 }));

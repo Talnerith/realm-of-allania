@@ -18,12 +18,13 @@ const config = {
     testEnvironment: 'jest-environment-jsdom',
 
     // Emulator-dependent suites (security rules + functions) run separately:
-    //   npx firebase emulators:exec --only firestore "npx jest --config jest.rules.config.js"
+    //   npx firebase emulators:exec --only firestore,storage "npx jest --config jest.rules.config.js"
     //   cd functions && npm test
     testPathIgnorePatterns: [
         '<rootDir>/node_modules/',
         '<rootDir>/functions/',
         '<rootDir>/firestore\\.rules\\..*\\.test\\.js',
+        '<rootDir>/storage\\.rules\\.test\\.js',
         '<rootDir>/src/lib/moderation/moderation\\.test\\.js',
     ],
 }

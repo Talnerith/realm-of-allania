@@ -23,7 +23,7 @@ const closeBtnCls = 'p-2 rounded-full text-ink-400 hover:text-ink-50 hover:bg-in
 const errorCls = 'text-sm text-red-400 bg-red-950 border border-red-900 rounded px-3 py-2';
 
 export default function CharacterDrawer() {
-    const { user, userRole, characters, activeCharId, setActiveCharId } = useGame();
+    const { user, userRole, characters, characterCount, activeCharId, setActiveCharId } = useGame();
 
     const [isOpen, setIsOpen] = useState(false);
     const [mode, setMode] = useState('view');
@@ -226,8 +226,12 @@ export default function CharacterDrawer() {
 
             // --- STEP 3: Delete Character & Decrement Count ---
             finalBatch.delete(doc(db, 'artifacts', APP_ID, 'users', user.uid, 'characters', deleteId));
-            const userSettingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'account');
-            finalBatch.update(userSettingsRef, { characterCount: increment(-1) });
+            // The rules only let the count go down for a character deleted in
+            // the same batch (named here). Older accounts may have a count of 0.
+            if (characterCount > 0) {
+                const userSettingsRef = doc(db, 'artifacts', APP_ID, 'users', user.uid, 'settings', 'account');
+                finalBatch.update(userSettingsRef, { characterCount: increment(-1), lastDeletedCharId: deleteId });
+            }
 
             await finalBatch.commit();
 

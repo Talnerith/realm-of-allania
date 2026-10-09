@@ -53,6 +53,7 @@ describe('CharacterDrawer', () => {
     useGame.mockReturnValue({
       user: mockUser,
       characters: mockCharacters,
+      characterCount: 2,
       activeCharId: 'char1',
       setActiveCharId: mockSetActiveCharId,
     });
@@ -272,11 +273,23 @@ describe('CharacterDrawer', () => {
 
     const mockBatch = firestore.writeBatch();
     expect(mockBatch.delete).toHaveBeenCalledWith({ path: 'artifacts/realm-of-allania-v2/users/user123/characters/char2' });
-    expect(mockBatch.update).toHaveBeenCalledWith(expect.anything(), { characterCount: firestore.increment(-1) });
+    expect(mockBatch.update).toHaveBeenCalledWith(expect.anything(), { characterCount: firestore.increment(-1), lastDeletedCharId: 'char2' });
     expect(mockBatch.commit).toHaveBeenCalled();
     // Posts/threads/codex are handled server-side by syncCharacter
     expect(firestore.getDocs).not.toHaveBeenCalled();
     expect(storage.deleteObject).not.toHaveBeenCalled();
+  });
+
+  test('an older account with a count of 0 deletes without decrementing', async () => {
+    useGame.mockReturnValue({ ...useGame(), characterCount: 0 });
+    render(<CharacterDrawer />);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete character' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Yes, Delete' })); });
+    const mockBatch = firestore.writeBatch();
+    expect(mockBatch.delete).toHaveBeenCalled();
+    expect(mockBatch.update).not.toHaveBeenCalled();
+    expect(mockBatch.commit).toHaveBeenCalled();
   });
 
   describe('portrait files', () => {

@@ -37,6 +37,7 @@ beforeEach(async () => {
   await seed(`artifacts/${APP_ID}/users/mod1/settings/account`, { role: 'moderator' });
   await seed(`artifacts/${APP_ID}/users/banned1/settings/account`, { role: 'banned' });
   await seed(`artifacts/${APP_ID}/users/user1/characters/char1`, { name: 'Aldric the Bold', race: 'Human', class: 'Knight' });
+  await seed(`${DATA}/profiles/user1`, { displayName: 'Wanderer' });
   // An approved thread anyone may reply to
   await seed(`${DATA}/threads/thread1`, {
     title: 'A Grand Adventure', regionId: '12', creatorId: 'user2', status: 'approved', postCount: 1
@@ -48,7 +49,7 @@ const postData = {
   threadId: 'thread1',
   userId: 'user1',
   status: 'pending',
-  createdAt: new Date().toISOString()
+  createdAt: serverTimestamp()
 };
 
 describe('Firestore Rules: Posts', () => {
@@ -167,9 +168,19 @@ describe('Firestore Rules: Threads', () => {
     }));
   });
 
-  test('Replying bumps postCount by 1 with a server timestamp', async () => {
+  test('Replying bumps postCount by 1 with a server timestamp, naming the new post', async () => {
+    const db = dbFor('user1');
+    const batch = writeBatch(db);
+    const postRef = doc(collection(db, `${DATA}/posts`));
+    batch.set(postRef, postData);
+    batch.update(doc(db, `${DATA}/threads/thread1`), { postCount: increment(1), updatedAt: serverTimestamp(), lastReplyPostId: postRef.id });
+    await assertSucceeds(batch.commit());
+  });
+
+  test('A thread cannot be bumped without posting', async () => {
     const ref = doc(dbFor('user1'), `${DATA}/threads/thread1`);
-    await assertSucceeds(updateDoc(ref, { postCount: increment(1), updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { postCount: increment(1), updatedAt: serverTimestamp() }));
+    await assertFails(updateDoc(ref, { postCount: increment(1), updatedAt: serverTimestamp(), lastReplyPostId: 'nothing-here' }));
   });
 
   test('Cannot pin a thread to the top with a future updatedAt', async () => {
@@ -191,7 +202,10 @@ describe('Firestore Rules: Threads', () => {
 
   test('Creator can still change the banner', async () => {
     const ref = doc(dbFor('user2'), `${DATA}/threads/thread1`);
-    await assertSucceeds(updateDoc(ref, { bannerUrl: 'https://firebasestorage.googleapis.com/x', bannerPosition: 'center' }));
+    await assertSucceeds(updateDoc(ref, { bannerUrl: 'https://firebasestorage.googleapis.com/v0/b/realm-of-aethelraed.firebasestorage.app/o/b.jpg?alt=media', bannerPosition: 'center' }));
+    // Only images hosted in this project's bucket
+    await assertFails(updateDoc(ref, { bannerUrl: 'https://firebasestorage.googleapis.com/v0/b/realm-of-aethelraed.firebasestorage.app/o/../../evil.appspot.com/o/x.png' }));
+    await assertFails(updateDoc(ref, { bannerUrl: 'https://evil.example/x.png' }));
   });
 
   test('Creator cannot self-approve own thread', async () => {
@@ -288,15 +302,18 @@ describe('Firestore Rules: Accounts and presence', () => {
   });
 
   test('Banned users cannot write presence', async () => {
-    await assertFails(setDoc(doc(dbFor('banned1'), `artifacts/${APP_ID}/presence/banned1`), { username: 'x' }));
-    await assertSucceeds(setDoc(doc(dbFor('user1'), `artifacts/${APP_ID}/presence/user1`), { username: 'x' }));
+    await seed(`${DATA}/profiles/banned1`, { displayName: 'Exile' });
+    await assertFails(setDoc(doc(dbFor('banned1'), `artifacts/${APP_ID}/presence/banned1`), { username: 'Exile', lastSeen: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(dbFor('user1'), `artifacts/${APP_ID}/presence/user1`), { username: 'Wanderer', lastSeen: serverTimestamp() }));
   });
 
-  test('Display names in Active Users are filtered', async () => {
+  test('Active Users shows only your own author name, seen now', async () => {
     const ref = doc(dbFor('user1'), `artifacts/${APP_ID}/presence/user1`);
-    await assertFails(setDoc(ref, { username: 'Site Admin' }));
-    await assertFails(setDoc(ref, { username: 'free money bot' }));
-    await assertSucceeds(setDoc(ref, { username: 'Wanderer' }));
+    await assertFails(setDoc(ref, { username: 'Site Admin', lastSeen: serverTimestamp() }));
+    await assertFails(setDoc(ref, { username: 'SomeoneElse', lastSeen: serverTimestamp() }));
+    await assertFails(setDoc(ref, { username: 'Wanderer', lastSeen: Timestamp.fromDate(new Date('3000-01-01')) }));
+    await assertFails(setDoc(ref, { username: 'Wanderer', lastSeen: serverTimestamp(), junk: 'x'.repeat(1000) }));
+    await assertSucceeds(setDoc(ref, { username: 'Wanderer', lastSeen: serverTimestamp() }));
   });
 });
 
@@ -335,7 +352,7 @@ describe('Firestore Rules: Read restrictions on unapproved content', () => {
 describe('Firestore Rules: Anti-impersonation (characterName)', () => {
   test('Post with characterName matching own character succeeds', async () => {
     await assertSucceeds(setDoc(doc(dbFor('user1'), `${DATA}/posts/postChar`), {
-      ...postData, characterId: 'char1', characterName: 'Aldric the Bold'
+      ...postData, characterId: 'char1', characterName: 'Aldric the Bold', characterRace: 'Human', characterClass: 'Knight'
     }));
   });
 

@@ -12,7 +12,7 @@ import {
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
-import { createProfile, ensureProfile, displayNameProblem, saveProfileName, saveProfileAvatar, profileRef } from '@/lib/profiles';
+import { createProfile, ensureProfile, displayNameProblem, saveProfileName, saveProfileAvatar, profileRef, isNameTaken, NAME_TAKEN } from '@/lib/profiles';
 
 const accountRef = (uid) => doc(db, 'artifacts', APP_ID, 'users', uid, 'settings', 'account');
 
@@ -25,6 +25,8 @@ export function GameProvider({ children }) {
   const [userRole, setUserRole] = useState('user');
   // False until the signed-in player's role has arrived (userRole is 'user' until then)
   const [roleLoaded, setRoleLoaded] = useState(false);
+  // The account's characterCount (what the rules count against the cap)
+  const [characterCount, setCharacterCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [characters, setCharacters] = useState([]);
   // The character being played and the Landing "Don't show this again"
@@ -112,6 +114,7 @@ export function GameProvider({ children }) {
             const role = data.role || 'user';
             if ('activeCharId' in data) setActiveCharIdState(data.activeCharId ?? null);
             setHideWelcomeState(data.hideWelcome === true);
+            setCharacterCount(Number.isInteger(data.characterCount) ? data.characterCount : 0);
 
             if (role === 'banned') {
               await signOut(auth);
@@ -144,11 +147,31 @@ export function GameProvider({ children }) {
           setRoleLoaded(true);
         });
 
+        // --- Presence Heartbeat ---
+        // Active Users shows the player's author name, so presence is written
+        // with the profile's name (the rules check it) once the profile loads
+        let presenceName = null;
+        const updatePresence = async () => {
+          if (!presenceName) return;
+          try {
+            const presenceRef = doc(db, 'artifacts', APP_ID, 'presence', currentUser.uid);
+            await setDoc(presenceRef, {
+              username: presenceName,
+              lastSeen: serverTimestamp()
+            });
+          } catch (e) {
+            console.error("Presence update failed:", e);
+          }
+        };
+
         // Public profile (author name) for accounts made before profiles existed
         ensureProfile(currentUser);
         profileUnsub = onSnapshot(profileRef(currentUser.uid), (snap) => {
           const p = snap.exists() ? snap.data() : {};
           setAvatar(p.avatarUrl ? { url: p.avatarUrl, position: p.avatarPosition || 'center' } : NO_AVATAR);
+          const renamed = (p.displayName || null) !== presenceName;
+          presenceName = p.displayName || null;
+          if (renamed) updatePresence();
         }, (error) => console.error("Profile listener error:", error));
 
         // --- B. Read Receipts ---
@@ -169,20 +192,7 @@ export function GameProvider({ children }) {
             setCharacters(chars);
           }, (error) => console.error("Characters error:", error));
 
-          // --- D. Presence Heartbeat ---
-          const updatePresence = async () => {
-            try {
-              const presenceRef = doc(db, 'artifacts', APP_ID, 'presence', currentUser.uid);
-              await setDoc(presenceRef, {
-                username: currentUser.displayName || 'Anonymous',
-                lastSeen: serverTimestamp()
-              });
-            } catch (e) {
-              console.error("Presence update failed:", e);
-            }
-          };
-
-          updatePresence(); // Initial update
+          // --- D. Presence Heartbeat (first write happens when the profile loads) ---
           presenceInterval = setInterval(updatePresence, 60000); // Update every minute
         }
       } else {
@@ -195,6 +205,7 @@ export function GameProvider({ children }) {
         setCharacters([]);
         setActiveCharIdState(null);
         setHideWelcomeState(null);
+        setCharacterCount(0);
       }
       setLoading(false);
     });
@@ -209,6 +220,8 @@ export function GameProvider({ children }) {
   // --- Auth Actions ---
   const signup = useCallback(async (email, password, username) => {
     if (!auth) throw new Error("Authentication service unavailable.");
+    // Author names are unique; check before making an account that couldn't use it
+    if (db && await isNameTaken(username)) throw Object.assign(new Error(NAME_TAKEN), { code: 'app/name-taken' });
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName: username });
     setDisplayNameState(username); // the auth listener fired before the name was set
@@ -282,6 +295,7 @@ export function GameProvider({ children }) {
       await saveProfileName(auth.currentUser.uid, next);
       await updateProfile(auth.currentUser, { displayName: next });
     } catch (e) {
+      if (e.message === NAME_TAKEN) throw e;
       console.error('Could not change the display name:', e);
       throw new Error('Could not save your name. Please try again.');
     }
@@ -304,13 +318,13 @@ export function GameProvider({ children }) {
   // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
   // when GameProvider renders but data hasn't changed.
   const value = useMemo(() => ({
-    user, userRole, roleLoaded, loading, characters, activeCharId, setActiveCharId,
+    user, userRole, roleLoaded, loading, characters, characterCount, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
     displayName, updateDisplayName, avatar, updateAvatar,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   }), [
-    user, userRole, roleLoaded, loading, characters, activeCharId, setActiveCharId,
+    user, userRole, roleLoaded, loading, characters, characterCount, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
     displayName, updateDisplayName, avatar, updateAvatar,
     readReceipts,

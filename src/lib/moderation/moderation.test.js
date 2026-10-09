@@ -3,7 +3,7 @@ if (typeof global.setImmediate === 'undefined') {
 }
 
 const { assertFails, assertSucceeds, initializeTestEnvironment } = require('@firebase/rules-unit-testing');
-const { setDoc, doc, getDoc, onSnapshot, updateDoc, deleteDoc } = require('firebase/firestore');
+const { setDoc, doc, getDoc, onSnapshot, updateDoc, deleteDoc, serverTimestamp } = require('firebase/firestore');
 const fs = require('fs');
 
 const PROJECT_ID = 'realm-of-aethelraed';
@@ -93,7 +93,7 @@ describe('Moderation System', () => {
             threadId: 'thread1',
             userId: 'user1',
             status: 'pending',
-            createdAt: new Date().toISOString()
+            createdAt: serverTimestamp()
         });
 
         // Wait for function to update
@@ -115,7 +115,7 @@ describe('Moderation System', () => {
             threadId: 'thread1',
             userId: 'user1',
             status: 'pending',
-            createdAt: new Date().toISOString(),
+            createdAt: serverTimestamp(),
             _mockAiResponse: 'Safe' // Mocking AI
         });
 
@@ -134,7 +134,7 @@ describe('Moderation System', () => {
             threadId: 'thread1',
             userId: 'user1',
             status: 'pending',
-            createdAt: new Date().toISOString(),
+            createdAt: serverTimestamp(),
             _mockAiResponse: 'Vandalism' // Mocking AI
         });
 
@@ -156,6 +156,7 @@ describe('Moderation System', () => {
             threadId: 'threadBad',
             userId: 'user1',
             status: 'pending',
+            createdAt: serverTimestamp(),
             _mockAiResponse: 'Safe'
         });
 

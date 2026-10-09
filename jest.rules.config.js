@@ -8,6 +8,7 @@ module.exports = {
   testMatch: [
     '**/__tests__/rules/**/*.test.js',
     '<rootDir>/firestore.rules.*.test.js',
+    '<rootDir>/storage.rules.test.js',
     '<rootDir>/src/lib/moderation/moderation.test.js',
   ],
   setupFilesAfterEnv: ['<rootDir>/jest.rules.setup.js'],

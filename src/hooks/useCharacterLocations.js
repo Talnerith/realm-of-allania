@@ -39,6 +39,8 @@ export default function useCharacterLocations(activeCharId) {
       collection(db, 'artifacts', APP_ID, 'public', 'data', 'posts'),
       where('userId', '==', uidPart),
       where('characterId', '==', charPart),
+      // Newest first, so a prolific character's current threads are never cut off
+      orderBy('createdAt', 'desc'),
       limit(300)
     );
     return onSnapshot(q, (snap) => {

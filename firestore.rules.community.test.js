@@ -1,5 +1,5 @@
 const { assertFails, assertSucceeds, initializeTestEnvironment } = require('@firebase/rules-unit-testing');
-const { setDoc, doc, updateDoc, deleteDoc, getDoc, serverTimestamp } = require('firebase/firestore');
+const { setDoc, doc, updateDoc, deleteDoc, getDoc, writeBatch, serverTimestamp } = require('firebase/firestore');
 const fs = require('fs');
 
 const PROJECT_ID = 'realm-of-aethelraed-test';
@@ -86,8 +86,47 @@ describe('Likes', () => {
 describe('Public profiles', () => {
   const profile = (uid) => `${DATA}/profiles/${uid}`;
 
+  const claim = (key) => `${DATA}/usernames/${key}`;
+  // A profile is created together with the claim on its name
+  const createProfile = (uid, name, db = dbFor(uid)) => {
+    const batch = writeBatch(db);
+    batch.set(doc(db, profile(uid)), { displayName: name, createdAt: serverTimestamp() });
+    batch.set(doc(db, claim(`n_${name.toLowerCase().replace(/[ \t]+/g, ' ')}`)), { uid });
+    return batch.commit();
+  };
+  const rename = (uid, from, to, db = dbFor(uid)) => {
+    const batch = writeBatch(db);
+    batch.update(doc(db, profile(uid)), { displayName: to });
+    batch.set(doc(db, claim(`n_${to.toLowerCase()}`)), { uid });
+    batch.delete(doc(db, claim(`n_${from.toLowerCase()}`)));
+    return batch.commit();
+  };
+
   test('a new player creates their profile at registration (before verifying email)', async () => {
-    await assertSucceeds(setDoc(doc(dbFor('reader', { email_verified: false }), profile('reader')), { displayName: 'Emberquill', createdAt: serverTimestamp() }));
+    await assertSucceeds(createProfile('reader', 'Emberquill', dbFor('reader', { email_verified: false })));
+  });
+
+  test('author names are unique, ignoring case and spacing', async () => {
+    await assertSucceeds(createProfile('reader', 'Ember Quill'));
+    await assertFails(createProfile('author', 'ember   QUILL'));
+    // A profile without its claim, or a claim for someone else, is refused
+    await assertFails(setDoc(doc(dbFor('author'), profile('author')), { displayName: 'Lonewolf', createdAt: serverTimestamp() }));
+    await assertFails(setDoc(doc(dbFor('author'), claim('n_lonewolf')), { uid: 'reader' }));
+  });
+
+  test('a claim is released only once its owner moved on', async () => {
+    await assertSucceeds(createProfile('reader', 'Emberquill'));
+    await assertFails(deleteDoc(doc(dbFor('reader'), claim('n_emberquill'))));
+    await assertFails(deleteDoc(doc(dbFor('author'), claim('n_emberquill'))));
+    await assertSucceeds(rename('reader', 'Emberquill', 'Emberwing'));
+    // The old name is free again
+    await assertSucceeds(createProfile('author', 'Emberquill'));
+  });
+
+  test('renaming to a taken name is refused', async () => {
+    await assertSucceeds(createProfile('reader', 'Emberquill'));
+    await assertSucceeds(createProfile('author', 'Lonewolf'));
+    await assertFails(rename('author', 'Lonewolf', 'Emberquill'));
   });
 
   test('profiles are public', async () => {
@@ -105,13 +144,17 @@ describe('Public profiles', () => {
 
   test('a player may rename themselves but not touch their reputation', async () => {
     await seed(profile('reader'), { displayName: 'Emberquill', likesReceived: 3 });
-    await assertSucceeds(updateDoc(doc(dbFor('reader'), profile('reader')), { displayName: 'Emberwing' }));
+    await seed(claim('n_emberquill'), { uid: 'reader' });
+    await assertSucceeds(rename('reader', 'Emberquill', 'Emberwing'));
     await assertFails(updateDoc(doc(dbFor('reader'), profile('reader')), { likesReceived: 99 }));
   });
 
   test('a player may set their own author picture', async () => {
     await seed(profile('reader'), { displayName: 'Emberquill' });
-    const url = 'https://firebasestorage.googleapis.com/v0/b/bucket/o/avatar.jpg';
+    const url = 'https://firebasestorage.googleapis.com/v0/b/realm-of-aethelraed.firebasestorage.app/o/avatar.jpg?alt=media';
+    // Images from other buckets (directly or through "../") are refused
+    await assertFails(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/bucket/o/avatar.jpg' }));
+    await assertFails(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/realm-of-aethelraed.firebasestorage.app/o/../../evil.appspot.com/o/x.png' }));
     await assertSucceeds(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: url, avatarPosition: '50% 30%' }));
     await assertSucceeds(updateDoc(doc(dbFor('reader'), profile('reader')), { avatarUrl: '' }));
     await assertFails(updateDoc(doc(dbFor('author'), profile('reader')), { avatarUrl: url }));
@@ -204,7 +247,7 @@ describe('Sealed threads', () => {
     await seed(`${USERS}/reader/characters/c1`, { name: 'Lyra', race: 'Elf', class: 'Ranger' });
   });
   const reply = (uid) => setDoc(doc(dbFor(uid), `${DATA}/posts/r-${uid}`), {
-    content: 'A reply to the sealed oath.', threadId: 'sealed', userId: uid, status: uid === 'mod1' ? 'approved' : 'pending'
+    content: 'A reply to the sealed oath.', threadId: 'sealed', userId: uid, status: uid === 'mod1' ? 'approved' : 'pending', createdAt: serverTimestamp()
   });
 
   test('players cannot post in a sealed thread; moderators can', async () => {

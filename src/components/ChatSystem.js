@@ -236,6 +236,8 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
             const chatRef = doc(db, 'artifacts', APP_ID, 'chats', activeChatId);
             batch.update(chatRef, {
                 lastMessage: newMessage,
+                // The rules allow one message per write: the one named here
+                lastMessageId: msgRef.id,
                 updatedAt: serverTimestamp()
             });
 

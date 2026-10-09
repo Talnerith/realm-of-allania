@@ -44,9 +44,22 @@ describe('Firestore Security Rules - Chats', () => {
     const sendMessage = (db, id, message) => {
         const batch = writeBatch(db);
         batch.set(doc(db, `${CHAT_PATH}/messages/${id}`), { createdAt: serverTimestamp(), ...message });
-        batch.update(doc(db, CHAT_PATH), { lastMessage: String(message.text).slice(0, 50), updatedAt: serverTimestamp() });
+        batch.update(doc(db, CHAT_PATH), { lastMessage: String(message.text).slice(0, 50), lastMessageId: id, updatedAt: serverTimestamp() });
         return batch.commit();
     };
+
+    it('should deny several messages in one write (flood-control bypass)', async () => {
+        const db = dbFor('alice');
+        const batch = writeBatch(db);
+        batch.set(doc(db, `${CHAT_PATH}/messages/m1`), { senderId: 'alice', text: 'One', createdAt: serverTimestamp() });
+        batch.set(doc(db, `${CHAT_PATH}/messages/m2`), { senderId: 'alice', text: 'Two', createdAt: serverTimestamp() });
+        batch.update(doc(db, CHAT_PATH), { lastMessage: 'Two', lastMessageId: 'm2', updatedAt: serverTimestamp() });
+        await assertFails(batch.commit());
+    });
+
+    it('should deny messages dated in the future (would hide newer ones)', async () => {
+        await assertFails(sendMessage(dbFor('alice'), 'msg_f', { senderId: 'alice', text: 'From the future', createdAt: Timestamp.fromDate(new Date('9999-01-01')) }));
+    });
 
     it('should allow participants to send valid messages', async () => {
         await assertSucceeds(sendMessage(dbFor('alice'), 'msg_1', { senderId: 'alice', text: 'Hello world' }));

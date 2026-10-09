@@ -47,6 +47,19 @@ service cloud.firestore {
     function isAcceptableName(name) { return !hasForbiddenText(name) && (!isReservedName(name) || isMod()); }
     // Public author name (2-30 characters), set at registration
     function isValidDisplayName(name) { return name is string && name.size() >= 2 && name.size() <= 30 && isAcceptableName(name); }
+    // Author names are unique, ignoring case and runs of spaces: each one is
+    // claimed by a usernames/{key} doc holding the owner's uid. Same key as
+    // nameKey() in src/lib/profiles.js.
+    function nameKey(name) { return 'n_' + name.lower().replace('[ \\t]+', ' ').replace('/', '_'); }
+    function usernamePath(key) { return /databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/usernames/$(key); }
+    function profilePath(uid) { return /databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/profiles/$(uid); }
+    // A new or changed name: valid, without stray spaces, and claimed by the
+    // writer in the same batch
+    function isNewDisplayName(name) {
+      return isValidDisplayName(name) && name.trim() == name
+          && existsAfter(usernamePath(nameKey(name)))
+          && getAfter(usernamePath(nameKey(name))).data.uid == request.auth.uid;
+    }
 
     // --- 2. VALIDATION (Anti-Spam & Limits) ---
     function isValidContent(text) { return text is string && text.size() >= 10 && text.size() <= 10000; }
@@ -54,6 +67,38 @@ service cloud.firestore {
     function isValidTitle(title) { return title is string && title.size() >= 3 && title.size() <= 140; }
     function isValidGallery(gallery) { return gallery is list && gallery.size() <= 5; }
     function isShortString(value, max) { return value is string && value.size() <= max; }
+    // Images the site may show: an object in this project's Storage bucket (its
+    // name is one encoded path segment, so "../" can't reach another bucket) or
+    // one of the site's own files; '' for none. Matches isHostedImageUrl in
+    // src/lib/imageUrls.js.
+    function isHostedUrl(url) {
+      return url is string && url.size() <= 2048
+          && (url == ''
+              || url.matches('https://firebasestorage[.]googleapis[.]com/v0/b/realm-of-aethelraed[.]firebasestorage[.]app/o/[^/\\\\?#]+([?#].*)?')
+              || url.matches('/[^/\\\\][^\\\\]*'));
+    }
+    // An optional image field: absent, or hosted
+    function hostedField(data, key) { return !(key in data) || isHostedUrl(data[key]); }
+    function isValidGalleryImages(gallery) {
+      return isValidGallery(gallery)
+          && (gallery.size() < 1 || isHostedUrl(gallery[0]))
+          && (gallery.size() < 2 || isHostedUrl(gallery[1]))
+          && (gallery.size() < 3 || isHostedUrl(gallery[2]))
+          && (gallery.size() < 4 || isHostedUrl(gallery[3]))
+          && (gallery.size() < 5 || isHostedUrl(gallery[4]));
+    }
+    // Codex titles may be a single letter (character names can be)
+    function isValidCodexTitle(title) { return title is string && title.trim().size() >= 1 && title.size() <= 140; }
+    // Codex categories are shown publicly, so keep them short and clean
+    function isValidCategory(category) { return isShortString(category, 40) && !hasForbiddenText(category); }
+    // What a codex page is about: nothing, a region (numeric id) or one of the
+    // writer's own characters, so nobody can attach a page to someone else's character
+    function isValidRelatedId(relatedId) {
+      return relatedId == ''
+          || (relatedId is string && relatedId.matches('[0-9]{1,4}'))
+          || (relatedId is string && relatedId.size() <= 128
+              && exists(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/characters/$(relatedId)));
+    }
     // Thread tags: up to 3 from the fixed list (THREAD_TAGS in src/lib/constants.js)
     function isValidTags(tags) {
       return tags is list && tags.size() <= 3
@@ -97,9 +142,12 @@ service cloud.firestore {
       // D. PRESENCE (Active Users)
       match /presence/{userId} {
         allow read: if isSignedIn();
-        // The display name shown in Active Users gets the same name checks
+        // Shown in Active Users: the player's own author name (so nobody can
+        // appear as someone else), with the server's time (no "online forever")
         allow create, update: if isOwner(userId) && !isBanned()
-                              && isAcceptableName(request.resource.data.get('username', ''));
+                              && request.resource.data.keys().hasOnly(['username', 'lastSeen'])
+                              && request.resource.data.lastSeen == request.time
+                              && request.resource.data.username == get(profilePath(userId)).data.displayName;
         allow delete: if isOwner(userId);
       }
 
@@ -128,7 +176,14 @@ service cloud.firestore {
                             || (request.resource.data.characterCount is int
                                 && request.resource.data.characterCount >= 0
                                 && request.resource.data.characterCount <= 10
-                                && (request.resource.data.characterCount - resource.data.get('characterCount', 0)) in [-1, 1]));
+                                && (request.resource.data.characterCount - resource.data.get('characterCount', 0) == 1
+                                    // Going down needs a character really deleted in the same batch,
+                                    // or the cap could be reset by decrementing alone
+                                    || (request.resource.data.characterCount - resource.data.get('characterCount', 0) == -1
+                                        && request.resource.data.get('lastDeletedCharId', null) is string
+                                        && exists(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/characters/$(request.resource.data.lastDeletedCharId))
+                                        && !existsAfter(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(userId)/characters/$(request.resource.data.lastDeletedCharId))))))
+                        && (!changedKeys().hasAny(['lastDeletedCharId']) || changedKeys().hasAny(['characterCount']));
         }
 
         match /characters/{charId} {
@@ -139,9 +194,11 @@ service cloud.firestore {
                         && getCharCount(userId) < 10
                         && getAfter(accountPath(userId)).data.get('characterCount', 0) == getCharCount(userId) + 1
                         && isValidCharacter(request.resource.data)
+                        && hostedField(request.resource.data, 'imageUrl')
                         && !('likesReceived' in request.resource.data);
           // likesReceived (reputation) belongs to the countPostLikes function
           allow update: if (isOwner(userId) && canWrite() && isValidCharacter(request.resource.data)
+                            && (!changedKeys().hasAny(['imageUrl']) || isHostedUrl(request.resource.data.imageUrl))
                             && !changedKeys().hasAny(['likesReceived'])) || isAdmin();
           allow delete: if isOwner(userId) || isAdmin();
         }
@@ -186,6 +243,9 @@ service cloud.firestore {
                         && !setsModerationFields()
                         && (!('tags' in request.resource.data) || isValidTags(request.resource.data.tags))
                         && !request.resource.data.keys().hasAny(threadServerFields())
+                        && !('lastReplyPostId' in request.resource.data)
+                        && hostedField(request.resource.data, 'bannerUrl')
+                        && isShortString(request.resource.data.get('bannerPosition', 'center'), 40)
                         // Anti-impersonation: displayed author name must match one of
                         // the caller's own characters
                         && (!('createdBy' in request.resource.data)
@@ -194,12 +254,20 @@ service cloud.firestore {
 
           // Reply bump: posting a reply updates the thread's activity metadata in
           // the same batch. The timestamp must be the server's, so a thread can't
-          // be pinned to the top with a future date.
+          // be pinned to the top with a future date, and lastReplyPostId must
+          // name the writer's new post in this thread, created in the same batch,
+          // so a thread can't be bumped without posting.
           allow update: if canWrite()
-                        && changedKeys().hasOnly(['updatedAt', 'postCount'])
+                        && changedKeys().hasOnly(['updatedAt', 'postCount', 'lastReplyPostId'])
                         && request.resource.data.updatedAt == request.time
                         && request.resource.data.postCount is int
                         && request.resource.data.postCount == resource.data.get('postCount', 0) + 1
+                        && request.resource.data.get('lastReplyPostId', null) is string
+                        && !exists(/databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/posts/$(request.resource.data.lastReplyPostId))
+                        && getAfter(/databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/posts/$(request.resource.data.lastReplyPostId)).data.threadId == threadId
+                        && getAfter(/databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/posts/$(request.resource.data.lastReplyPostId)).data.userId == request.auth.uid
+                        // Sealed threads take no replies, except from mods
+                        && (resource.data.get('isLocked', false) != true || isMod())
                         && (resource.data.get('status', 'approved') == 'approved'
                             || resource.data.creatorId == request.auth.uid
                             || isMod());
@@ -212,7 +280,9 @@ service cloud.firestore {
                         && (!changedKeys().hasAny(['tags']) || isValidTags(request.resource.data.tags))
                         // The title was moderated with the first post and activity metadata
                         // belongs to the reply bump, so owners may change neither
-                        && (isMod() || !changedKeys().hasAny(['title', 'postCount', 'updatedAt']))
+                        && (isMod() || !changedKeys().hasAny(['title', 'postCount', 'updatedAt', 'lastReplyPostId']))
+                        && (!changedKeys().hasAny(['bannerUrl']) || isHostedUrl(request.resource.data.bannerUrl))
+                        && (!changedKeys().hasAny(['bannerPosition']) || isShortString(request.resource.data.bannerPosition, 40))
                         // Moderation status may only be changed by mods (matches posts/codex)
                         && (isMod() || !changedKeys().hasAny(['status']))
                         && (isMod() || !touchesModerationFields())
@@ -230,6 +300,12 @@ service cloud.firestore {
         }
 
         match /posts/{postId} {
+          function postMatchesCharacter(post, character) {
+            return post.characterName == character.name
+                && post.get('characterRace', '') == character.get('race', '')
+                && post.get('characterClass', '') == character.get('class', '')
+                && post.get('characterImageUrl', '') == character.get('imageUrl', '');
+          }
           function threadAfter(threadId) {
             return getAfter(/databases/$(database)/documents/artifacts/realm-of-allania-v2/public/data/threads/$(threadId));
           }
@@ -243,6 +319,9 @@ service cloud.firestore {
                         && isValidPostContent(request.resource.data.content)
                         && request.resource.data.threadId is string
                         && request.resource.data.userId == request.auth.uid
+                        // The server's time: a future date would keep the writer "last
+                        // reply" (and whose turn it is) forever
+                        && request.resource.data.createdAt == request.time
                         // Every post is moderated by the Cloud Function (trusted users only
                         // skip the AI step), so only mods may publish directly
                         && (request.resource.data.status == 'pending' || (request.resource.data.status == 'approved' && isMod()))
@@ -259,11 +338,15 @@ service cloud.firestore {
                             || (threadAfter(request.resource.data.threadId).data.creatorId == request.auth.uid
                                 && threadAfter(request.resource.data.threadId).data.get('status', 'approved') == 'pending')
                             || isMod())
-                        // Anti-impersonation: displayed character name must match one of
-                        // the caller's own characters
-                        && (!('characterName' in request.resource.data)
-                            || (request.resource.data.characterId is string
-                                && request.resource.data.characterName == get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/characters/$(request.resource.data.characterId)).data.name));
+                        // Anti-impersonation: the character shown on the post (name, race,
+                        // class, portrait) must be one of the caller's own, as it is now.
+                        // Only the post's content is AI-moderated, so nothing else is free text.
+                        && isShortString(request.resource.data.get('characterImagePosition', 'center'), 40)
+                        && (('characterName' in request.resource.data)
+                            ? (request.resource.data.characterId is string
+                               && postMatchesCharacter(request.resource.data,
+                                    get(/databases/$(database)/documents/artifacts/realm-of-allania-v2/users/$(request.auth.uid)/characters/$(request.resource.data.characterId)).data))
+                            : !request.resource.data.keys().hasAny(['characterRace', 'characterClass', 'characterImageUrl']));
           allow update: if canWrite() && (request.auth.uid == resource.data.userId || isMod())
                         && isValidPostContent(request.resource.data.content)
                         && !changedKeys().hasAny(['userId', 'createdAt', 'threadId', 'characterName', 'characterId', 'likeCount'])
@@ -274,6 +357,10 @@ service cloud.firestore {
                         // anyone else sees it
                         && (isMod() || !changedKeys().hasAny(['status']) || request.resource.data.status == 'pending')
                         && (isMod() || !changedKeys().hasAny(['content']) || request.resource.data.status == 'pending')
+                        // A rejected post goes back to moderation only with new content
+                        // (resubmitting the same text would re-roll the AI check)
+                        && (isMod() || !(resource.data.get('status', '') in ['rejected', 'needs_review'])
+                            || !changedKeys().hasAny(['status']) || changedKeys().hasAny(['content']))
                         // Sacred Texts: Only mods can toggle isLocked, and locked posts can only be edited by mods
                         && (isMod() || !changedKeys().hasAny(['isLocked']))
                         && (isMod() || resource.data.get('isLocked', false) != true);
@@ -304,16 +391,35 @@ service cloud.firestore {
           allow read: if true;
           allow create: if isOwner(userId) && !isBanned()
                         && request.resource.data.keys().hasOnly(['displayName', 'createdAt'])
-                        && isValidDisplayName(request.resource.data.displayName)
+                        && isNewDisplayName(request.resource.data.displayName)
                         && request.resource.data.createdAt == request.time;
           // The author picture is an upload in the player's own Storage folder
-          // (checked by moderateImage); the site only renders hosted images
+          // (checked by moderateImage); the site only renders hosted images.
+          // The name is only checked when it changes, so an older name that a
+          // newer word list would refuse doesn't block changing the picture.
           allow update: if isOwner(userId) && !isBanned()
                         && changedKeys().hasOnly(['displayName', 'avatarUrl', 'avatarPosition'])
-                        && isValidDisplayName(request.resource.data.displayName)
-                        && isShortString(request.resource.data.get('avatarUrl', ''), 2048)
+                        && (!changedKeys().hasAny(['displayName']) || isNewDisplayName(request.resource.data.displayName))
+                        && (!changedKeys().hasAny(['avatarUrl']) || isHostedUrl(request.resource.data.avatarUrl))
                         && isShortString(request.resource.data.get('avatarPosition', 'center'), 40);
           allow delete: if isAdmin();
+        }
+
+        // Author name claims (see nameKey): created with the profile or a
+        // rename in one batch, for the name the profile has afterwards, and
+        // released only once the owner's profile no longer uses it.
+        match /usernames/{key} {
+          allow read: if true;
+          allow create: if isSignedIn() && !isBanned()
+                        && request.resource.data.keys().hasOnly(['uid'])
+                        && request.resource.data.uid == request.auth.uid
+                        && existsAfter(profilePath(request.auth.uid))
+                        && nameKey(getAfter(profilePath(request.auth.uid)).data.displayName) == key;
+          allow delete: if (isSignedIn() && resource.data.uid == request.auth.uid
+                            && (!existsAfter(profilePath(request.auth.uid))
+                                || nameKey(getAfter(profilePath(request.auth.uid)).data.displayName) != key))
+                        || isAdmin();
+          allow update: if false;
         }
 
         // Site-wide counts for the Landing page, written by updateSiteStats
@@ -331,9 +437,14 @@ service cloud.firestore {
           allow create: if canWrite()
                         && request.resource.data.creatorId == request.auth.uid
                         && request.resource.data.lastEditorId == request.auth.uid
-                        && isValidTitle(request.resource.data.title)
+                        && isValidCodexTitle(request.resource.data.title)
                         && isValidContent(request.resource.data.content)
-                        && isValidGallery(request.resource.data.gallery)
+                        && isValidGalleryImages(request.resource.data.gallery)
+                        && hostedField(request.resource.data, 'imageUrl')
+                        && isValidCategory(request.resource.data.get('category', ''))
+                        && isValidRelatedId(request.resource.data.get('relatedId', ''))
+                        && isShortString(request.resource.data.get('updatedBy', ''), 60)
+                        && isShortString(request.resource.data.get('imagePosition', 'center'), 40)
                         && (!('tags' in request.resource.data) || isValidCodexTags(request.resource.data.tags))
                         && (request.resource.data.status == 'pending' || (request.resource.data.status == 'approved' && isMod()))
                         // Locking a page would let its creator squat the title
@@ -342,15 +453,28 @@ service cloud.firestore {
           allow update: if canWrite()
                         && (request.resource.data.lastEditorId == request.auth.uid || isMod())
                         && !changedKeys().hasAny(['creatorId'])
-                        && isValidTitle(request.resource.data.title)
+                        && isValidCodexTitle(request.resource.data.title)
                         && isValidContent(request.resource.data.content)
                         && isValidGallery(request.resource.data.gallery)
+                        && (!changedKeys().hasAny(['gallery']) || isValidGalleryImages(request.resource.data.gallery))
+                        && (!changedKeys().hasAny(['imageUrl']) || isHostedUrl(request.resource.data.imageUrl))
+                        && (!changedKeys().hasAny(['category']) || isValidCategory(request.resource.data.category))
+                        && (!changedKeys().hasAny(['updatedBy']) || isShortString(request.resource.data.updatedBy, 60))
+                        && (!changedKeys().hasAny(['imagePosition']) || isShortString(request.resource.data.imagePosition, 40))
+                        // Which character or region a page belongs to: only its creator (for
+                        // one of their own characters) or a mod may change it
+                        && (!changedKeys().hasAny(['relatedId']) || isMod()
+                            || (resource.data.creatorId == request.auth.uid && isValidRelatedId(request.resource.data.relatedId)))
                         && (!('tags' in request.resource.data) || isValidCodexTags(request.resource.data.tags))
                         && (isMod() || !touchesModerationFields())
                         // Same as posts: non-mods may only set 'pending', and must when
                         // they change what readers see
                         && (isMod() || !changedKeys().hasAny(['status']) || request.resource.data.status == 'pending')
                         && (isMod() || !changedKeys().hasAny(['title', 'content', 'category', 'tags', 'gallery', 'imageUrl']) || request.resource.data.status == 'pending')
+                        // A rejected page goes back to moderation only with changes
+                        && (isMod() || !(resource.data.get('status', '') in ['rejected', 'needs_review'])
+                            || !changedKeys().hasAny(['status'])
+                            || changedKeys().hasAny(['title', 'content', 'category', 'tags', 'gallery', 'imageUrl']))
                         // Sacred Texts: Only mods can toggle isLocked, and locked pages can only be edited by mods
                         && (isMod() || !changedKeys().hasAny(['isLocked']))
                         && (isMod() || resource.data.get('isLocked', false) != true);
@@ -406,7 +530,7 @@ service cloud.firestore {
         // Participants may only bump chat metadata (not rewrite participants/names),
         // with the server's timestamp (a future date would block the other person)
         allow update: if canWrite() && request.auth.uid in resource.data.participants
-                      && changedKeys().hasOnly(['lastMessage', 'updatedAt'])
+                      && changedKeys().hasOnly(['lastMessage', 'updatedAt', 'lastMessageId'])
                       && request.resource.data.updatedAt == request.time
                       && request.resource.data.lastMessage is string
                       && request.resource.data.lastMessage.size() <= 2000
@@ -427,6 +551,12 @@ service cloud.firestore {
                          && request.resource.data.text.size() <= 2000
                          // Chat moderation is logic-based: blocked words never get stored
                          && !hasForbiddenText(request.resource.data.text)
+                         && request.resource.data.keys().hasOnly(['text', 'senderId', 'createdAt'])
+                         // The server's time: a future date would push newer messages out of view
+                         && request.resource.data.createdAt == request.time
+                         // One message per write: the chat names this message as its last
+                         // (so a batch of many can't all pass the one-per-second check)
+                         && getAfter(chatPath()).data.get('lastMessageId', '') == messageId
                          && getAfter(chatPath()).data.updatedAt == request.time
                          && (!('updatedAt' in get(chatPath()).data)
                              || request.time > get(chatPath()).data.updatedAt + duration.value(1, 's'));

@@ -11,6 +11,7 @@ jest.mock('firebase/firestore');
 
 const ACCOUNT = 'artifacts/realm-of-allania-v2/users/u1/settings/account';
 const PROFILE = 'artifacts/realm-of-allania-v2/public/data/profiles/u1';
+const CLAIM = (key) => ({ path: `artifacts/realm-of-allania-v2/public/data/usernames/${key}` });
 
 // Latest context value, handed out through a callback so tests can call its actions
 let ctx;
@@ -24,6 +25,7 @@ const Probe = () => {
 describe('GameContext', () => {
   let account;
   let profileDoc;
+  let batch;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -41,6 +43,8 @@ describe('GameContext', () => {
       return jest.fn();
     });
     firestore.getDoc.mockResolvedValue({ exists: () => false });
+    batch = { set: jest.fn(), update: jest.fn(), delete: jest.fn(), commit: jest.fn().mockResolvedValue() };
+    firestore.writeBatch.mockReturnValue(batch);
     firestore.setDoc.mockResolvedValue();
     firestore.updateDoc.mockResolvedValue();
     fbAuth.onAuthStateChanged.mockImplementation((auth, cb) => {
@@ -91,16 +95,18 @@ describe('GameContext', () => {
     expect(firestore.updateDoc).toHaveBeenCalledWith({ path: ACCOUNT }, { hideWelcome: true });
   });
 
-  it('creates a missing public profile from the display name', async () => {
+  it('creates a missing public profile from the display name, claiming the name', async () => {
     await renderProvider();
-    await waitFor(() => expect(firestore.setDoc).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Wanderer', createdAt: 'now' }));
+    await waitFor(() => expect(batch.commit).toHaveBeenCalled());
+    expect(batch.set).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Wanderer', createdAt: 'now' });
+    expect(batch.set).toHaveBeenCalledWith(CLAIM('n_wanderer'), { uid: 'u1' });
   });
 
   it('leaves an existing profile alone', async () => {
     firestore.getDoc.mockResolvedValue({ exists: () => true, data: () => ({ displayName: 'Wanderer' }) });
     await renderProvider();
     await act(async () => {});
-    expect(firestore.setDoc).not.toHaveBeenCalledWith({ path: PROFILE }, expect.anything());
+    expect(batch.set).not.toHaveBeenCalledWith({ path: PROFILE }, expect.anything());
   });
 
   describe('verification token refresh', () => {
@@ -154,10 +160,21 @@ describe('GameContext', () => {
     fbAuth.sendEmailVerification.mockResolvedValue();
     await renderProvider();
     await act(async () => { await ctx.signup('n@example.com', 'secret123', 'Emberquill'); });
-    expect(firestore.setDoc).toHaveBeenCalledWith(
+    expect(batch.set).toHaveBeenCalledWith(
       { path: 'artifacts/realm-of-allania-v2/public/data/profiles/u9' },
       { displayName: 'Emberquill', createdAt: 'now' }
     );
+    expect(batch.set).toHaveBeenCalledWith(CLAIM('n_emberquill'), { uid: 'u9' });
+  });
+
+  it('signup refuses a name another player has, before making the account', async () => {
+    fbAuth.onAuthStateChanged.mockImplementation(() => jest.fn());
+    firestore.getDoc.mockImplementation(async (ref) => (ref.path.endsWith('/usernames/n_ember quill')
+      ? { exists: () => true, data: () => ({ uid: 'someone' }) }
+      : { exists: () => false }));
+    await renderProvider();
+    await expect(ctx.signup('n@example.com', 'secret123', 'Ember  Quill')).rejects.toThrow('already taken');
+    expect(fbAuth.createUserWithEmailAndPassword).not.toHaveBeenCalled();
   });
 
   describe('updateDisplayName', () => {
@@ -167,22 +184,52 @@ describe('GameContext', () => {
     });
     afterEach(() => { delete auth.currentUser; });
 
+    // The profile exists with the old name; the new name is free unless taken
+    const profileAndClaims = (takenBy = null) => firestore.getDoc.mockImplementation(async (ref) => {
+      if (ref.path === PROFILE) return { exists: () => true, data: () => ({ displayName: 'Wanderer' }) };
+      if (takenBy && ref.path.includes('/usernames/')) return { exists: () => true, data: () => ({ uid: takenBy }) };
+      return { exists: () => false };
+    });
+
     it('renames the public profile, the Auth profile and the account', async () => {
       await renderProvider();
-      firestore.getDoc.mockResolvedValue({ exists: () => true, data: () => ({ displayName: 'Wanderer' }) });
+      profileAndClaims();
       expect(ctx.displayName).toBe('Wanderer');
       await act(async () => { await ctx.updateDisplayName('  Emberquill '); });
-      expect(firestore.updateDoc).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Emberquill' });
+      // Claims the new name and releases the old one with the profile change
+      expect(batch.update).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Emberquill' });
+      expect(batch.set).toHaveBeenCalledWith(CLAIM('n_emberquill'), { uid: 'u1' });
+      expect(batch.delete).toHaveBeenCalledWith(CLAIM('n_wanderer'));
       expect(fbAuth.updateProfile).toHaveBeenCalledWith(auth.currentUser, { displayName: 'Emberquill' });
       expect(firestore.updateDoc).toHaveBeenCalledWith({ path: ACCOUNT }, { username: 'Emberquill' });
       expect(ctx.displayName).toBe('Emberquill');
     });
 
+    it('refuses a name another player has', async () => {
+      await renderProvider();
+      profileAndClaims('someone');
+      batch.commit.mockClear();
+      await expect(ctx.updateDisplayName('Emberquill')).rejects.toThrow('already taken');
+      expect(batch.commit).not.toHaveBeenCalled();
+      expect(ctx.displayName).toBe('Wanderer');
+    });
+
+    it('changing only the capitals keeps the same claim', async () => {
+      await renderProvider();
+      profileAndClaims('u1');
+      batch.set.mockClear();
+      await act(async () => { await ctx.updateDisplayName('WANDERER'); });
+      expect(batch.update).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'WANDERER' });
+      expect(batch.set).not.toHaveBeenCalled();
+      expect(batch.delete).not.toHaveBeenCalled();
+    });
+
     it('creates the profile when it is missing', async () => {
       await renderProvider();
-      firestore.setDoc.mockClear();
+      batch.set.mockClear();
       await act(async () => { await ctx.updateDisplayName('Emberquill'); });
-      expect(firestore.setDoc).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Emberquill', createdAt: 'now' });
+      expect(batch.set).toHaveBeenCalledWith({ path: PROFILE }, { displayName: 'Emberquill', createdAt: 'now' });
+      expect(batch.set).toHaveBeenCalledWith(CLAIM('n_emberquill'), { uid: 'u1' });
     });
 
     it('rejects invalid names without writing', async () => {
@@ -197,9 +244,9 @@ describe('GameContext', () => {
 
     it('reports a failed save and keeps the old name', async () => {
       await renderProvider();
-      firestore.getDoc.mockResolvedValue({ exists: () => true, data: () => ({}) });
+      profileAndClaims();
       const err = new Error('Missing or insufficient permissions.'); err.code = 'permission-denied';
-      firestore.updateDoc.mockRejectedValueOnce(err);
+      batch.commit.mockRejectedValueOnce(err);
       jest.spyOn(console, 'error').mockImplementation(() => {});
       await expect(ctx.updateDisplayName('Emberquill')).rejects.toThrow('Could not save your name');
       expect(fbAuth.updateProfile).not.toHaveBeenCalled();

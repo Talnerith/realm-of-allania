@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { APP_ID } from '@/lib/constants';
 import { nameProblem } from '@/lib/moderation/textRules';
@@ -9,6 +9,20 @@ import { nameProblem } from '@/lib/moderation/textRules';
 // which the countPostLikes Cloud Function keeps.
 
 export const profileRef = (uid) => doc(db, 'artifacts', APP_ID, 'public', 'data', 'profiles', uid);
+
+// Author names are unique, ignoring case and runs of spaces. Each is claimed
+// by usernames/{nameKey} holding the owner's uid, written in the same batch
+// as the profile (the rules check both; same key as nameKey() there).
+export const nameKey = (name) => 'n_' + String(name).toLowerCase().replace(/[ \t]+/g, ' ').replace(/\//g, '_');
+const usernameRef = (name) => doc(db, 'artifacts', APP_ID, 'public', 'data', 'usernames', nameKey(name));
+
+export const NAME_TAKEN = 'That name is already taken. Please choose another.';
+
+// Whether another player already has this name (the rules have the final say)
+export async function isNameTaken(name, uid = null) {
+  const snap = await getDoc(usernameRef(name));
+  return snap.exists() && snap.data().uid !== uid;
+}
 
 // Same limits as isValidDisplayName in firestore.rules
 export const isValidDisplayName = (name) =>
@@ -22,7 +36,10 @@ export function displayNameProblem(name, { allowReserved = false } = {}) {
 }
 
 export function createProfile(uid, displayName) {
-  return setDoc(profileRef(uid), { displayName, createdAt: serverTimestamp() });
+  const batch = writeBatch(db);
+  batch.set(profileRef(uid), { displayName, createdAt: serverTimestamp() });
+  batch.set(usernameRef(displayName), { uid });
+  return batch.commit();
 }
 
 // Self-heal for accounts made before profiles existed. Never throws: a
@@ -40,12 +57,32 @@ export async function ensureProfile(user) {
 // Profiles change rarely; one fetch per author per page load is plenty
 const cache = new Map();
 
-// Renames the player's public profile (created if it's missing)
+// Renames the player's public profile (created if it's missing), claiming
+// the new name and releasing the old one. Throws NAME_TAKEN if someone else
+// has it.
 export async function saveProfileName(uid, displayName) {
   const ref = profileRef(uid);
   const snap = await getDoc(ref);
-  if (snap.exists()) await updateDoc(ref, { displayName });
-  else await createProfile(uid, displayName);
+  const oldName = snap.exists() ? snap.data().displayName : null;
+  const sameName = oldName && nameKey(oldName) === nameKey(displayName);
+  if (!sameName && await isNameTaken(displayName, uid)) throw new Error(NAME_TAKEN);
+  try {
+    if (!snap.exists()) {
+      await createProfile(uid, displayName);
+    } else {
+      const batch = writeBatch(db);
+      batch.update(ref, { displayName });
+      if (!sameName) {
+        batch.set(usernameRef(displayName), { uid });
+        if (oldName) batch.delete(usernameRef(oldName));
+      }
+      await batch.commit();
+    }
+  } catch (e) {
+    // Lost a race for the name: the claim already belonged to someone else
+    if (e?.code === 'permission-denied' && await isNameTaken(displayName, uid)) throw new Error(NAME_TAKEN);
+    throw e;
+  }
   cache.delete(uid);
 }
 

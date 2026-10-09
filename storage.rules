@@ -26,9 +26,13 @@ service firebase.storage {
         // can carry scripts, and the extension check keeps file names honest.
         // Every upload is checked by the moderateImage Cloud Function.
         allow delete: if request.auth != null && request.auth.uid == userId;
+        // Banned players can't upload (same as importImageFromUrl). Reads the
+        // role from Firestore; a missing account doc counts as a player.
         allow create, update: if request.auth != null
                       && request.auth.uid == userId
                       && request.auth.token.email_verified == true
+                      && !(firestore.exists(/databases/(default)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account)
+                           && firestore.get(/databases/(default)/documents/artifacts/realm-of-allania-v2/users/$(userId)/settings/account).data.get('role', 'user') == 'banned')
                       && filename.matches('.*[.](jpg|jpeg|png|gif|webp)')
                       && request.resource.contentType.matches('image/(jpeg|png|gif|webp)')
                       && request.resource.size < 5 * 1024 * 1024;
