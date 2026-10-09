@@ -73,15 +73,15 @@ How this repo syncs to Claude Design (project "Realm of Allania", id in config.j
 - Playwright pinned to 1.60.0 in `.ds-sync` to match the cached chromium-1223.
 
 ## Re-sync steps
-1. Re-stage the converter: copy package-build/validate/capture/resync.mjs, lib/, storybook/ from the design-sync skill into `.ds-sync/`; `cd .ds-sync && npm i esbuild ts-morph @types/react @fontsource/inter @fontsource/cormorant-garamond playwright@1.60.0`.
+1. Re-stage the converter: copy package-build/validate/capture/resync.mjs, lib/, storybook/ from the design-sync skill into `.ds-sync/`; `cd .ds-sync && npm i esbuild ts-morph @types/react @fontsource/inter @fontsource/cormorant-garamond @fontsource/pinyon-script playwright@1.60.0`.
 2. `node .design-sync/build-dist.mjs`
 3. Fetch the project's `_ds_sync.json` to `.design-sync/.cache/remote-sync.json`, then
    `node .ds-sync/resync.mjs --config .design-sync/config.json --node-modules ./node_modules --out ./ds-bundle --remote .design-sync/.cache/remote-sync.json`
 - `ds-bundle/`, `.ds-sync/` and `.design-sync/.cache/` are gitignored and excluded from ESLint (eslint.config.mjs).
 - Drop cap font (2026-10-09): Pinyon Script (`fonts/pinyon-script-latin-400-normal.woff2`, from @fontsource/pinyon-script; `--font-pinyon` in tailwind.css) for `font-script`, used only by `Codex/DropCap`. It's listed in fonts.css (`extraFonts`), so package-build copies it into `fonts/` and the sync uploads it with the bundle; nothing to do by hand.
 
-## Pending re-sync (2026-10-09)
-- A `/design-sync` was started and stopped before building (session ended): nothing uploaded, the project still has the 2026-10-08 upload. The remote anchor was fetched to `.design-sync/.cache/remote-sync.json` (gitignored; re-fetch it, it may move).
-- What the next sync carries: thin nameplate (CharacterListItem), author profile + avatars (Navbar/AccountName/ProfileEditor, `AllaniaProvider avatar` prop already in `dtsPropsFor`), character portraits in ThreadView/RegionView/LocationsPanel/ActivityPanel (`Avatar`, sample threads gained `lastPostUserId`), map markers at 75% opacity, taller region/thread heroes, Pinyon drop cap (`Codex/DropCap`), framed codex blurb, "Lands Yet Unwritten". Expect CharacterListItem, Navbar, ThreadView, RegionView, CodexEntry, WorldMap, WorldMapPage and AllaniaProvider to need grading.
-- Assets: delete `assets/icons/character-name-scroll{,-320,-640,-1024}.png` from the project and upload the four `character-name-scroll-thin*` files (see "Thin nameplate" above).
+## Re-sync 2026-10-09
+- Uploaded the polish round (thin nameplate, author profile and avatars, character portraits, 75% map markers, taller heroes, Pinyon drop cap, framed codex blurb, "Lands Yet Unwritten"). All 26 components came back `unchanged` for verification (no preview `.tsx` changed), so grades carried forward; the contact sheets were checked by eye and every card showed the new look. Upload: bundle + styling + fonts, AllaniaProvider's new `avatar` prop, and the asset swap below. Render check 26/26, 0 bad; the `[RENDER_THIN]` warns on every card are the known `display: contents` one.
+- Assets: `assets/icons/character-name-scroll{,-320,-640,-1024}.png` deleted from the project, the four `character-name-scroll-thin*` uploaded (copied into `ds-bundle/assets/icons/` after the build, plan writes `assets/icons/character-name-scroll-thin*`).
+- `[DTS_REACT]` (no @types/react in the repo's node_modules) is expected here: every props contract is hand-written in `dtsPropsFor`.
 - New internal components (Avatar, AccountName, ProfileEditor, DropCap) are not exported in `entry.js`; they reach designs through Navbar/ThreadView/CodexEntry. Export `Avatar` if the design agent should place portraits itself (then add it to `componentSrcMap`, `dtsPropsFor` and a preview).
