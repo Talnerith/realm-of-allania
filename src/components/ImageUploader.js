@@ -46,7 +46,7 @@ const ImageUploader = React.memo(function ImageUploader({
     setIsUploading(true);
     try {
       // 1. Read the new file first, so an unreadable one leaves the current image alone
-      const resizedBlob = await resizeImage(file, 1600);
+      const image = await prepareImage(file);
 
       // 2. Intermediate Cleanup: If we already uploaded a file in this session, delete it before uploading the new one
       if (lastUploadedUrl) {
@@ -61,10 +61,10 @@ const ImageUploader = React.memo(function ImageUploader({
 
       // 3. Upload New
       // SECURITY UPDATE: We now nest uploads under the user's ID
-      const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.jpg`;
+      const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${image.ext}`;
       const storageRef = ref(storage, `artifacts/${APP_ID}/public/${folder}/${user.uid}/${filename}`);
 
-      await uploadBytes(storageRef, resizedBlob);
+      await uploadBytes(storageRef, image.blob, { contentType: image.type });
       const url = await getDownloadURL(storageRef);
 
       // 4. Update State
@@ -75,6 +75,8 @@ const ImageUploader = React.memo(function ImageUploader({
     } catch (err) {
       if (err.code === UNSUPPORTED_IMAGE) {
         alert(unsupportedFormatMessage(file));
+      } else if (err.code === CANVAS_BLOCKED) {
+        alert(CANVAS_BLOCKED_MESSAGE);
       } else {
         console.error("Upload failed", err);
         alert(err.code === 'storage/unauthorized'
@@ -272,7 +274,34 @@ export function unsupportedFormatMessage(file) {
   return `This file format isn't supported. ${formats}`;
 }
 
-function resizeImage(file, maxWidth) {
+// The canvas came back as one flat colour (privacy settings or extensions that
+// block canvas reads, GPU glitches) and the original is too big to send as is
+const CANVAS_BLOCKED = 'image/canvas-blocked';
+const CANVAS_BLOCKED_MESSAGE = "Your browser wouldn't let us resize this image (often a privacy setting or extension). Please choose an image under 5 MB, or add it by link instead.";
+
+// Formats the storage rules accept, by content type, with their file extension
+const UPLOAD_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp' };
+// Supported images this small upload untouched (keeps transparency and GIF animation)
+const DIRECT_UPLOAD_BYTES = 2 * 1024 * 1024;
+// storage.rules caps uploads below 5 MB
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+// Longest side after resizing; also keeps tall images inside browser canvas limits
+const MAX_SIDE = 1600;
+
+// Returns { blob, type, ext } ready to upload
+async function prepareImage(file) {
+  const img = await decodeImage(file);
+  const original = UPLOAD_TYPES[file.type] && { blob: file, type: file.type, ext: UPLOAD_TYPES[file.type] };
+  if (original && file.size <= DIRECT_UPLOAD_BYTES) return original;
+
+  const resized = await resizeImage(img, file.type);
+  if (!resized.blank) return resized;
+  // A flat-colour canvas is almost always the browser blocking the read, not the picture
+  if (original && file.size < MAX_UPLOAD_BYTES) return original;
+  throw Object.assign(new Error('The browser returned a blank canvas.'), { code: CANVAS_BLOCKED });
+}
+
+function decodeImage(file) {
   return new Promise((resolve, reject) => {
     const unsupported = () => Object.assign(new Error('The selected file is not a supported image.'), { code: UNSUPPORTED_IMAGE });
     if (file.type && !file.type.startsWith('image/')) {
@@ -284,28 +313,58 @@ function resizeImage(file, maxWidth) {
     reader.onload = (event) => {
       const img = new Image();
       img.onerror = () => reject(unsupported());
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-        if (width > maxWidth) {
-          height *= maxWidth / width;
-          width = maxWidth;
-        }
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (blob) => blob ? resolve(blob) : reject(new Error('Image compression failed.')),
-          'image/jpeg',
-          0.85
-        );
-      };
+      img.onload = () => resolve(img);
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   });
+}
+
+async function resizeImage(img, sourceType) {
+  const scale = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(img.width * scale));
+  canvas.height = Math.max(1, Math.round(img.height * scale));
+  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  // JPEG has no transparency (clear pixels turn black), so formats that may
+  // have it go to WebP; browsers that can't encode WebP hand back PNG, which
+  // can be too big, and then JPEG it is
+  let out = await encode(canvas, sourceType === 'image/jpeg' ? 'image/jpeg' : 'image/webp');
+  if (out.blob.size >= MAX_UPLOAD_BYTES && out.type !== 'image/jpeg') out = await encode(canvas, 'image/jpeg');
+  return { ...out, blank: isFlatColour(canvas) };
+}
+
+function encode(canvas, outType) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Image compression failed.'));
+        return;
+      }
+      const type = UPLOAD_TYPES[blob.type] ? blob.type : outType;
+      resolve({ blob, type, ext: UPLOAD_TYPES[type] });
+    }, outType, 0.85);
+  });
+}
+
+// Samples the canvas on a small grid; every sample the same colour means it's blank
+function isFlatColour(canvas) {
+  try {
+    const sample = document.createElement('canvas');
+    sample.width = sample.height = 16;
+    const ctx = sample.getContext('2d');
+    ctx.drawImage(canvas, 0, 0, 16, 16);
+    const { data } = ctx.getImageData(0, 0, 16, 16);
+    for (let i = 4; i < data.length; i += 4) {
+      for (let c = 0; c < 4; c++) {
+        if (Math.abs(data[i + c] - data[c]) > 2) return false;
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function parsePosition(posString) {

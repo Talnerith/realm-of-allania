@@ -34,11 +34,21 @@ describe('ImageUploader', () => {
     global.URL.createObjectURL = jest.fn(() => 'blob:test');
     global.URL.revokeObjectURL = jest.fn();
 
-    // Mock Canvas methods on prototype
+    // Mock Canvas methods on prototype; flatCanvas makes every pixel read back the same
     HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
       drawImage: jest.fn(),
+      getImageData: () => ({
+        data: Uint8ClampedArray.from({ length: 16 * 16 * 4 }, (_, i) => (flatCanvas ? 0 : i % 256)),
+      }),
     }));
-    HTMLCanvasElement.prototype.toBlob = jest.fn((cb) => cb(new Blob(['test'], { type: 'image/jpeg' })));
+    HTMLCanvasElement.prototype.toBlob = jest.fn((cb, type) => cb(new Blob(['test'], { type })));
+  });
+
+  let flatCanvas;
+  let imageSize;
+  beforeEach(() => {
+    flatCanvas = false;
+    imageSize = { width: 100, height: 100 };
   });
 
   beforeEach(() => {
@@ -68,8 +78,8 @@ describe('ImageUploader', () => {
     // Mock Image with async behavior
     global.Image = class {
       constructor() {
-        this.width = 100;
-        this.height = 100;
+        this.width = imageSize.width;
+        this.height = imageSize.height;
       }
       set src(val) {
         setTimeout(() => {
@@ -144,6 +154,72 @@ describe('ImageUploader', () => {
     // Verify Cleanup of 'url1'
     expect(deleteObject).toHaveBeenCalledTimes(1);
     expect(ref).toHaveBeenCalledWith(expect.anything(), 'url1');
+  });
+
+  describe('preparing the file', () => {
+    const sized = (name, type, bytes) => {
+      const file = new File(['content'], name, { type });
+      Object.defineProperty(file, 'size', { value: bytes });
+      return file;
+    };
+    const upload = async (file) => {
+      setupFileMocks();
+      const { container } = render(<ImageUploader onImageChanged={mockOnImageChanged} />);
+      await act(async () => {
+        fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [file] } });
+      });
+    };
+    const uploadedPath = () => ref.mock.calls.at(-1)[1];
+
+    beforeEach(() => { jest.spyOn(window, 'alert').mockImplementation(() => {}); });
+
+    it('uploads a small supported image untouched', async () => {
+      const file = sized('portrait.png', 'image/png', 300 * 1024);
+      await upload(file);
+      await waitFor(() => expect(uploadBytes).toHaveBeenCalled());
+      expect(uploadBytes).toHaveBeenCalledWith('mockRef', file, { contentType: 'image/png' });
+      expect(uploadedPath()).toMatch(/\/user123\/[^/]+\.png$/);
+      expect(HTMLCanvasElement.prototype.toBlob).not.toHaveBeenCalled();
+    });
+
+    it('resizes a large photo to JPEG', async () => {
+      imageSize = { width: 4000, height: 3000 };
+      const file = sized('photo.jpg', 'image/jpeg', 4 * 1024 * 1024);
+      await upload(file);
+      await waitFor(() => expect(uploadBytes).toHaveBeenCalled());
+      const [, blob, meta] = uploadBytes.mock.calls[0];
+      expect(blob).not.toBe(file);
+      expect(meta).toEqual({ contentType: 'image/jpeg' });
+      expect(uploadedPath()).toMatch(/\.jpg$/);
+      const canvas = HTMLCanvasElement.prototype.toBlob.mock.contexts[0];
+      expect([canvas.width, canvas.height]).toEqual([1600, 1200]);
+    });
+
+    it('caps a tall image by its height and keeps transparency-capable formats out of JPEG', async () => {
+      imageSize = { width: 1000, height: 8000 };
+      await upload(sized('scroll.png', 'image/png', 3 * 1024 * 1024));
+      await waitFor(() => expect(uploadBytes).toHaveBeenCalled());
+      const canvas = HTMLCanvasElement.prototype.toBlob.mock.contexts[0];
+      expect([canvas.width, canvas.height]).toEqual([200, 1600]);
+      expect(uploadBytes.mock.calls[0][2]).toEqual({ contentType: 'image/webp' });
+      expect(uploadedPath()).toMatch(/\.webp$/);
+    });
+
+    it('uploads the original when the resized canvas comes back as one flat colour', async () => {
+      flatCanvas = true;
+      const file = sized('portrait.png', 'image/png', 3 * 1024 * 1024);
+      await upload(file);
+      await waitFor(() => expect(uploadBytes).toHaveBeenCalled());
+      expect(uploadBytes).toHaveBeenCalledWith('mockRef', file, { contentType: 'image/png' });
+      expect(uploadedPath()).toMatch(/\.png$/);
+    });
+
+    it('explains a blank canvas when the original is too big to send', async () => {
+      flatCanvas = true;
+      await upload(sized('huge.png', 'image/png', 6 * 1024 * 1024));
+      await waitFor(() => expect(window.alert).toHaveBeenCalledWith(expect.stringMatching(/wouldn't let us resize.*under 5 MB.*by link/)));
+      expect(uploadBytes).not.toHaveBeenCalled();
+    });
   });
 
   describe('unsupported formats', () => {
