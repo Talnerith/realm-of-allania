@@ -15,6 +15,9 @@ export const TOTAL_REGIONS = GRID_ROWS * GRID_COLS;
 
 export const APP_ID = 'realm-of-allania-v2'; 
 
+// Longest post the rules accept (isValidPostContent)
+export const MAX_POST_LENGTH = 5000;
+
 export const BASE_REGION_NAMES = []; 
 
 export const RACES = [

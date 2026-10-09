@@ -48,10 +48,12 @@ export default function ActiveUsers({ isOpen, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in">
       <div className="bg-ink-900 border border-gold-900/50 rounded-lg p-6 w-full max-w-sm shadow-2xl relative">
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close active users"
           className="absolute top-4 right-4 text-ink-400 hover:text-ink-50"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5" aria-hidden="true" />
         </button>
 
         <div className="flex items-center gap-3 mb-4 text-gold-500">

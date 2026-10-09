@@ -90,7 +90,8 @@ describe('RegionView', () => {
     await renderView();
     fireEvent.click(screen.getByRole('button', { name: 'The Night Watch' }));
     expect(props.setActiveThread).toHaveBeenCalledWith(expect.objectContaining({ id: 't2' }));
-    expect(props.setView).toHaveBeenCalledWith('thread');
+    // setActiveThread navigates; a second setView would add another history entry
+    expect(props.setView).not.toHaveBeenCalled();
   });
 
   it('breadcrumb returns to the world map', async () => {

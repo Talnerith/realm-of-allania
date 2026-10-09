@@ -38,6 +38,15 @@ describe('LikeButton', () => {
     expect(screen.getByRole('button', { name: 'Unlike post, 5 likes' })).toBeInTheDocument();
   });
 
+  it('like then unlike before the count updates shows the original count', async () => {
+    render(<LikeButton post={post} user={user} />);
+    await act(async () => { fireEvent.click(screen.getByRole('button')); });
+    await act(async () => { fireEvent.click(screen.getByRole('button')); });
+    expect(screen.getByRole('button', { name: 'Like post, 4 likes' })).toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByRole('button')); });
+    expect(screen.getByRole('button', { name: 'Unlike post, 5 likes' })).toBeInTheDocument();
+  });
+
   it('unlikes by deleting the like', async () => {
     firestore.onSnapshot.mockImplementation((ref, cb) => { cb({ exists: () => true }); return jest.fn(); });
     render(<LikeButton post={post} user={user} />);

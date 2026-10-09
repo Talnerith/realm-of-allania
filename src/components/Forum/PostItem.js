@@ -5,6 +5,7 @@ import RichText from '@/components/RichText';
 import LikeButton from '@/components/Forum/LikeButton';
 import { hostedImageUrl } from '@/lib/imageUrls';
 import { timeAgo } from '@/lib/utils';
+import { MAX_POST_LENGTH } from '@/lib/constants';
 import useCharacterStats, { joinedLabel } from '@/hooks/useCharacterStats';
 
 const menuItemCls = 'text-left text-sm text-ink-200 hover:bg-ink-800 rounded px-3 py-2 transition-colors';
@@ -159,6 +160,7 @@ const PostItem = memo(function PostItem({
                                 value={editPostContent}
                                 onChange={(e) => onEditChange(e.target.value)}
                                 minHeight="min-h-[250px]"
+                                maxLength={MAX_POST_LENGTH}
                                 onWikiLink={onWikiLink}
                             />
                             <div className="flex gap-2 justify-end">

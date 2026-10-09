@@ -62,7 +62,8 @@ describe('WorldMap', () => {
     render(<WorldMap setView={setView} setActiveRegion={setActiveRegion} />);
     fireEvent.click(screen.getByRole('button', { name: /Thornwatch Ridge/ }));
     expect(setActiveRegion).toHaveBeenCalledWith({ id: 46, name: 'Thornwatch Ridge' });
-    expect(setView).toHaveBeenCalledWith('region');
+    // setActiveRegion navigates; a second setView would add another history entry
+    expect(setView).not.toHaveBeenCalled();
   });
 
   test('raises onRegionHover on enter and null when the pointer leaves the map', () => {

@@ -18,7 +18,7 @@ export const THREAD_DOT = 'bg-(color:--a-300) shadow-[0_0_0_1.5px_rgb(20_12_3/.9
 
 // The painted map plus its 20x13 click grid. It fills its parent's width at
 // the map's fixed 2816x1504 aspect, so the parent decides size and scrolling.
-function WorldMap({ setView, setActiveRegion, onRegionHover }) {
+function WorldMap({ setActiveRegion, onRegionHover }) {
   const { user, readReceipts } = useGame();
 
   const [regionLastActivity, setRegionLastActivity] = useState({});
@@ -70,9 +70,9 @@ function WorldMap({ setView, setActiveRegion, onRegionHover }) {
 
   const handleRegionClick = useCallback((i) => {
     const regionName = customNames[i.toString()] || getRegionName(i) || unnamedRegionLabel(i);
+    // Also navigates (one history entry, carrying the region id)
     setActiveRegion({ id: i, name: regionName });
-    setView('region');
-  }, [customNames, setActiveRegion, setView]);
+  }, [customNames, setActiveRegion]);
 
   // 2. Memoize Region Calculations
   const regionGrid = useMemo(() => {

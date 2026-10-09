@@ -90,7 +90,9 @@ export default function Home() {
     // The linter warning "Calling setState synchronously within an effect" is specific to updates that might cause immediate re-render before paint?
     // Actually, setting state in useEffect DOES cause a re-render.
 
-    const shouldSkipLanding = typeof window !== 'undefined' && localStorage.getItem('skipLanding') === 'true';
+    // Storage can throw (site data blocked); that just means no saved choice
+    let shouldSkipLanding = false;
+    try { shouldSkipLanding = localStorage.getItem('skipLanding') === 'true'; } catch { /* blocked */ }
 
     if (shouldSkipLanding) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -99,10 +101,9 @@ export default function Home() {
         window.history.replaceState({ view: 'map' }, '');
       }
     } else {
-      // Ensure history state is set for landing
-      if (typeof window !== 'undefined' && (!window.history.state || !window.history.state.view)) {
-        window.history.replaceState({ view: 'landing' }, '');
-      }
+      // The page always starts on landing, so the entry must say so (after a
+      // reload it can still name the thread that was open)
+      window.history.replaceState({ view: 'landing' }, '');
     }
 
     const onPopState = (event) => {
@@ -150,8 +151,12 @@ export default function Home() {
 
   // 1. Navigation
   const navigateTo = useCallback((newView, extraState = {}) => {
-    // dependency on view is fine, we want stability when view is constant (e.g. Chat toggle)
-    if (view === newView && newView !== 'search' && newView !== 'codex_entry') return;
+    // dependency on view is fine, we want stability when view is constant (e.g. Chat toggle).
+    // Same view for another thread/region (e.g. a thread opened from a thread's
+    // Locations panel) is a new place, so it gets its own entry.
+    const current = window.history.state || {};
+    const samePlace = Object.keys(extraState).every(key => current[key] === extraState[key]);
+    if (view === newView && samePlace && newView !== 'search' && newView !== 'codex_entry') return;
     setView(newView);
     window.history.pushState({ view: newView, ...extraState }, '');
   }, [view]);

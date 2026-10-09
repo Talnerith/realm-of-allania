@@ -6,7 +6,7 @@ import {
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
-import { APP_ID, unnamedRegionLabel } from '@/lib/constants';
+import { APP_ID, MAX_POST_LENGTH, unnamedRegionLabel } from '@/lib/constants';
 import { timeAgo } from '@/lib/utils';
 import { THREAD_TAGS, MAX_TAGS, tagStyle, validTags } from '@/lib/threadTags';
 import { REGION_CREST_IMG } from '@/lib/artAssets';
@@ -333,8 +333,8 @@ function RegionView({ region, setView, setActiveThread, onRequireAuth }) {
 
   const openThread = (thread) => {
     if (!thread) return;
+    // Also navigates (one history entry, carrying the thread id)
     setActiveThread(thread);
-    setView('thread');
   };
 
   const q = searchQuery.trim().toLowerCase();
@@ -490,6 +490,7 @@ function RegionView({ region, setView, setActiveThread, onRequireAuth }) {
                 submitLabel="Create thread"
                 isSubmitting={cooldown}
                 isSubmitDisabled={!newTitle.trim() || !newContent.trim()}
+                maxLength={MAX_POST_LENGTH}
               />
               <details className="rounded border border-ink-800 bg-ink-950/40">
                 <summary className="cursor-pointer px-3 py-2 text-xs uppercase tracking-widest text-ink-400">Thread image and codex (optional)</summary>

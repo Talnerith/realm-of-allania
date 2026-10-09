@@ -6,7 +6,8 @@ import { fetchCharacter } from '@/lib/characters';
 
 // Per-character figures on each post: when the character joined, how many
 // approved posts it has, and its reputation (likes, kept by countPostLikes).
-// Fetched once per character per page load.
+// Fetched once per character per page load (a failed count is retried on the
+// next mount instead of showing "—" for the rest of the session).
 const cache = new Map();
 
 export function fetchCharacterStats(userId, characterId) {
@@ -19,11 +20,10 @@ export function fetchCharacterStats(userId, characterId) {
       where('characterId', '==', characterId),
       where('status', '==', 'approved')
     )).then(s => s.data().count).catch(() => null);
-    cache.set(key, Promise.all([charP, countP]).then(([c, posts]) => ({
-      joined: c?.createdAt || null,
-      posts,
-      reputation: c?.likesReceived || 0
-    })));
+    cache.set(key, Promise.all([charP, countP]).then(([c, posts]) => {
+      if (posts === null) cache.delete(key);
+      return { joined: c?.createdAt || null, posts, reputation: c?.likesReceived || 0 };
+    }));
   }
   return cache.get(key);
 }

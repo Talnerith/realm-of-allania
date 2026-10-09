@@ -6,7 +6,7 @@ import {
 import { ref, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { useGame } from '@/context/GameContext';
-import { APP_ID } from '@/lib/constants';
+import { APP_ID, MAX_POST_LENGTH } from '@/lib/constants';
 import { timeAgo } from '@/lib/utils';
 import { validTags } from '@/lib/threadTags';
 import { REGION_CREST_IMG } from '@/lib/artAssets';
@@ -701,6 +701,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                                     disabled={isSending || cooldown}
                                     isSubmitDisabled={!replyContent.trim() || !activeCharId || cooldown}
                                     isSubmitting={isSending}
+                                    maxLength={MAX_POST_LENGTH}
                                     onWikiLink={onWikiLink}
                                 />
                             </div>

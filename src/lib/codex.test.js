@@ -82,6 +82,11 @@ describe('stripEmptyFacts', () => {
     expect(stripEmptyFacts('**Region:** Faithlan\n**Type:** \n**Governance:**\n\nText here.')).toBe('**Region:** Faithlan\n\nText here.');
   });
 
+  it('keeps bold headings that only look like empty facts', () => {
+    const text = '**Chapter One:**\nThe road north.\n**Race:**\n';
+    expect(stripEmptyFacts(text)).toBe('**Chapter One:**\nThe road north.\n');
+  });
+
   it('leaves a page with no template untouched', () => {
     const text = 'Plain lore with **bold** words.\n\nMore.';
     expect(stripEmptyFacts(text)).toBe(text);

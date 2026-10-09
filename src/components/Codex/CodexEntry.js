@@ -12,7 +12,7 @@ import { timeAgo } from '@/lib/utils';
 import { hostedImageUrl } from '@/lib/imageUrls';
 import {
     CODEX_SECTIONS, sectionForCategory, parseCodexContent, cleanCodexTags, codexTagStyle,
-    MAX_CODEX_TAGS, MAX_CODEX_TAG_LENGTH, newPageTemplate, stripEmptyFacts
+    MAX_CODEX_TAGS, MAX_CODEX_TAG_LENGTH, MAX_CODEX_LENGTH, newPageTemplate, stripEmptyFacts
 } from '@/lib/codex';
 import { useProfile, authorName } from '@/lib/profiles';
 import useCodexPages from '@/hooks/useCodexPages';
@@ -139,6 +139,7 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
         if (!title.trim()) return setError("Title is required.");
         const text = stripEmptyFacts(content);
         if (!text.trim() || text.length < 10) return setError("Content must be at least 10 characters.");
+        if (text.length > MAX_CODEX_LENGTH) return setError(`Content must be ${MAX_CODEX_LENGTH} characters or fewer.`);
         if (gallery.length > 5) return setError("Gallery cannot exceed 5 images.");
 
         // Everything but mod edits is checked by the moderation function first
@@ -326,8 +327,8 @@ export default function CodexEntry({ page = {}, goBack, onWikiLink, onOpenEntry 
                             A <code className="text-gold-300">&gt; quote</code> at the very top shows under the title, and one at the very end closes the page.
                             <code className="text-gold-300"> [[Other Page]]</code> links appear under Related Entries.
                         </p>
-                        <MarkdownEditor value={content} onChange={e => setContent(e.target.value)} placeholder="Write your lore (Min 10 characters)..." minHeight="min-h-[400px]" onWikiLink={onWikiLink} />
-                        <div className="text-right text-2xs text-ink-400">{content.length} / 10000 chars</div>
+                        <MarkdownEditor value={content} onChange={e => setContent(e.target.value)} placeholder="Write your lore (Min 10 characters)..." minHeight="min-h-[400px]" maxLength={MAX_CODEX_LENGTH} onWikiLink={onWikiLink} />
+                        <div className={`text-right text-2xs ${content.length > MAX_CODEX_LENGTH ? 'text-red-400' : 'text-ink-400'}`}>{content.length} / {MAX_CODEX_LENGTH} chars</div>
                     </section>
 
                     <section className={`${cardCls} p-4 md:p-6 flex flex-col gap-3`}>

@@ -35,6 +35,8 @@ export const CODEX_SECTIONS = [
 export const CODEX_HERO = CODEX_ART.hero;
 
 export const MAX_CODEX_TAGS = 3;
+// Longest page text the rules accept (isValidContent)
+export const MAX_CODEX_LENGTH = 10000;
 export const MAX_CODEX_TAG_LENGTH = 24;
 
 // Unknown or missing categories land in History
@@ -49,9 +51,12 @@ export function newPageTemplate(category) {
   return labels.length ? `${labels.map(l => `**${l}:** `).join('\n')}\n\n` : '';
 }
 
-// Fact lines left blank (e.g. from the template) are dropped when saving
+// Template fact lines left blank are dropped when saving. Only the template's
+// own labels: a bold line like "**Chapter One:**" is the writer's heading.
+const TEMPLATE_LABELS = new Set(CODEX_SECTIONS.flatMap(s => s.templateFacts || []).map(l => l.toLowerCase()));
 export const stripEmptyFacts = (content) =>
-  String(content).replace(/^[ \t]*\*\*[^*:\n]{1,40}:\*\*[ \t]*(?:\r?\n|$)/gm, '');
+  String(content).replace(/^[ \t]*\*\*([^*:\n]{1,40}):\*\*[ \t]*(?:\r?\n|$)/gm,
+    (line, label) => (TEMPLATE_LABELS.has(label.trim().toLowerCase()) ? '' : line));
 
 // Free-text tags get a stable hue from their text
 const HUES = [25, 60, 95, 150, 185, 215, 250, 285, 320, 350];

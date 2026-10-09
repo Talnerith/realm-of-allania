@@ -60,6 +60,22 @@ describe('GameContext', () => {
     expect(screen.getByText('active:c2 hide:true')).toBeInTheDocument();
   });
 
+  it('reports the role as loaded only once the account arrives', async () => {
+    let emitAccount;
+    firestore.onSnapshot.mockImplementation((ref, cb) => {
+      if (ref.path === ACCOUNT) emitAccount = cb;
+      else if (ref.path === PROFILE) cb({ exists: () => false, data: () => null });
+      else cb({ docs: [] });
+      return jest.fn();
+    });
+    await renderProvider();
+    expect(ctx.roleLoaded).toBe(false);
+    // The listener is async, so act must be awaited
+    await act(async () => { emitAccount({ exists: () => true, data: () => ({ role: 'moderator' }) }); });
+    expect(ctx.roleLoaded).toBe(true);
+    expect(ctx.userRole).toBe('moderator');
+  });
+
   it('saves the active character on the account', async () => {
     await renderProvider();
     act(() => ctx.setActiveCharId('c7'));

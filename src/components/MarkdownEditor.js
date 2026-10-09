@@ -14,9 +14,13 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
   disabled = false,            // Disables the INPUT area
   isSubmitting = false,        // Shows spinner
   isSubmitDisabled = false,    // Disables only the POST BUTTON
-  onWikiLink = null
+  onWikiLink = null,
+  maxLength = null             // The rules' limit: caps typing, shows a counter near it
 }) {
   const textareaRef = useRef(null);
+  const length = (value || '').length;
+  const tooLong = !!maxLength && length > maxLength;
+  const nearLimit = !!maxLength && length >= maxLength * 0.8;
   const [isPreview, setIsPreview] = useState(false);
 
   // Auto-Resize Logic
@@ -100,7 +104,7 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
             <button
               type="button"
               onClick={onPost}
-              disabled={disabled || isSubmitting || isSubmitDisabled}
+              disabled={disabled || isSubmitting || isSubmitDisabled || tooLong}
               className="flex items-center gap-2 bg-gold-700 hover:bg-gold-600 disabled:bg-ink-800 disabled:text-ink-500 disabled:cursor-not-allowed text-white px-3 py-1 max-[520px]:px-3 max-[520px]:py-1.5 rounded text-xs font-bold whitespace-nowrap"
             >
               {isSubmitting ? <Loader className="w-3 h-3 animate-spin" aria-hidden="true" /> : <Send className="w-3 h-3" aria-hidden="true" />}
@@ -125,8 +129,14 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
             value={value}
             onChange={onChange}
             disabled={disabled}
+            maxLength={maxLength || undefined}
             style={{ maxHeight: '500px' }}
           />
+        )}
+        {nearLimit && (
+          <p className={`absolute bottom-1 right-3 text-2xs tabular-nums pointer-events-none ${tooLong ? 'text-red-400' : 'text-ink-500'}`} aria-live="polite">
+            {(value || '').length} / {maxLength}
+          </p>
         )}
       </div>
     </div>

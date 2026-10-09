@@ -23,6 +23,8 @@ const GameContext = createContext();
 export function GameProvider({ children }) {
   const [user, setUser] = useState(null);
   const [userRole, setUserRole] = useState('user');
+  // False until the signed-in player's role has arrived (userRole is 'user' until then)
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [characters, setCharacters] = useState([]);
   // The character being played and the Landing "Don't show this again"
@@ -62,8 +64,14 @@ export function GameProvider({ children }) {
       if (presenceInterval) { clearInterval(presenceInterval); presenceInterval = null; }
     };
 
+    // Each auth emission gets a number; one still awaiting when a newer one
+    // (or unmount) arrives must not set state or subscribe for the old user
+    let authGeneration = 0;
+
     const authUnsub = onAuthStateChanged(auth, async (currentUser) => {
+      const generation = ++authGeneration;
       cleanupUserListeners();
+      setRoleLoaded(false);
 
       if (currentUser) {
         // The rules require a verified email in the ID token. A user who just
@@ -81,6 +89,7 @@ export function GameProvider({ children }) {
           } catch (e) {
             console.warn("Could not refresh verification status:", e);
           }
+          if (generation !== authGeneration) return;
         }
 
         // Always expose the user, even if Firestore is unconfigured —
@@ -113,6 +122,7 @@ export function GameProvider({ children }) {
               return;
             }
             setUserRole(role);
+            setRoleLoaded(true);
           } else {
             // Auto-Heal: If the document is missing, create it in the safe private path
             console.log("Initializing user account settings...");
@@ -131,6 +141,7 @@ export function GameProvider({ children }) {
           console.error("Role listener error:", error);
           // Fallback to 'user' if permission fails, prevents crash
           setUserRole('user');
+          setRoleLoaded(true);
         });
 
         // Public profile (author name) for accounts made before profiles existed
@@ -189,6 +200,7 @@ export function GameProvider({ children }) {
     });
 
     return () => {
+      authGeneration++;
       if (authUnsub) authUnsub();
       cleanupUserListeners();
     };
@@ -292,13 +304,13 @@ export function GameProvider({ children }) {
   // OPTIMIZATION: Memoize context value to prevent unnecessary re-renders of consuming components
   // when GameProvider renders but data hasn't changed.
   const value = useMemo(() => ({
-    user, userRole, loading, characters, activeCharId, setActiveCharId,
+    user, userRole, roleLoaded, loading, characters, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
     displayName, updateDisplayName, avatar, updateAvatar,
     readReceipts,
     signup, login, logout, resendVerification, resetPassword
   }), [
-    user, userRole, loading, characters, activeCharId, setActiveCharId,
+    user, userRole, roleLoaded, loading, characters, activeCharId, setActiveCharId,
     hideWelcome, setHideWelcome,
     displayName, updateDisplayName, avatar, updateAvatar,
     readReceipts,

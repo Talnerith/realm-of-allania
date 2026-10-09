@@ -393,6 +393,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         disabled={cooldown}
+                        maxLength={2000}
                         aria-label="Message text"
                     />
                     <button

@@ -11,7 +11,9 @@ function LikeButton({ post, user }) {
     const canLike = canLikePost(post, user) && !!db;
     const uid = user?.uid;
     const [liked, setLiked] = useState(false);
-    const [optimistic, setOptimistic] = useState(null); // { base, delta }
+    // The count shown until the server's catches up: the server count when the
+    // first pending click was made, and whether that count already included us
+    const [optimistic, setOptimistic] = useState(null); // { base, likedAtBase }
 
     useEffect(() => {
         if (!canLike) return;
@@ -22,13 +24,15 @@ function LikeButton({ post, user }) {
     if ((post.status ?? 'approved') !== 'approved') return null;
 
     const serverCount = post.likeCount || 0;
-    const count = optimistic && optimistic.base === serverCount ? Math.max(0, optimistic.base + optimistic.delta) : serverCount;
+    const pending = optimistic && optimistic.base === serverCount ? optimistic : null;
+    const count = pending ? Math.max(0, pending.base + (liked ? 1 : 0) - (pending.likedAtBase ? 1 : 0)) : serverCount;
 
     const toggle = async () => {
         if (!canLike) return;
         const next = !liked;
         setLiked(next);
-        setOptimistic({ base: serverCount, delta: next ? 1 : -1 });
+        // Like then unlike before the count updates nets out to no change
+        setOptimistic(pending || { base: serverCount, likedAtBase: liked });
         try {
             await setPostLike(post.id, uid, next);
         } catch (e) {
