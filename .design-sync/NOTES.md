@@ -78,4 +78,4 @@ How this repo syncs to Claude Design (project "Realm of Allania", id in config.j
 3. Fetch the project's `_ds_sync.json` to `.design-sync/.cache/remote-sync.json`, then
    `node .ds-sync/resync.mjs --config .design-sync/config.json --node-modules ./node_modules --out ./ds-bundle --remote .design-sync/.cache/remote-sync.json`
 - `ds-bundle/`, `.ds-sync/` and `.design-sync/.cache/` are gitignored and excluded from ESLint (eslint.config.mjs).
-- Drop cap font (2026-10-09): Pinyon Script (`fonts/pinyon-script-latin-400-normal.woff2`, from @fontsource/pinyon-script; `--font-pinyon` in tailwind.css) for `font-script`, used only by `Codex/DropCap`. Upload the woff2 and fonts.css on the next sync.
+- Drop cap font (2026-10-09): Pinyon Script (`fonts/pinyon-script-latin-400-normal.woff2`, from @fontsource/pinyon-script; `--font-pinyon` in tailwind.css) for `font-script`, used only by `Codex/DropCap`. It's listed in fonts.css (`extraFonts`), so package-build copies it into `fonts/` and the sync uploads it with the bundle; nothing to do by hand.
