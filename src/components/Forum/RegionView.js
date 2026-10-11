@@ -353,7 +353,7 @@ function RegionView({ region, setView, setActiveThread, onRequireAuth }) {
   return (
     <div className="h-full overflow-y-auto custom-scrollbar bg-ink-950">
       {/* Banner */}
-      <section className="relative shrink-0 overflow-hidden border-b border-gold-900/50 bg-ink-900 h-[clamp(14rem,56vw,18rem)] md:h-[clamp(16rem,25vw,26rem)]">
+      <section className="relative shrink-0 overflow-hidden border-b border-gold-900/50 bg-ink-900 h-[clamp(14rem,56vw,18rem)] md:h-[clamp(16rem,25vw,26rem)] short:h-48">
         {bannerUrl && (
           <img src={bannerUrl} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: bannerPos }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
         )}

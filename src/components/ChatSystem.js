@@ -308,7 +308,7 @@ function ChatSystem({ isOpen, onClose, initialChatUser, onUnreadCountChange }) {
 
     return (
         // FIX: Adjusted layout for mobile (inset-0) vs desktop (bottom-20 right-4 w-96)
-        <div className={`fixed z-50 flex flex-col bg-ink-900 border border-gold-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto ${isOpen ? '' : 'hidden'}`}>
+        <div className={`fixed z-50 flex flex-col bg-ink-900 border border-gold-900/50 shadow-2xl overflow-hidden animate-in slide-in-from-bottom-10 md:rounded-xl md:w-96 md:h-[500px] md:bottom-20 md:right-4 inset-0 md:inset-auto short:inset-0 short:w-auto short:h-auto short:rounded-none ${isOpen ? '' : 'hidden'}`}>
             <div className="bg-ink-950 p-3 border-b border-ink-800 flex justify-between items-center shrink-0">
                 <div className="flex items-center gap-2">
                     {activeChatId && (

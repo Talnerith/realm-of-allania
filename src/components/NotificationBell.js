@@ -92,7 +92,7 @@ export default function NotificationBell({ notifications = [] }) {
                     />
                     
                     {/* Dropdown Panel */}
-                    <div className="absolute right-0 mt-2 w-80 md:w-96 bg-ink-900 border border-ink-700 rounded-lg shadow-2xl z-50 max-h-[32rem] overflow-hidden flex flex-col">
+                    <div className="absolute right-0 mt-2 w-80 md:w-96 bg-ink-900 border border-ink-700 rounded-lg shadow-2xl z-50 max-h-[min(32rem,calc(100dvh-6rem))] short:max-h-[calc(100dvh-4.5rem)] overflow-hidden flex flex-col">
                         {/* Header */}
                         <div className="p-4 border-b border-ink-800 flex items-center justify-between sticky top-0 bg-ink-900">
                             <h3 className="font-bold text-ink-200 flex items-center gap-2">

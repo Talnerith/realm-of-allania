@@ -68,6 +68,10 @@
 /* `light:` variant for the few places light mode needs its own value */
 @custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
 
+/* `short:` for phones in landscape: md+ wide (so `md:` desktop styles apply)
+   but too short for desktop-sized overlays and bars */
+@custom-variant short (@media (max-height: 30rem));
+
 /* ==========================================================================
    Theme: data-theme="dark|light" and data-accent="gold|ember|brass|verdigris"
    (set on <html> by ThemeProvider). The palettes are fixed ramps; the theme

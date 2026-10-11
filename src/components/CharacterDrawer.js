@@ -274,7 +274,7 @@ export default function CharacterDrawer() {
         <>
             {isOpen && <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setIsOpen(false)} aria-hidden="true" />}
 
-            <div className={`fixed bottom-0 inset-x-0 z-50 flex flex-col bg-ink-950 shadow-2xl transition-[height] duration-300 ease-in-out ${isOpen ? 'h-[80vh] md:h-[500px]' : 'h-14 md:h-16'}`}>
+            <div className={`fixed bottom-0 inset-x-0 flex flex-col bg-ink-950 shadow-2xl transition-[height] duration-300 ease-in-out ${isOpen ? 'z-50 h-[80vh] md:h-[500px] max-h-[calc(100dvh-5rem)] short:max-h-[calc(100dvh-3.5rem)]' : 'z-30 h-14 md:h-16 short:h-14'}`}>
                 {/* Top edge: double gold rule with a centre gem */}
                 <div className="absolute inset-x-0 top-0 border-t border-gold-600 pointer-events-none" />
                 <div className="absolute inset-x-0 top-1 border-t border-gold-900 pointer-events-none" />
@@ -285,7 +285,7 @@ export default function CharacterDrawer() {
                     src={ROSTER_BANNER_IMG.src}
                     srcSet={ROSTER_BANNER_IMG.srcSet}
                     alt=""
-                    className="absolute z-[3] w-auto pointer-events-none left-[clamp(.5rem,1.5vw,1.25rem)] h-(--roster-emblem-h) top-[calc((60px-var(--roster-emblem-h))/2)] md:top-[calc((68px-var(--roster-emblem-h))/2)] drop-shadow-[0_4px_6px_rgb(0_0_0/.5)]"
+                    className="absolute z-[3] w-auto pointer-events-none left-[clamp(.5rem,1.5vw,1.25rem)] h-(--roster-emblem-h) top-[calc((60px-var(--roster-emblem-h))/2)] md:top-[calc((68px-var(--roster-emblem-h))/2)] short:top-[calc((60px-var(--roster-emblem-h))/2)] drop-shadow-[0_4px_6px_rgb(0_0_0/.5)]"
                     style={{ '--roster-emblem-h': 'clamp(76px, calc(68px + .9vw), 94px)' }}
                 />
 
@@ -296,7 +296,7 @@ export default function CharacterDrawer() {
                     tabIndex={0}
                     aria-expanded={isOpen}
                     aria-label={isOpen ? "Close Character Roster" : "Open Character Roster"}
-                    className="shrink-0 h-14 md:h-16 pt-1 pl-[6.5rem] md:pl-32 pr-3 md:pr-6 flex items-center gap-3 cursor-pointer hover:bg-ink-900 focus:bg-ink-900 focus:outline-none transition-colors"
+                    className="shrink-0 h-14 md:h-16 short:h-14 pt-1 pl-[6.5rem] md:pl-32 pr-3 md:pr-6 flex items-center gap-3 cursor-pointer hover:bg-ink-900 focus:bg-ink-900 focus:outline-none transition-colors"
                 >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                         <span className="font-serif font-bold text-gold-100 text-xl shrink-0 hidden md:inline">Character Roster</span>

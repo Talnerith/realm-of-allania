@@ -117,20 +117,19 @@ const MarkdownEditor = React.memo(function MarkdownEditor({
       {/* Editor / Preview Area */}
       <div className="relative w-full bg-ink-950">
         {isPreview ? (
-          <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-ink-900/30 max-w-none ${minHeight} max-h-[500px]`}>
+          <div className={`w-full p-4 overflow-y-auto custom-scrollbar bg-ink-900/30 max-w-none ${minHeight} max-h-[500px] short:max-h-[30dvh]`}>
             {value ? <RichText content={value} className="font-serif text-lg leading-[1.55] text-ink-200" onWikiLink={onWikiLink} /> : <span className="text-ink-500 italic">Nothing to preview...</span>}
           </div>
         ) : (
           <textarea
             ref={textareaRef}
             aria-label={placeholder}
-            className={`w-full bg-ink-950 p-4 text-ink-200 placeholder:text-ink-500 focus:outline-none font-serif text-lg leading-[1.55] resize-none block custom-scrollbar ${minHeight}`}
+            className={`w-full bg-ink-950 p-4 text-ink-200 placeholder:text-ink-500 focus:outline-none font-serif text-lg leading-[1.55] resize-none block custom-scrollbar ${minHeight} max-h-[500px] short:max-h-[30dvh]`}
             placeholder={placeholder}
             value={value}
             onChange={onChange}
             disabled={disabled}
             maxLength={maxLength || undefined}
-            style={{ maxHeight: '500px' }}
           />
         )}
         {nearLimit && (

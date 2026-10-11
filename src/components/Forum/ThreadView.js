@@ -513,7 +513,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
     return (
         <div ref={scrollContainerRef} className="h-full overflow-y-auto custom-scrollbar bg-ink-950">
             {/* Banner */}
-            <section className="relative overflow-hidden border-b border-gold-900/50 bg-[rgb(8_10_15)] h-[clamp(14rem,56vw,18rem)] md:h-[clamp(16rem,25vw,26rem)]">
+            <section className="relative overflow-hidden border-b border-gold-900/50 bg-[rgb(8_10_15)] h-[clamp(14rem,56vw,18rem)] md:h-[clamp(16rem,25vw,26rem)] short:h-48">
                 {banner && <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: bannerPos }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                 <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(90deg,rgb(8_10_15/.92)_0%,rgb(8_10_15/.72)_40%,rgb(8_10_15/.15)_78%),linear-gradient(0deg,rgb(8_10_15/.55),transparent_55%)]" />
                 <div className="absolute inset-0 flex items-center px-4 md:px-8 lg:px-12">
@@ -653,7 +653,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                     )}
 
                     {/* Reply box: floats above the roster bar while the thread is in view */}
-                    <div className="sticky bottom-20 z-30">
+                    <div className="sticky bottom-20 short:bottom-16 z-30">
                         {!user ? (
                             <div className="rounded-[14px] bg-ink-900 border border-gold-900/50 p-4 flex items-center justify-between gap-3 shadow-[0_-8px_32px_rgb(0_0_0/.35)]">
                                 <div className="flex items-center gap-3 min-w-0">
@@ -678,7 +678,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                                 </button>
                             </div>
                         ) : (
-                            <div className="rounded-[14px] bg-ink-900 border border-gold-700 p-4 flex flex-col gap-3 shadow-[0_-8px_40px_rgb(0_0_0/.45)]">
+                            <div className="rounded-[14px] bg-ink-900 border border-gold-700 p-4 short:p-3 flex flex-col gap-3 short:gap-2 shadow-[0_-8px_40px_rgb(0_0_0/.45)]">
                                 <div className="flex items-center gap-3">
                                     <Avatar name={activeChar?.name} imageUrl={activeChar?.imageUrl} imagePosition={activeChar?.imagePosition} className="w-10 h-10 text-lg" />
                                     <div className="flex-1 min-w-0">
@@ -697,7 +697,7 @@ function ThreadView({ thread, setView, region, onOpenCodex, onNavigateToRegion, 
                                     value={replyContent}
                                     onChange={(e) => { setReplyContent(e.target.value); if (replyError) setReplyError(null); }}
                                     placeholder="Write your character's next move…"
-                                    minHeight="min-h-[8rem]"
+                                    minHeight="min-h-[8rem] short:min-h-[4.5rem]"
                                     onPost={handleReply}
                                     submitLabel={cooldown ? 'Cooling…' : 'Post reply'}
                                     disabled={isSending || cooldown}

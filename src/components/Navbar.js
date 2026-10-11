@@ -140,7 +140,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
   );
 
   return (
-    <header ref={headerRef} className="relative z-40 h-20 shrink-0 bg-ink-950 border-b border-gold-900/50">
+    <header ref={headerRef} className="relative z-40 h-20 short:h-14 shrink-0 bg-ink-950 border-b border-gold-900/50">
       <div className="h-full flex items-center gap-3 px-4 md:px-6">
         {/* 1. Brand */}
         <div className="h-full flex flex-1 basis-0 items-center min-w-0">
@@ -150,9 +150,9 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
             aria-label="Realm of Allania, go to World Map"
             className="h-full flex items-center gap-3 min-w-0 text-left"
           >
-            <img src={CREST_IMG.src} srcSet={CREST_IMG.srcSet} alt="" className="h-12 w-auto shrink-0 block" />
+            <img src={CREST_IMG.src} srcSet={CREST_IMG.srcSet} alt="" className="h-12 short:h-9 w-auto shrink-0 block" />
             <span className="flex flex-col min-w-0">
-              <span className="font-serif font-bold text-gold-100 leading-none text-xl md:text-3xl whitespace-nowrap">Realm of Allania</span>
+              <span className="font-serif font-bold text-gold-100 leading-none text-xl md:text-3xl short:text-2xl whitespace-nowrap">Realm of Allania</span>
               <span className="text-gold-500 uppercase leading-none text-[clamp(.625rem,.4rem+.5vw,.8125rem)] tracking-[.32em] mt-[.4rem]">Chronicles</span>
             </span>
           </button>
@@ -278,7 +278,7 @@ function Navbar({ currentView, setView, onSearch, onToggleChat, onLoginClick, un
 
       {/* 5. Menu below lg: the same items as the tabs and the account menu */}
       {mobileMenuOpen && (
-        <div className="lg:hidden absolute inset-x-0 top-full bg-ink-950 border-b border-gold-900/50 shadow-(--card-shadow) p-3 flex flex-col gap-1">
+        <div className="lg:hidden absolute inset-x-0 top-full max-h-[calc(100dvh-5rem)] short:max-h-[calc(100dvh-3.5rem)] overflow-y-auto custom-scrollbar bg-ink-950 border-b border-gold-900/50 shadow-(--card-shadow) p-3 flex flex-col gap-1">
           {NAV_ITEMS.map(item => (
             <button
               key={item.id}

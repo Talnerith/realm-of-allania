@@ -177,8 +177,8 @@ export default function AuthScreen({ onLegalClick, currentView, onBack }) {
     <div className="min-h-screen bg-ink-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[url('/images/map-backdrop.webp')] bg-cover opacity-10 blur-sm"></div>
 
-      <div className="max-w-md w-full bg-ink-900/90 border border-gold-900/50 rounded-xl p-8 shadow-2xl relative z-10 backdrop-blur-md">
-        <div className="text-center mb-8">
+      <div className="max-w-md w-full bg-ink-900/90 border border-gold-900/50 rounded-xl p-8 short:p-5 shadow-2xl relative z-10 backdrop-blur-md">
+        <div className="text-center mb-8 short:mb-4">
           <div className="inline-flex p-3 rounded-full bg-ink-950 border border-gold-900/50 mb-4">
             <Crown className="w-8 h-8 text-gold-500" />
           </div>
