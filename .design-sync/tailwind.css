@@ -38,6 +38,11 @@
 @source inline("{,md:,lg:}col-span-{1,2,3,4,6,12}");
 @source inline("{relative,absolute,fixed,sticky,inset-0,top-0,right-0,bottom-0,left-0,z-0,z-10,z-20,z-30,z-40,z-50,overflow-hidden,overflow-auto,overflow-y-auto,overflow-x-auto}");
 
+/* Phones held sideways: dynamic viewport heights and the short: variant */
+@source inline("{h,min-h,max-h}-dvh");
+@source inline("{max-h-[calc(100dvh-5rem)],short:max-h-[calc(100dvh-3.5rem)]}");
+@source inline("short:{hidden,flex,block,h-14,h-48,p-3,p-5,gap-2,text-2xl,inset-0,rounded-none,overflow-y-auto}");
+
 /* Surfaces and motion */
 @source inline("rounded{,-none,-sm,-md,-lg,-xl,-2xl,-3xl,-full}");
 @source inline("{border,border-0,border-2,border-t,border-b,border-l,border-r,border-dashed}");

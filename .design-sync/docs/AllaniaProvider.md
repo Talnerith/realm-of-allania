@@ -39,7 +39,7 @@ interface AllaniaProviderProps {
 
 ```jsx
 <AllaniaProvider>
-  <div className="h-screen flex flex-col bg-ink-950 text-ink-200">
+  <div className="h-dvh flex flex-col bg-ink-950 text-ink-200">
     <ThreadView thread={{ id: 't-ember', title: 'Smoke over the Ember Road' }} region={{ id: 125, name: 'Thornwatch Ridge' }} />
   </div>
 </AllaniaProvider>

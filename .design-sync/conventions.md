@@ -10,7 +10,7 @@ Every component reads the signed-in player and game data through it. Without it 
 const { AllaniaProvider, Navbar, ThreadView } = window.Allania;
 
 <AllaniaProvider>                      {/* signed-in sample player, role "user" */}
-  <div className="h-screen flex flex-col bg-ink-950 text-ink-200">
+  <div className="h-dvh flex flex-col bg-ink-950 text-ink-200">
     <Navbar currentView="thread" unreadCount={2} />
     <ThreadView thread={{ id: 't-ember', title: 'Smoke over the Ember Road' }} region={{ id: 125, name: 'Thornwatch Ridge' }} />
   </div>
@@ -21,7 +21,9 @@ Props: `theme="dark" | "light" | "system"`, `accent="gold" | "ember" | "brass" |
 
 **Sample world** (served automatically; replace via `data`): regions `125` Thornwatch Ridge, `130` The Saltmarsh Reach, `166` Emberfall Keep, `190` Silverwood (empty); threads `t-ember`, `t-watch` (locked "Sacred Text"), `t-relic`, `t-marsh`, `t-keep`; codex pages `k-keep`, `k-oath`, `k-aldric`, `k-silver`; player characters `c-aldric` (Aldric Vane), `c-lyra` (Lyra Moonwhisper). Components fetch their own data from this world: give `ThreadView` a thread id and `RegionView` a region id; don't pass posts in.
 
-**Full-screen views** (`ThreadView`, `RegionView`, `WorldMapPage`, `CodexIndex`, `SearchResults`, `LegalDocs`) fill their parent's height. Put them in a flex column with a real height (`h-screen flex flex-col`). `CharacterDrawer`, `ChatSystem` (`isOpen`), `ActiveUsers` (`isOpen`) and `CookieBanner` are fixed-position overlays.
+**Full-screen views** (`ThreadView`, `RegionView`, `WorldMapPage`, `CodexIndex`, `SearchResults`, `LegalDocs`) fill their parent's height. Put them in a flex column with a real height (`h-dvh flex flex-col`). `CharacterDrawer`, `ChatSystem` (`isOpen`), `ActiveUsers` (`isOpen`) and `CookieBanner` are fixed-position overlays.
+
+**Phones held sideways.** `md:` and `lg:` go by width only, so a phone turned sideways (about 844×390) gets the desktop layout on a screen just 375–430px tall. Use `h-dvh` rather than `h-screen` (it tracks the visible height under mobile browser toolbars). Never give a fixed overlay, drawer, dialog or menu a bare desktop height like `md:h-[500px]`: cap it with `max-h-[calc(100dvh-5rem)]` (`short:max-h-[calc(100dvh-3.5rem)]`) or let it scroll (`overflow-y-auto`), so its close button stays on screen. The `short:` variant (screens under 480px tall) compacts things there: the Navbar drops to 56px, the roster bar to 56px, banners to `h-48`, and `ChatSystem` goes full-screen. Check designs at 844×390 as well as phone and desktop sizes.
 
 ## Themes
 
@@ -44,7 +46,7 @@ Use these families. Arbitrary values (`w-[523px]`) and unlisted colors are not c
 | Danger / success / info | `text-red-400 bg-red-950 border-red-900`, `text-emerald-400`, `text-cyan-400` |
 | Tints | `bg-gold-900/30`, `bg-ink-900/50`, `bg-black/60` (opacities 10–90 on ink/gold 500–950) |
 | Type | `font-serif` (Cormorant: titles, character names, story text), `font-sans` (Inter, default); sizes `text-2xs` (smallest, 11px) … `text-7xl`; `uppercase tracking-widest` for small labels |
-| Layout | flex/grid (`grid-cols-1..6`, `md:` / `lg:` variants), spacing `p-*`/`gap-*` 0–24, `max-w-xs..7xl`, `rounded-sm..full`, `shadow-*` |
+| Layout | flex/grid (`grid-cols-1..6`, `md:` / `lg:` variants, `short:` for sideways phones), `h-dvh`, spacing `p-*`/`gap-*` 0–24, `max-w-xs..7xl`, `rounded-sm..full`, `shadow-*` |
 
 Ramps: `ink-50…950` (neutrals) and `gold-50…950` (accent), each 50, 100–900, 950. Story text pattern: `font-serif text-[1.1875rem] md:text-[1.3125rem] leading-[1.7] text-(color:--story) max-w-[40rem]`. Section title: `font-serif text-3xl text-gold-500`.
 
@@ -55,7 +57,7 @@ Ramps: `ink-50…950` (neutrals) and `gold-50…950` (accent), each 50, 100–90
 
 ## Navbar
 
-`Navbar` is the site header on every page (80px, `bg-ink-950`, `gold-900/50` bottom border): the tree-shield crest with "Realm of Allania / CHRONICLES", the World Map · Codex · Members · Search tabs (lg and up; the active one has a 2px `gold-500` underline, and World Map stays active on region and thread pages), then messages, the notification bell and the account menu (Appearance theme switch, Moderation for staff, Legal and Terms, Sign out). Search opens a site search panel under the bar; Members opens `ActiveUsers`. Below lg the tabs and account items move into the hamburger menu. Use the component as is; don't rebuild a header. Posts carry a like button (heart + count, one like per player, not on your own posts).
+`Navbar` is the site header on every page (80px, 56px on sideways phones, `bg-ink-950`, `gold-900/50` bottom border): the tree-shield crest with "Realm of Allania / CHRONICLES", the World Map · Codex · Members · Search tabs (lg and up; the active one has a 2px `gold-500` underline, and World Map stays active on region and thread pages), then messages, the notification bell and the account menu (Appearance theme switch, Moderation for staff, Legal and Terms, Sign out). Search opens a site search panel under the bar; Members opens `ActiveUsers`. Below lg the tabs and account items move into the hamburger menu. Use the component as is; don't rebuild a header. Posts carry a like button (heart + count, one like per player, not on your own posts).
 
 ## Pages
 
