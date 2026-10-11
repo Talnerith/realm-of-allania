@@ -89,3 +89,8 @@ How this repo syncs to Claude Design (project "Realm of Allania", id in config.j
 ## Re-sync 2026-10-09 (after the security review)
 - All 26 components came back `unchanged` for verification; the upload was the bundle, styling, README and MarkdownEditor's `.d.ts` (new `maxLength` prop, added to `dtsPropsFor`). Render check 26/26, 0 bad; the 26 `[RENDER_THIN]` warns are the known `display: contents` one; `[DOCS_UNMAPPED]` on every component is expected (prompts are synthesized from `dtsPropsFor` + previews).
 - `hostedImageUrl` (src/lib/imageUrls.js) now refuses anything but this bucket's objects and the site's own paths, so the ImageUploader preview's inline `data:` crest disappeared. Fixed in the app: with no bucket configured (build-dist defines `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` as `""`), `data:image/...` is accepted too, and conventions.md says so. **Re-sync risk:** if build-dist ever defines a real bucket, every `data:` image in previews and designs goes blank again; check the ImageUploader card.
+
+## Re-sync 2026-10-11 (landscape phones)
+- All 26 components came back `unchanged` for verification; the upload was the bundle, styling, README (new "Phones held sideways" section in conventions.md) and the AllaniaProvider/ThreadView prompts (`h-dvh` examples). Render check 26/26, 0 bad; the 26 `[RENDER_THIN]` warns are the known `display: contents` one. No deletes.
+- `tailwind.css` now safelists `h-dvh`/`min-h-dvh`/`max-h-dvh` and common `short:` utilities. The `short:` variant (`max-height: 30rem`) is defined in `src/app/globals.css`; if it is renamed there, update the safelist and conventions.md together.
+- Save the fetched `_ds_sync.json` with the Write tool: a bash heredoc of it failed on Windows Git Bash ("unexpected EOF").
